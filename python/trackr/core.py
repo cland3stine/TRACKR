@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 from threading import RLock, Timer
 import time
 from typing import Any, Callable
@@ -55,26 +56,24 @@ class TrackrCore:
         self._startup_probe_count = 6
         self._startup_probe_interval_seconds = 0.5
         self._last_metadata_wait_status_at = 0.0
+        self._pending_start_config: TrackrConfig | None = None
+        self._pending_start_runtime_options: dict[str, Any] | None = None
+        self._pending_start_home_dir: Path | None = None
 
     def start(self, config: dict[str, Any] | TrackrConfig | None) -> dict[str, Any]:
         with self._lock:
             if self._app_state == "running":
                 return _ok({"status": self._snapshot_status()})
 
-            self._set_state("starting", "starting")
             try:
-                self._stop_api_server()
-                self._stop_listener_pipeline()
-                if self._db is not None:
-                    self._db.close()
-                    self._db = None
-                    self._templates = None
-                    self._writer = None
-
                 runtime_options, next_config = self._coerce_config(config)
-                resolution = resolve_output_root(next_config)
+                home_dir = self._extract_home_dir(runtime_options)
+                resolution = resolve_output_root(next_config, home_dir=home_dir)
                 if resolution.state == OUTPUT_ROOT_STATE_NEEDS_USER_CHOICE:
-                    self._set_state("stopped", "output root choice required")
+                    self._pending_start_config = next_config
+                    self._pending_start_runtime_options = dict(runtime_options)
+                    self._pending_start_home_dir = home_dir
+                    self._set_state("needs_user_choice", "output root choice required")
                     return _ok(self._output_root_payload(resolution, needs_user_choice=True))
                 if resolution.state != OUTPUT_ROOT_STATE_RESOLVED or resolution.output_root is None:
                     raise RuntimeError("unable to resolve output root")
@@ -82,46 +81,10 @@ class TrackrCore:
                     resolution.output_root,
                     migration_prompt_seen=resolution.migration_prompt_seen,
                 )
-
-                self._config = next_config
-                self._configure_runtime_pipeline(runtime_options)
-                self._db = TrackrDatabase(next_config.db_path)
-                self._writer = OutputWriter(
-                    output_root=next_config.output_root,
-                    timestamps_enabled=next_config.timestamps_enabled,
-                    delay_seconds=next_config.delay_seconds,
-                )
-                session_file = self._writer.start_new_session()
-                self._writer.ensure_overlay_nowplaying_exists()
-
-                self._templates = TemplateStore(next_config.output_root, self._db)
-                self._templates.ensure_template_file()
-
-                self._running_tracklist.clear()
-                self._last_published_line = None
-                self._set_state("running", "running")
-                self._status_text = "listening (close rekordbox on this PC)"
-
-                if next_config.api_enabled:
-                    self._api_server = TrackrApiServer(
-                        bind_host=next_config.effective_bind_host,
-                        port=next_config.api_port,
-                        nowplaying_provider=self._api_nowplaying_payload,
-                        health_provider=self._api_health_payload,
-                    )
-                    self._api_server.start()
-
-                self._start_device_listener(runtime_options.get("device_bridge"))
-
-                self._emit(
-                    "api_rebound",
-                    {
-                        "enabled": next_config.api_enabled,
-                        "bind_host": next_config.effective_bind_host if next_config.api_enabled else None,
-                        "port": next_config.api_port if next_config.api_enabled else None,
-                    },
-                )
-                return _ok({"session_file_name": session_file.name, "status": self._snapshot_status()})
+                self._pending_start_config = None
+                self._pending_start_runtime_options = None
+                self._pending_start_home_dir = None
+                return self._start_with_resolved_config(next_config, runtime_options)
             except Exception as exc:
                 self._stop_api_server()
                 self._stop_listener_pipeline()
@@ -146,7 +109,27 @@ class TrackrCore:
     def set_output_root_choice(self, choice: str) -> dict[str, Any]:
         with self._lock:
             try:
-                resolution = persist_output_root_choice(choice)
+                home_dir = self._pending_start_home_dir
+                resolution = persist_output_root_choice(choice, home_dir=home_dir)
+                pending_config = self._pending_start_config
+                pending_runtime_options = dict(self._pending_start_runtime_options or {})
+                self._pending_start_config = None
+                self._pending_start_runtime_options = None
+                self._pending_start_home_dir = None
+
+                if pending_config is not None and resolution.output_root is not None:
+                    resumed_config = pending_config.with_output_root(
+                        resolution.output_root,
+                        migration_prompt_seen=True,
+                    )
+                    start_result = self._start_with_resolved_config(resumed_config, pending_runtime_options)
+                    if not start_result.get("ok"):
+                        return start_result
+                    data = self._output_root_payload(resolution)
+                    data["startup"] = dict(start_result.get("data") or {})
+                    data["status"] = self._snapshot_status()
+                    return _ok(data)
+
                 if self._config is not None and resolution.output_root is not None:
                     self._config = self._config.with_output_root(
                         resolution.output_root,
@@ -302,6 +285,59 @@ class TrackrCore:
         self._startup_probe_interval_seconds = max(0.1, probe_interval_ms / 1000.0)
         self._last_metadata_wait_status_at = 0.0
 
+    def _start_with_resolved_config(
+        self,
+        next_config: TrackrConfig,
+        runtime_options: dict[str, Any],
+    ) -> dict[str, Any]:
+        self._set_state("starting", "starting")
+        self._stop_api_server()
+        self._stop_listener_pipeline()
+        if self._db is not None:
+            self._db.close()
+            self._db = None
+            self._templates = None
+            self._writer = None
+
+        self._config = next_config
+        self._configure_runtime_pipeline(runtime_options)
+        self._db = TrackrDatabase(next_config.db_path)
+        self._writer = OutputWriter(
+            output_root=next_config.output_root,
+            timestamps_enabled=next_config.timestamps_enabled,
+            delay_seconds=next_config.delay_seconds,
+        )
+        session_file = self._writer.start_new_session()
+        self._writer.ensure_overlay_nowplaying_exists()
+
+        self._templates = TemplateStore(next_config.output_root, self._db)
+        self._templates.ensure_template_file()
+
+        self._running_tracklist.clear()
+        self._last_published_line = None
+        self._set_state("running", "running")
+        self._status_text = "listening (close rekordbox on this PC)"
+
+        if next_config.api_enabled:
+            self._api_server = TrackrApiServer(
+                bind_host=next_config.effective_bind_host,
+                port=next_config.api_port,
+                nowplaying_provider=self._api_nowplaying_payload,
+                health_provider=self._api_health_payload,
+            )
+            self._api_server.start()
+
+        self._start_device_listener(runtime_options.get("device_bridge"))
+        self._emit(
+            "api_rebound",
+            {
+                "enabled": next_config.api_enabled,
+                "bind_host": next_config.effective_bind_host if next_config.api_enabled else None,
+                "port": next_config.api_port if next_config.api_enabled else None,
+            },
+        )
+        return _ok({"session_file_name": session_file.name, "status": self._snapshot_status()})
+
     def _coerce_config(
         self,
         config: dict[str, Any] | TrackrConfig | None,
@@ -313,6 +349,16 @@ class TrackrCore:
             runtime_options = config
             return runtime_options, TrackrConfig.from_dict(config)
         return runtime_options, TrackrConfig.from_dict(config)
+
+    def _extract_home_dir(self, options: dict[str, Any]) -> Path | None:
+        home_dir = options.get("home_dir")
+        if home_dir is None:
+            return None
+        if isinstance(home_dir, Path):
+            return home_dir
+        if isinstance(home_dir, str) and home_dir.strip():
+            return Path(home_dir)
+        return None
 
     def _output_root_payload(
         self,

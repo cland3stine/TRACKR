@@ -566,13 +566,14 @@ export default function TRACKR() {
         return;
       }
       applyOutputRootResolution(res.data);
+      await refreshFromCore();
       if (choice === "legacy") {
         addToast("Using NowPlayingLite output folder.", "info");
       } else {
         addToast("Switched output folder to TRACKR.", "success");
       }
     },
-    [addToast, applyOutputRootResolution, callCore]
+    [addToast, applyOutputRootResolution, callCore, refreshFromCore]
   );
 
   const handleApiEnabledChange = useCallback(
