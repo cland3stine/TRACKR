@@ -21,7 +21,7 @@ class TrackrConfig:
 
     @staticmethod
     def default_output_root() -> Path:
-        return Path.home() / "NowPlayingLite"
+        return Path.home() / "TRACKR"
 
     @property
     def effective_bind_host(self) -> str:

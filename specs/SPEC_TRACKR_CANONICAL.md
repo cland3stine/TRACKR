@@ -3,11 +3,12 @@
 ## 1. Scope and Authority
 - This document is the canonical behavior spec for the Python rewrite renamed `TRACKR`.
 - `ui/trackr-dashboard.jsx` is the UI layout contract and must not be redesigned by core implementation work.
-- The output root remains `%USERPROFILE%\NowPlayingLite` for this phase.
+- The default output root is `%USERPROFILE%\TRACKR` for this phase.
+- Output root remains user-configurable where configuration is supported.
 - This spec supersedes legacy output behavior from Java where explicitly marked as removed.
 
 ## 2. Locked Output Contract
-TRACKR writes only the following artifacts under `%USERPROFILE%\NowPlayingLite`:
+By default, TRACKR writes the following artifacts under `%USERPROFILE%\TRACKR`:
 
 1. `overlay/nowplaying.txt`
 2. `overlay/nowplaying.html`
@@ -101,7 +102,7 @@ Play count increments only after step 1 succeeds.
 - Refresh must reset session dedupe memory.
 
 ## 7. Play Count (Locked)
-- Store all-time play count in SQLite DB: `%USERPROFILE%\NowPlayingLite\trackr.db`.
+- Store all-time play count in SQLite DB: default `%USERPROFILE%\TRACKR\trackr.db`.
 - Increment only on successful publish after delay+dedupe and after overlay txt write.
 - Show play count only in running tracklist UI.
 - Text/HTML output files must never include play count.
