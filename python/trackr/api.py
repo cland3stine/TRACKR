@@ -3,9 +3,10 @@ from __future__ import annotations
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
+from urllib.parse import urlparse
 from typing import Any, Callable
 
-JsonProvider = Callable[[], dict[str, Any]]
+RouteHandler = Callable[[dict[str, Any] | None], tuple[int, dict[str, Any]]]
 
 
 class _TrackrHttpServer(ThreadingHTTPServer):
@@ -14,31 +15,74 @@ class _TrackrHttpServer(ThreadingHTTPServer):
     def __init__(
         self,
         server_address: tuple[str, int],
-        nowplaying_provider: JsonProvider,
-        health_provider: JsonProvider,
+        route_handlers: dict[tuple[str, str], RouteHandler],
     ) -> None:
-        self.nowplaying_provider = nowplaying_provider
-        self.health_provider = health_provider
+        self.route_handlers = dict(route_handlers)
         super().__init__(server_address, _TrackrApiHandler)
 
 
 class _TrackrApiHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
-        if self.path == "/health":
-            payload = self.server.health_provider()  # type: ignore[attr-defined]
-            self._send_json(200, payload)
-            return
+        self._dispatch("GET", None)
 
-        if self.path == "/nowplaying":
-            payload = self.server.nowplaying_provider()  # type: ignore[attr-defined]
-            self._send_json(200, payload)
+    def do_POST(self) -> None:  # noqa: N802
+        body = self._read_json_body()
+        if isinstance(body, tuple):
+            status, payload = body
+            self._send_json(status, payload)
             return
+        self._dispatch("POST", body)
 
-        self._send_json(404, {"error": "not_found"})
+    def _dispatch(self, method: str, body: dict[str, Any] | None) -> None:
+        path = urlparse(self.path).path
+        key = (method.upper(), path)
+        handler = self.server.route_handlers.get(key)  # type: ignore[attr-defined]
+        if handler is None:
+            self._send_json(404, {"ok": False, "error": {"code": "not_found", "message": "route not found"}})
+            return
+        try:
+            status, payload = handler(body)
+        except Exception as exc:
+            self._send_json(
+                500,
+                {"ok": False, "error": {"code": "internal_error", "message": str(exc)}},
+            )
+            return
+        self._send_json(status, payload)
 
     def log_message(self, _format: str, *_args: Any) -> None:
         # Keep tests and normal runtime quiet.
         return
+
+    def _read_json_body(self) -> dict[str, Any] | tuple[int, dict[str, Any]]:
+        length_raw = self.headers.get("Content-Length")
+        if not length_raw:
+            return {}
+        try:
+            length = int(length_raw)
+        except ValueError:
+            return 400, {
+                "ok": False,
+                "error": {"code": "invalid_request", "message": "invalid content length"},
+            }
+        if length <= 0:
+            return {}
+        raw = self.rfile.read(length)
+        if not raw:
+            return {}
+        try:
+            parsed = json.loads(raw.decode("utf-8"))
+        except Exception:
+            return 400, {
+                "ok": False,
+                "error": {"code": "invalid_json", "message": "request body must be valid JSON"},
+            }
+        if not isinstance(parsed, dict):
+            return 400, {
+                "ok": False,
+                "error": {"code": "invalid_request", "message": "request body must be a JSON object"},
+            }
+        return dict(parsed)
 
     def _send_json(self, status_code: int, payload: dict[str, Any]) -> None:
         raw = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
@@ -54,13 +98,11 @@ class TrackrApiServer:
         self,
         bind_host: str,
         port: int,
-        nowplaying_provider: JsonProvider,
-        health_provider: JsonProvider,
+        route_handlers: dict[tuple[str, str], RouteHandler],
     ) -> None:
         self._bind_host = bind_host
         self._port = int(port)
-        self._nowplaying_provider = nowplaying_provider
-        self._health_provider = health_provider
+        self._route_handlers = dict(route_handlers)
         self._server: _TrackrHttpServer | None = None
         self._thread: Thread | None = None
 
@@ -77,8 +119,7 @@ class TrackrApiServer:
             return
         self._server = _TrackrHttpServer(
             (self._bind_host, self._port),
-            nowplaying_provider=self._nowplaying_provider,
-            health_provider=self._health_provider,
+            route_handlers=self._route_handlers,
         )
         self._thread = Thread(target=self._server.serve_forever, daemon=True)
         self._thread.start()

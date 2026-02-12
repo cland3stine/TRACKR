@@ -7,8 +7,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Callable, Iterator
 from uuid import uuid4
-from urllib.error import URLError
-from urllib.request import urlopen
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 import json
 
 
@@ -33,6 +33,29 @@ def find_free_port() -> int:
 def get_json(url: str) -> dict:
     with urlopen(url, timeout=2.0) as response:
         return json.loads(response.read().decode("utf-8"))
+
+
+def request_json(
+    url: str,
+    method: str = "GET",
+    payload: dict | None = None,
+    timeout_seconds: float = 2.0,
+) -> tuple[int, dict]:
+    data = None
+    headers = {}
+    if payload is not None:
+        data = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+    request = Request(url=url, data=data, headers=headers, method=method.upper())
+    try:
+        with urlopen(request, timeout=timeout_seconds) as response:
+            body = response.read().decode("utf-8")
+            parsed = json.loads(body) if body else {}
+            return int(response.status), parsed
+    except HTTPError as exc:
+        body = exc.read().decode("utf-8")
+        parsed = json.loads(body) if body else {}
+        return int(exc.code), parsed
 
 
 def wait_get_json(url: str, timeout_seconds: float = 2.0) -> dict:

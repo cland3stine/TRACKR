@@ -121,20 +121,35 @@ class PersistedRootConfig:
     migration_prompt_seen: bool = False
 
 
+def _load_prefs_payload(home_dir: Path | None = None) -> dict[str, Any]:
+    path = _prefs_path(home_dir)
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    return dict(payload)
+
+
+def _save_prefs_payload(payload: Mapping[str, Any], home_dir: Path | None = None) -> None:
+    path = _prefs_path(home_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(dict(payload), separators=(",", ":"), ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+
 def _prefs_path(home_dir: Path | None = None) -> Path:
     home = home_dir or Path.home()
     return home / _PREFS_FILE_NAME
 
 
 def load_persisted_root_config(home_dir: Path | None = None) -> PersistedRootConfig:
-    path = _prefs_path(home_dir)
-    if not path.exists():
-        return PersistedRootConfig()
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return PersistedRootConfig()
-
+    payload = _load_prefs_payload(home_dir)
     output_root_raw = payload.get("output_root")
     output_root = Path(output_root_raw) if isinstance(output_root_raw, str) and output_root_raw.strip() else None
     migration_prompt_seen = bool(payload.get("migration_prompt_seen", False))
@@ -146,14 +161,26 @@ def save_persisted_root_config(
     migration_prompt_seen: bool,
     home_dir: Path | None = None,
 ) -> PersistedRootConfig:
-    path = _prefs_path(home_dir)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "output_root": str(output_root) if output_root is not None else None,
-        "migration_prompt_seen": bool(migration_prompt_seen),
-    }
-    path.write_text(json.dumps(payload, separators=(",", ":"), ensure_ascii=False), encoding="utf-8")
+    payload = _load_prefs_payload(home_dir)
+    payload["output_root"] = str(output_root) if output_root is not None else None
+    payload["migration_prompt_seen"] = bool(migration_prompt_seen)
+    _save_prefs_payload(payload, home_dir=home_dir)
     return PersistedRootConfig(output_root=output_root, migration_prompt_seen=bool(migration_prompt_seen))
+
+
+def load_persisted_config(home_dir: Path | None = None) -> TrackrConfig:
+    payload = _load_prefs_payload(home_dir)
+    try:
+        return TrackrConfig.from_dict(payload)
+    except Exception:
+        return TrackrConfig.from_dict({})
+
+
+def save_persisted_config(config: TrackrConfig, home_dir: Path | None = None) -> TrackrConfig:
+    payload = _load_prefs_payload(home_dir)
+    payload.update(config.to_dict())
+    _save_prefs_payload(payload, home_dir=home_dir)
+    return load_persisted_config(home_dir=home_dir)
 
 
 def resolve_output_root(config: TrackrConfig, home_dir: Path | None = None) -> OutputRootResolution:

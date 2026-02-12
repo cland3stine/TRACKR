@@ -11,8 +11,10 @@ from trackr.config import (
     OUTPUT_ROOT_STATE_NEEDS_USER_CHOICE,
     OUTPUT_ROOT_STATE_RESOLVED,
     TrackrConfig,
+    load_persisted_config,
     persist_output_root_choice,
     resolve_output_root,
+    save_persisted_config,
 )
 from trackr.db import TrackrDatabase
 from trackr.device_bridge import DeckStatus, DeviceBridge, NullDeviceBridge
@@ -59,6 +61,7 @@ class TrackrCore:
         self._pending_start_config: TrackrConfig | None = None
         self._pending_start_runtime_options: dict[str, Any] | None = None
         self._pending_start_home_dir: Path | None = None
+        self._config_home_dir: Path | None = None
 
     def start(self, config: dict[str, Any] | TrackrConfig | None) -> dict[str, Any]:
         with self._lock:
@@ -68,6 +71,8 @@ class TrackrCore:
             try:
                 runtime_options, next_config = self._coerce_config(config)
                 home_dir = self._extract_home_dir(runtime_options)
+                if home_dir is not None:
+                    self._config_home_dir = home_dir
                 resolution = resolve_output_root(next_config, home_dir=home_dir)
                 if resolution.state == OUTPUT_ROOT_STATE_NEEDS_USER_CHOICE:
                     self._pending_start_config = next_config
@@ -100,8 +105,9 @@ class TrackrCore:
     def resolve_output_root(self, config: dict[str, Any] | TrackrConfig | None = None) -> dict[str, Any]:
         with self._lock:
             try:
-                _runtime_options, next_config = self._coerce_config(config)
-                resolution = resolve_output_root(next_config)
+                runtime_options, next_config = self._coerce_config(config)
+                home_dir = self._extract_home_dir(runtime_options) or self._pending_start_home_dir or self._config_home_dir
+                resolution = resolve_output_root(next_config, home_dir=home_dir)
                 return _ok(self._output_root_payload(resolution))
             except Exception as exc:
                 return _err("resolve_output_root_failed", str(exc))
@@ -110,6 +116,8 @@ class TrackrCore:
         with self._lock:
             try:
                 home_dir = self._pending_start_home_dir
+                if home_dir is not None:
+                    self._config_home_dir = home_dir
                 resolution = persist_output_root_choice(choice, home_dir=home_dir)
                 pending_config = self._pending_start_config
                 pending_runtime_options = dict(self._pending_start_runtime_options or {})
@@ -167,6 +175,41 @@ class TrackrCore:
         if not stop_result["ok"]:
             return stop_result
         return self.start(config)
+
+    def get_config(self) -> dict[str, Any]:
+        with self._lock:
+            config = self._effective_config_locked()
+            return _ok(config.to_dict())
+
+    def set_config(self, config: dict[str, Any] | TrackrConfig | None) -> dict[str, Any]:
+        with self._lock:
+            try:
+                if isinstance(config, TrackrConfig):
+                    next_config = config
+                    home_dir = self._pending_start_home_dir or self._config_home_dir
+                else:
+                    data = dict(config or {})
+                    home_dir = self._extract_home_dir(data) or self._pending_start_home_dir or self._config_home_dir
+                    base = self._effective_config_locked(home_dir=home_dir)
+                    merged = base.to_dict()
+                    merged.update(data)
+                    next_config = TrackrConfig.from_dict(merged)
+
+                if home_dir is not None:
+                    self._config_home_dir = home_dir
+
+                save_persisted_config(next_config, home_dir=home_dir)
+
+                if self._app_state in {"starting", "running", "stopping"}:
+                    self._config = next_config
+                elif self._pending_start_config is not None:
+                    self._pending_start_config = next_config
+                else:
+                    self._config = next_config
+
+                return _ok(next_config.to_dict())
+            except Exception as exc:
+                return _err("set_config_failed", str(exc))
 
     def get_status(self) -> dict[str, Any]:
         with self._lock:
@@ -322,8 +365,7 @@ class TrackrCore:
             self._api_server = TrackrApiServer(
                 bind_host=next_config.effective_bind_host,
                 port=next_config.api_port,
-                nowplaying_provider=self._api_nowplaying_payload,
-                health_provider=self._api_health_payload,
+                route_handlers=self._api_route_handlers(),
             )
             self._api_server.start()
 
@@ -359,6 +401,14 @@ class TrackrCore:
         if isinstance(home_dir, str) and home_dir.strip():
             return Path(home_dir)
         return None
+
+    def _effective_config_locked(self, home_dir: Path | None = None) -> TrackrConfig:
+        if self._config is not None:
+            return self._config
+        if self._pending_start_config is not None:
+            return self._pending_start_config
+        resolved_home = home_dir or self._pending_start_home_dir or self._config_home_dir
+        return load_persisted_config(home_dir=resolved_home)
 
     def _output_root_payload(
         self,
@@ -584,6 +634,181 @@ class TrackrCore:
         if self._api_server is not None:
             self._api_server.stop()
             self._api_server = None
+
+    def _api_route_handlers(self) -> dict[tuple[str, str], Callable[[dict[str, Any] | None], tuple[int, dict[str, Any]]]]:
+        return {
+            ("GET", "/health"): self._api_route_health,
+            ("GET", "/nowplaying"): self._api_route_nowplaying,
+            ("GET", "/status"): self._api_route_status,
+            ("POST", "/control/start"): self._api_route_control_start,
+            ("POST", "/control/stop"): self._api_route_control_stop,
+            ("POST", "/control/refresh"): self._api_route_control_refresh,
+            ("GET", "/config"): self._api_route_get_config,
+            ("POST", "/config"): self._api_route_set_config,
+            ("GET", "/template"): self._api_route_get_template,
+            ("POST", "/template"): self._api_route_set_template,
+            ("POST", "/template/reset"): self._api_route_reset_template,
+            ("GET", "/output-root/resolve"): self._api_route_output_root_resolve,
+            ("POST", "/output-root/choose"): self._api_route_output_root_choose,
+        }
+
+    def _api_route_health(self, _body: dict[str, Any] | None) -> tuple[int, dict[str, Any]]:
+        return 200, self._api_health_payload()
+
+    def _api_route_nowplaying(self, _body: dict[str, Any] | None) -> tuple[int, dict[str, Any]]:
+        return 200, self._api_nowplaying_payload()
+
+    def _api_route_status(self, _body: dict[str, Any] | None) -> tuple[int, dict[str, Any]]:
+        return self._api_result(self.get_status(), unwrap_data=True)
+
+    def _api_route_control_start(self, body: dict[str, Any] | None) -> tuple[int, dict[str, Any]]:
+        overrides = dict(body or {})
+        base = {}
+        base_result = self.get_config()
+        if base_result.get("ok"):
+            candidate = base_result.get("data")
+            if isinstance(candidate, dict):
+                base = dict(candidate)
+        merged = dict(base)
+        merged.update(overrides)
+
+        result = self.start(merged)
+        if result.get("ok"):
+            data = result.get("data")
+            if isinstance(data, dict) and data.get("needs_user_choice"):
+                return 409, self._api_error(
+                    "needs_user_choice",
+                    "output root choice required; call /output-root/choose",
+                    needs_user_choice=True,
+                )
+        return self._api_result(result)
+
+    def _api_route_control_stop(self, _body: dict[str, Any] | None) -> tuple[int, dict[str, Any]]:
+        return self._api_result(self.stop())
+
+    def _api_route_control_refresh(self, _body: dict[str, Any] | None) -> tuple[int, dict[str, Any]]:
+        resolve_result = self.resolve_output_root()
+        if resolve_result.get("ok"):
+            data = resolve_result.get("data")
+            if isinstance(data, dict) and data.get("needs_user_choice"):
+                return 409, self._api_error(
+                    "needs_user_choice",
+                    "output root choice required; call /output-root/choose",
+                    needs_user_choice=True,
+                )
+        return self._api_result(self.refresh())
+
+    def _api_route_get_config(self, _body: dict[str, Any] | None) -> tuple[int, dict[str, Any]]:
+        return self._api_result(self.get_config(), unwrap_data=True)
+
+    def _api_route_set_config(self, body: dict[str, Any] | None) -> tuple[int, dict[str, Any]]:
+        if body is None:
+            return 400, self._api_error("invalid_request", "request body must be a JSON object")
+        return self._api_result(self.set_config(body), unwrap_data=True)
+
+    def _api_route_get_template(self, _body: dict[str, Any] | None) -> tuple[int, dict[str, Any]]:
+        resolve_result = self.resolve_output_root()
+        if resolve_result.get("ok"):
+            data = resolve_result.get("data")
+            if isinstance(data, dict) and data.get("needs_user_choice"):
+                return 409, self._api_error(
+                    "needs_user_choice",
+                    "output root choice required before template operations",
+                    needs_user_choice=True,
+                )
+        return self._api_result(self.get_template(), unwrap_data=True)
+
+    def _api_route_set_template(self, body: dict[str, Any] | None) -> tuple[int, dict[str, Any]]:
+        resolve_result = self.resolve_output_root()
+        if resolve_result.get("ok"):
+            data = resolve_result.get("data")
+            if isinstance(data, dict) and data.get("needs_user_choice"):
+                return 409, self._api_error(
+                    "needs_user_choice",
+                    "output root choice required before template operations",
+                    needs_user_choice=True,
+                )
+        if body is None:
+            return 400, self._api_error("invalid_request", "request body must be a JSON object")
+        template_html = body.get("template")
+        if not isinstance(template_html, str):
+            return 400, self._api_error("invalid_template", "template must be a string")
+        return self._api_result(self.set_template(template_html), unwrap_data=True)
+
+    def _api_route_reset_template(self, _body: dict[str, Any] | None) -> tuple[int, dict[str, Any]]:
+        resolve_result = self.resolve_output_root()
+        if resolve_result.get("ok"):
+            data = resolve_result.get("data")
+            if isinstance(data, dict) and data.get("needs_user_choice"):
+                return 409, self._api_error(
+                    "needs_user_choice",
+                    "output root choice required before template operations",
+                    needs_user_choice=True,
+                )
+        return self._api_result(self.reset_template(), unwrap_data=True)
+
+    def _api_route_output_root_resolve(self, _body: dict[str, Any] | None) -> tuple[int, dict[str, Any]]:
+        result = self.resolve_output_root()
+        if not result.get("ok"):
+            return self._api_result(result)
+        data = result.get("data")
+        if not isinstance(data, dict):
+            return 500, self._api_error("resolve_output_root_failed", "invalid output root response")
+        legacy_output_root = data.get("legacy_output_root")
+        legacy_exists = False
+        if isinstance(legacy_output_root, str) and legacy_output_root:
+            legacy_exists = Path(legacy_output_root).exists()
+        payload: dict[str, Any] = {
+            "needs_user_choice": bool(data.get("needs_user_choice", False)),
+            "legacy_exists": legacy_exists,
+        }
+        chosen_output_root = data.get("output_root")
+        if isinstance(chosen_output_root, str) and chosen_output_root:
+            payload["chosen_output_root"] = chosen_output_root
+        return 200, payload
+
+    def _api_route_output_root_choose(self, body: dict[str, Any] | None) -> tuple[int, dict[str, Any]]:
+        if body is None:
+            return 400, self._api_error("invalid_request", "request body must be a JSON object")
+        choice = body.get("choice")
+        if not isinstance(choice, str) or not choice.strip():
+            return 400, self._api_error("invalid_choice", "choice must be 'legacy' or 'trackr'")
+        return self._api_result(self.set_output_root_choice(choice), unwrap_data=True)
+
+    def _api_result(
+        self,
+        result: dict[str, Any],
+        unwrap_data: bool = False,
+    ) -> tuple[int, dict[str, Any]]:
+        if result.get("ok"):
+            payload = result
+            if unwrap_data:
+                candidate = result.get("data")
+                payload = dict(candidate) if isinstance(candidate, dict) else {}
+            return 200, payload
+
+        error = result.get("error")
+        code = "error"
+        message = "request failed"
+        if isinstance(error, dict):
+            code = str(error.get("code", code))
+            message = str(error.get("message", message))
+        status_code = self._error_status(code)
+        return status_code, {"ok": False, "error": {"code": code, "message": message}}
+
+    def _error_status(self, code: str) -> int:
+        if code in {"needs_user_choice", "not_started", "not_configured", "not_running"}:
+            return 409
+        if code in {"invalid_request", "invalid_choice", "invalid_template", "invalid_track_line", "set_config_failed"}:
+            return 400
+        if code in {"overlay_write_failed", "start_failed"}:
+            return 500
+        return 400
+
+    def _api_error(self, code: str, message: str, **extra: Any) -> dict[str, Any]:
+        payload: dict[str, Any] = {"ok": False, "error": {"code": code, "message": message}}
+        payload.update(extra)
+        return payload
 
     def _api_health_payload(self) -> dict[str, Any]:
         with self._lock:
