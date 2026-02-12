@@ -12,7 +12,7 @@ VALID_API_ACCESS_MODES = {API_ACCESS_LOCALHOST, API_ACCESS_LAN}
 @dataclass(frozen=True)
 class TrackrConfig:
     output_root: Path
-    delay_seconds: int = 3
+    delay_seconds: float = 3
     timestamps_enabled: bool = True
     api_enabled: bool = True
     api_access_mode: str = API_ACCESS_LAN
@@ -53,7 +53,7 @@ class TrackrConfig:
     def from_dict(cls, raw: Mapping[str, Any] | None) -> "TrackrConfig":
         data = dict(raw or {})
         output_root = Path(data.get("output_root") or cls.default_output_root())
-        delay_seconds = int(data.get("delay_seconds", 3))
+        delay_seconds = float(data.get("delay_seconds", 3))
         if delay_seconds < 0:
             raise ValueError("delay_seconds must be >= 0")
 

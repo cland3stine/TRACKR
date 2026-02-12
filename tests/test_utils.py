@@ -5,7 +5,7 @@ import socket
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator
+from typing import Callable, Iterator
 from uuid import uuid4
 from urllib.error import URLError
 from urllib.request import urlopen
@@ -47,3 +47,16 @@ def wait_get_json(url: str, timeout_seconds: float = 2.0) -> dict:
     if last_error is not None:
         raise last_error
     raise RuntimeError("wait_get_json timed out")
+
+
+def wait_until(
+    predicate: Callable[[], bool],
+    timeout_seconds: float = 2.0,
+    interval_seconds: float = 0.02,
+) -> bool:
+    deadline = time.time() + timeout_seconds
+    while time.time() < deadline:
+        if predicate():
+            return True
+        time.sleep(interval_seconds)
+    return bool(predicate())

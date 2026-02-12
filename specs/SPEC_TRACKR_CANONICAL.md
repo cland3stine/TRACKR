@@ -126,6 +126,7 @@ Reachability requirement:
 - Legacy behavior can show app as online but not publish until a subsequent transport/status change.
 - This is tied to startup timing and status-event sequencing (device discovered but no qualifying follow-up state callback yet).
 - Keep this noted for parity tracking; do not silently treat as new regression.
+- Mitigation allowed without changing outputs: on listener start, probe latest known device statuses and retry brief startup probes to trigger normal gated publish evaluation (`isOnAir && isPlaying`, metadata retry, delayed publish, dedupe).
 
 ## 10. Non-Negotiable Compatibility Notes
 - Do not redesign `ui/trackr-dashboard.jsx`.

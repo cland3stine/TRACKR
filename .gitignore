@@ -1,0 +1,22 @@
+# TRACKR test/runtime transient artifacts
+tests/.tmp/
+.pytest_cache/
+tests/.pytest_cache/
+*.pyc
+__pycache__/
+
+# Pytest fallback temp dirs sometimes created at repo root on Windows
+pytest-cache-files-*/
+
+# Non-phase workspace artifacts (not part of TRACKR lock)
+.gradle/
+build/
+dist/
+gradle/
+assets/
+src/
+build.gradle
+settings.gradle
+gradlew
+gradlew.bat
+SPEC_NOWPLAYINGLITE_CODEX.md

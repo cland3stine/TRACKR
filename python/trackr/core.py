@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from threading import RLock
+from threading import RLock, Timer
+import time
 from typing import Any, Callable
 
 from trackr.api import TrackrApiServer
 from trackr.config import TrackrConfig
 from trackr.db import TrackrDatabase
+from trackr.device_bridge import DeckStatus, DeviceBridge, NullDeviceBridge
 from trackr.template import TemplateStore
 from trackr.text_cleaner import EM_DASH, clean_track_line
 from trackr.writer import OutputWriter
@@ -34,9 +36,19 @@ class TrackrCore:
         self._writer: OutputWriter | None = None
         self._templates: TemplateStore | None = None
         self._api_server: TrackrApiServer | None = None
+        self._device_bridge: DeviceBridge | None = None
         self._running_tracklist: list[dict[str, Any]] = []
         self._subscribers: dict[int, EventCallback] = {}
         self._next_subscription_id = 1
+        self._pending_publish_key: str | None = None
+        self._pending_publish_timer: Timer | None = None
+        self._metadata_retry_timers: dict[int, Timer] = {}
+        self._metadata_retry_delay_seconds = 0.35
+        self._metadata_retry_attempts = 6
+        self._startup_probe_timer: Timer | None = None
+        self._startup_probe_count = 6
+        self._startup_probe_interval_seconds = 0.5
+        self._last_metadata_wait_status_at = 0.0
 
     def start(self, config: dict[str, Any] | TrackrConfig | None) -> dict[str, Any]:
         with self._lock:
@@ -46,18 +58,24 @@ class TrackrCore:
             self._set_state("starting", "starting")
             try:
                 self._stop_api_server()
+                self._stop_listener_pipeline()
                 if self._db is not None:
                     self._db.close()
                     self._db = None
                     self._templates = None
                     self._writer = None
 
+                runtime_options: dict[str, Any] = {}
                 if isinstance(config, TrackrConfig):
                     next_config = config
+                elif isinstance(config, dict):
+                    runtime_options = config
+                    next_config = TrackrConfig.from_dict(config)
                 else:
                     next_config = TrackrConfig.from_dict(config)
 
                 self._config = next_config
+                self._configure_runtime_pipeline(runtime_options)
                 self._db = TrackrDatabase(next_config.db_path)
                 self._writer = OutputWriter(
                     output_root=next_config.output_root,
@@ -73,6 +91,7 @@ class TrackrCore:
                 self._running_tracklist.clear()
                 self._last_published_line = None
                 self._set_state("running", "running")
+                self._status_text = "listening (close rekordbox on this PC)"
 
                 if next_config.api_enabled:
                     self._api_server = TrackrApiServer(
@@ -82,6 +101,8 @@ class TrackrCore:
                         health_provider=self._api_health_payload,
                     )
                     self._api_server.start()
+
+                self._start_device_listener(runtime_options.get("device_bridge"))
 
                 self._emit(
                     "api_rebound",
@@ -94,6 +115,7 @@ class TrackrCore:
                 return _ok({"session_file_name": session_file.name, "status": self._snapshot_status()})
             except Exception as exc:
                 self._stop_api_server()
+                self._stop_listener_pipeline()
                 if self._db is not None:
                     self._db.close()
                     self._db = None
@@ -110,6 +132,7 @@ class TrackrCore:
 
             self._set_state("stopping", "stopping")
             self._stop_api_server()
+            self._stop_listener_pipeline()
             if self._db is not None:
                 self._db.close()
                 self._db = None
@@ -218,6 +241,180 @@ class TrackrCore:
                     "tracklist_entry": tracklist_item,
                 }
             )
+
+    def _configure_runtime_pipeline(self, options: dict[str, Any]) -> None:
+        retry_delay_ms = options.get("metadata_retry_delay_ms", 350)
+        retry_attempts = options.get("metadata_retry_attempts", 6)
+        probe_count = options.get("startup_probe_count", 6)
+        probe_interval_ms = options.get("startup_probe_interval_ms", 500)
+
+        try:
+            retry_delay_ms = int(retry_delay_ms)
+        except (TypeError, ValueError):
+            retry_delay_ms = 350
+        try:
+            retry_attempts = int(retry_attempts)
+        except (TypeError, ValueError):
+            retry_attempts = 6
+        try:
+            probe_count = int(probe_count)
+        except (TypeError, ValueError):
+            probe_count = 6
+        try:
+            probe_interval_ms = int(probe_interval_ms)
+        except (TypeError, ValueError):
+            probe_interval_ms = 500
+
+        self._metadata_retry_delay_seconds = max(0.05, retry_delay_ms / 1000.0)
+        self._metadata_retry_attempts = max(0, retry_attempts)
+        self._startup_probe_count = max(0, probe_count)
+        self._startup_probe_interval_seconds = max(0.1, probe_interval_ms / 1000.0)
+        self._last_metadata_wait_status_at = 0.0
+
+    def _start_device_listener(self, runtime_bridge: Any) -> None:
+        bridge = runtime_bridge if runtime_bridge is not None else NullDeviceBridge()
+        self._device_bridge = bridge
+        self._device_bridge.start(self._on_device_status, self._on_device_count)
+        self._status_text = "listening (close rekordbox on this PC)"
+        self._emit("status_message", {"status_text": self._status_text})
+        self._run_startup_probe(self._startup_probe_count)
+
+    def _stop_listener_pipeline(self) -> None:
+        self._cancel_pending_publish()
+        for deck in list(self._metadata_retry_timers.keys()):
+            self._cancel_metadata_retry(deck)
+        if self._startup_probe_timer is not None:
+            self._startup_probe_timer.cancel()
+            self._startup_probe_timer = None
+        if self._device_bridge is not None:
+            try:
+                self._device_bridge.stop()
+            except Exception:
+                pass
+            self._device_bridge = None
+
+    def _cancel_pending_publish(self) -> None:
+        if self._pending_publish_timer is not None:
+            self._pending_publish_timer.cancel()
+            self._pending_publish_timer = None
+        self._pending_publish_key = None
+
+    def _cancel_metadata_retry(self, deck: int) -> None:
+        timer = self._metadata_retry_timers.pop(deck, None)
+        if timer is not None:
+            timer.cancel()
+
+    def _on_device_count(self, count: int) -> None:
+        with self._lock:
+            if self._app_state not in {"starting", "running"}:
+                return
+            self._device_count = max(0, int(count))
+
+    def _on_device_status(self, status: DeckStatus) -> None:
+        with self._lock:
+            if self._app_state != "running":
+                return
+            self._process_status(status, retries_left=self._metadata_retry_attempts)
+
+    def _run_startup_probe(self, remaining: int) -> None:
+        with self._lock:
+            if self._app_state != "running" or self._device_bridge is None:
+                return
+            try:
+                statuses = self._device_bridge.get_latest_statuses()
+            except Exception:
+                statuses = []
+            for status in statuses:
+                self._process_status(status, retries_left=self._metadata_retry_attempts)
+
+            if remaining <= 1:
+                return
+
+            timer = Timer(
+                self._startup_probe_interval_seconds,
+                lambda: self._run_startup_probe(remaining - 1),
+            )
+            timer.daemon = True
+            self._startup_probe_timer = timer
+            timer.start()
+
+    def _process_status(self, status: DeckStatus, retries_left: int) -> None:
+        if self._app_state != "running" or self._device_bridge is None:
+            return
+        self._cancel_metadata_retry(status.device_number)
+        if not status.is_on_air or not status.is_playing:
+            return
+
+        metadata = None
+        try:
+            metadata = self._device_bridge.get_metadata(status)
+        except Exception:
+            metadata = None
+
+        if metadata is None:
+            now = time.monotonic()
+            if now - self._last_metadata_wait_status_at > 1.5:
+                self._last_metadata_wait_status_at = now
+                self._status_text = f"waiting for metadata... (deck {status.device_number})"
+                self._emit("status_message", {"status_text": self._status_text})
+            if retries_left > 0:
+                self._schedule_metadata_retry(status, retries_left - 1)
+            return
+
+        line = self._line_from_metadata(metadata.title, metadata.artist)
+        if not line:
+            return
+        self._schedule_delayed_publish(status.device_number, line)
+
+    def _schedule_metadata_retry(self, status: DeckStatus, retries_left: int) -> None:
+        self._cancel_metadata_retry(status.device_number)
+
+        def _retry() -> None:
+            with self._lock:
+                self._metadata_retry_timers.pop(status.device_number, None)
+                if self._app_state != "running":
+                    return
+                self._process_status(status, retries_left=retries_left)
+
+        timer = Timer(self._metadata_retry_delay_seconds, _retry)
+        timer.daemon = True
+        self._metadata_retry_timers[status.device_number] = timer
+        timer.start()
+
+    def _line_from_metadata(self, title: str | None, artist: str | None) -> str:
+        cleaned_title = clean_track_line(title)
+        if not cleaned_title:
+            return ""
+        cleaned_artist = clean_track_line(artist)
+        return f"{cleaned_artist} - {cleaned_title}" if cleaned_artist else cleaned_title
+
+    def _schedule_delayed_publish(self, device_number: int, line: str) -> None:
+        if self._config is None:
+            return
+        key = f"{device_number}|{line}"
+        if key == self._pending_publish_key and self._pending_publish_timer is not None:
+            return
+
+        self._cancel_pending_publish()
+        self._pending_publish_key = key
+
+        def _fire_publish() -> None:
+            with self._lock:
+                if self._app_state != "running":
+                    return
+                if self._pending_publish_key != key:
+                    return
+                self._pending_publish_key = None
+                self._pending_publish_timer = None
+                result = self.publish(line, published_at=time.time())
+                if not result.get("ok"):
+                    self._status_text = f"publish error: {result['error']['message']}"
+                    self._emit("status_message", {"status_text": self._status_text})
+
+        timer = Timer(max(0, self._config.delay_seconds), _fire_publish)
+        timer.daemon = True
+        self._pending_publish_timer = timer
+        timer.start()
 
     def _set_state(self, state: str, status_text: str) -> None:
         self._app_state = state
