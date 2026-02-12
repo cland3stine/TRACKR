@@ -20,3 +20,14 @@ settings.gradle
 gradlew
 gradlew.bat
 SPEC_NOWPLAYINGLITE_CODEX.md
+
+# TRACKR Tauri wrapper build/dependency outputs
+ui/trackr-ui/node_modules/
+ui/trackr-ui/dist/
+ui/trackr-ui/src-tauri/target/
+
+# Keep Tauri scaffold source tracked (root has a broad src/ ignore rule)
+!ui/trackr-ui/src/
+!ui/trackr-ui/src/**
+!ui/trackr-ui/src-tauri/src/
+!ui/trackr-ui/src-tauri/src/**
