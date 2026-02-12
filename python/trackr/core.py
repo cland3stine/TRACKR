@@ -4,10 +4,11 @@ from datetime import datetime, timezone
 from threading import RLock
 from typing import Any, Callable
 
+from trackr.api import TrackrApiServer
 from trackr.config import TrackrConfig
 from trackr.db import TrackrDatabase
 from trackr.template import TemplateStore
-from trackr.text_cleaner import clean_track_line
+from trackr.text_cleaner import EM_DASH, clean_track_line
 from trackr.writer import OutputWriter
 
 EventCallback = Callable[[dict[str, Any]], None]
@@ -32,6 +33,7 @@ class TrackrCore:
         self._db: TrackrDatabase | None = None
         self._writer: OutputWriter | None = None
         self._templates: TemplateStore | None = None
+        self._api_server: TrackrApiServer | None = None
         self._running_tracklist: list[dict[str, Any]] = []
         self._subscribers: dict[int, EventCallback] = {}
         self._next_subscription_id = 1
@@ -43,6 +45,7 @@ class TrackrCore:
 
             self._set_state("starting", "starting")
             try:
+                self._stop_api_server()
                 if self._db is not None:
                     self._db.close()
                     self._db = None
@@ -70,6 +73,16 @@ class TrackrCore:
                 self._running_tracklist.clear()
                 self._last_published_line = None
                 self._set_state("running", "running")
+
+                if next_config.api_enabled:
+                    self._api_server = TrackrApiServer(
+                        bind_host=next_config.effective_bind_host,
+                        port=next_config.api_port,
+                        nowplaying_provider=self._api_nowplaying_payload,
+                        health_provider=self._api_health_payload,
+                    )
+                    self._api_server.start()
+
                 self._emit(
                     "api_rebound",
                     {
@@ -80,6 +93,12 @@ class TrackrCore:
                 )
                 return _ok({"session_file_name": session_file.name, "status": self._snapshot_status()})
             except Exception as exc:
+                self._stop_api_server()
+                if self._db is not None:
+                    self._db.close()
+                    self._db = None
+                self._writer = None
+                self._templates = None
                 self._set_state("error", f"start error: {exc}")
                 self._emit("error", {"message": str(exc)})
                 return _err("start_failed", str(exc))
@@ -90,6 +109,7 @@ class TrackrCore:
                 return _ok({"status": self._snapshot_status()})
 
             self._set_state("stopping", "stopping")
+            self._stop_api_server()
             if self._db is not None:
                 self._db.close()
                 self._db = None
@@ -252,3 +272,57 @@ class TrackrCore:
                 callback(event)
             except Exception:
                 continue
+
+    def _stop_api_server(self) -> None:
+        if self._api_server is not None:
+            self._api_server.stop()
+            self._api_server = None
+
+    def _api_health_payload(self) -> dict[str, Any]:
+        with self._lock:
+            return {
+                "ok": True,
+                "is_running": self._app_state == "running",
+            }
+
+    def _api_nowplaying_payload(self) -> dict[str, Any]:
+        with self._lock:
+            current, previous = self._read_overlay_lines()
+            session_file_name = None
+            if self._writer is not None and self._writer.session_file is not None:
+                session_file_name = self._writer.session_file.name
+
+            payload: dict[str, Any] = {
+                "current": current,
+                "previous": previous,
+                "session_file": session_file_name,
+                "is_running": self._app_state == "running",
+                "device_count": self._device_count,
+            }
+            if (
+                self._config is not None
+                and self._config.share_play_count_via_api
+                and self._db is not None
+            ):
+                payload["play_count"] = self._db.get_play_count()
+            return payload
+
+    def _read_overlay_lines(self) -> tuple[str, str]:
+        overlay_path = None
+        if self._writer is not None:
+            overlay_path = self._writer.overlay_nowplaying_path
+        elif self._config is not None:
+            overlay_path = self._config.overlay_dir / "nowplaying.txt"
+
+        if overlay_path is None or not overlay_path.exists():
+            return EM_DASH, EM_DASH
+
+        try:
+            raw = overlay_path.read_text(encoding="utf-8")
+        except Exception:
+            return EM_DASH, EM_DASH
+
+        lines = raw.splitlines()
+        current = (lines[0].strip() if len(lines) > 0 else "") or EM_DASH
+        previous = (lines[1].strip() if len(lines) > 1 else "") or EM_DASH
+        return current, previous
