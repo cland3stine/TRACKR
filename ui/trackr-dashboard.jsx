@@ -299,7 +299,9 @@ export default function TRACKR() {
   const [savedTemplate, setSavedTemplate] = useState(DEFAULT_TEMPLATE);
   const [startInTray, setStartInTray] = useState(false);
   const [startWithWindows, setStartWithWindows] = useState(false);
-  const [outputDir] = useState("%USERPROFILE%\\NowPlayingLite");
+  const [outputDir, setOutputDir] = useState("");
+  const [migrationPromptSeen, setMigrationPromptSeen] = useState(false);
+  const [outputRootChoice, setOutputRootChoice] = useState(null);
   const [apiEnabled, setApiEnabled] = useState(true);
   const [apiAccessMode, setApiAccessMode] = useState("lan");
   const [apiBindHost, setApiBindHost] = useState("0.0.0.0");
@@ -362,13 +364,31 @@ export default function TRACKR() {
     if (status.api_access_mode) setApiAccessMode(status.api_access_mode);
     if (typeof status.api_enabled === "boolean") setApiEnabled(status.api_enabled);
     if (typeof status.share_play_count_via_api === "boolean") setSharePlayCount(status.share_play_count_via_api);
+    if (typeof status.migration_prompt_seen === "boolean") setMigrationPromptSeen(status.migration_prompt_seen);
     if (status.api_effective_bind_host) setApiBindHost(status.api_effective_bind_host);
+    if (status.output_root) setOutputDir(status.output_root);
     if (status.session_file_name) {
       const parsed = parseSessionDisplay(status.session_file_name);
       setSessionLabel(parsed.label);
     } else {
       setSessionLabel(EM_DASH);
     }
+  }, []);
+
+  const applyOutputRootResolution = useCallback((payload) => {
+    if (!payload) return;
+    if (typeof payload.migration_prompt_seen === "boolean") {
+      setMigrationPromptSeen(payload.migration_prompt_seen);
+    }
+    if (payload.state === "needs_user_choice" || payload.needs_user_choice) {
+      setOutputRootChoice({
+        legacy: payload.legacy_output_root || `${"%USERPROFILE%"}\\NowPlayingLite`,
+        trackr: payload.trackr_output_root || `${"%USERPROFILE%"}\\TRACKR`,
+      });
+      return;
+    }
+    if (payload.output_root) setOutputDir(payload.output_root);
+    setOutputRootChoice(null);
   }, []);
 
   const reloadTracklist = useCallback(async () => {
@@ -396,6 +416,10 @@ export default function TRACKR() {
     let mounted = true;
 
     const bind = async () => {
+      const outputRootRes = await callCore("resolve_output_root");
+      if (outputRootRes?.ok) {
+        applyOutputRootResolution(outputRootRes.data);
+      }
       await refreshFromCore();
       await reloadTemplate();
 
@@ -442,11 +466,12 @@ export default function TRACKR() {
       if (statusPollRef.current) clearInterval(statusPollRef.current);
       if (typeof unsubscribeRef.current === "function") unsubscribeRef.current();
     };
-  }, [callCore, refreshFromCore, reloadTemplate, reloadTracklist]);
+  }, [applyOutputRootResolution, callCore, refreshFromCore, reloadTemplate, reloadTracklist]);
 
   const buildConfig = useCallback(
     () => ({
-      output_root: outputDir,
+      output_root: outputDir || null,
+      migration_prompt_seen: migrationPromptSeen,
       delay_seconds: delay,
       timestamps_enabled: timestamps,
       api_enabled: apiEnabled,
@@ -454,16 +479,26 @@ export default function TRACKR() {
       share_play_count_via_api: sharePlayCount,
       api_port: apiPort,
     }),
-    [outputDir, delay, timestamps, apiEnabled, apiAccessMode, sharePlayCount, apiPort]
+    [outputDir, migrationPromptSeen, delay, timestamps, apiEnabled, apiAccessMode, sharePlayCount, apiPort]
   );
 
   const handleStartStop = useCallback(async () => {
     if (appState === "stopped" || appState === "error") {
+      if (outputRootChoice) {
+        addToast("Select an output folder before starting.", "warning");
+        return;
+      }
       setAppState("starting");
       const res = await callCore("start", buildConfig());
       if (!res?.ok) {
         setAppState("error");
         addToast(`Start failed: ${res?.error?.message || "Unknown error"}`, "error");
+        return;
+      }
+      if (res.data?.needs_user_choice) {
+        applyOutputRootResolution(res.data);
+        setAppState("stopped");
+        addToast("Choose output folder to continue.", "warning");
         return;
       }
       setPublishedAgo(0);
@@ -483,7 +518,7 @@ export default function TRACKR() {
       await refreshFromCore();
       addToast("TRACKR stopped", "info");
     }
-  }, [appState, addToast, buildConfig, callCore, refreshFromCore]);
+  }, [appState, addToast, applyOutputRootResolution, buildConfig, callCore, outputRootChoice, refreshFromCore]);
 
   const handleRefresh = useCallback(async () => {
     if (!isRunning) return;
@@ -522,6 +557,23 @@ export default function TRACKR() {
     setSavedTemplate(next);
     addToast("Default template restored", "info");
   }, [callCore, addToast]);
+
+  const handleOutputRootChoice = useCallback(
+    async (choice) => {
+      const res = await callCore("set_output_root_choice", choice);
+      if (!res?.ok) {
+        addToast(`Output folder selection failed: ${res?.error?.message || "Unknown error"}`, "error");
+        return;
+      }
+      applyOutputRootResolution(res.data);
+      if (choice === "legacy") {
+        addToast("Using NowPlayingLite output folder.", "info");
+      } else {
+        addToast("Switched output folder to TRACKR.", "success");
+      }
+    },
+    [addToast, applyOutputRootResolution, callCore]
+  );
 
   const handleApiEnabledChange = useCallback(
     (next) => {
@@ -809,7 +861,7 @@ export default function TRACKR() {
                     textOverflow: "ellipsis",
                   }}
                 >
-                  📁 {outputDir}
+                  📁 {outputDir || "%USERPROFILE%\\TRACKR"}
                 </div>
                 <div style={{ ...font(9, 400), color: C.textMuted, marginTop: 2 }}>
                   Session: {sessionLabel}
@@ -1169,7 +1221,7 @@ export default function TRACKR() {
                         whiteSpace: "nowrap",
                       }}
                     >
-                      {outputDir}
+                      {outputDir || "%USERPROFILE%\\TRACKR"}
                     </div>
                     <Btn color={C.blue} onClick={() => addToast("Folder picker (native dialog)", "info")}>
                       BROWSE
@@ -1362,6 +1414,59 @@ export default function TRACKR() {
       </div>
 
       {/* ═══ TOASTS ═══ */}
+      {outputRootChoice && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.62)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 95,
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 620,
+              background: C.bgPanel,
+              border: `1px solid ${C.borderRack}`,
+              borderRadius: 6,
+              padding: 18,
+              boxShadow: "0 10px 28px rgba(0,0,0,0.45)",
+            }}
+          >
+            <div style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 2.2, textTransform: "uppercase" }}>
+              OUTPUT FOLDER CHOICE
+            </div>
+            <div style={{ ...font(14, 600), color: C.textPrimary, marginTop: 8 }}>
+              Legacy output folder detected: NowPlayingLite
+            </div>
+            <div style={{ ...font(11, 400), color: C.textDim, marginTop: 8 }}>
+              Choose where TRACKR should write outputs. You can change this later in Settings.
+            </div>
+            <div style={{ marginTop: 14, display: "grid", gap: 8 }}>
+              <div style={{ ...font(10, 500), color: C.textMuted }}>
+                Legacy: {outputRootChoice.legacy}
+              </div>
+              <div style={{ ...font(10, 500), color: C.textMuted }}>
+                TRACKR: {outputRootChoice.trackr}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+              <Btn color={C.amber} onClick={() => handleOutputRootChoice("legacy")}>
+                USE NOWPLAYINGLITE
+              </Btn>
+              <Btn color={C.green} onClick={() => handleOutputRootChoice("trackr")}>
+                SWITCH TO TRACKR
+              </Btn>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div
         style={{
           position: "fixed",

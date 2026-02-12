@@ -6,7 +6,13 @@ import time
 from typing import Any, Callable
 
 from trackr.api import TrackrApiServer
-from trackr.config import TrackrConfig
+from trackr.config import (
+    OUTPUT_ROOT_STATE_NEEDS_USER_CHOICE,
+    OUTPUT_ROOT_STATE_RESOLVED,
+    TrackrConfig,
+    persist_output_root_choice,
+    resolve_output_root,
+)
 from trackr.db import TrackrDatabase
 from trackr.device_bridge import DeckStatus, DeviceBridge, NullDeviceBridge
 from trackr.template import TemplateStore
@@ -65,14 +71,17 @@ class TrackrCore:
                     self._templates = None
                     self._writer = None
 
-                runtime_options: dict[str, Any] = {}
-                if isinstance(config, TrackrConfig):
-                    next_config = config
-                elif isinstance(config, dict):
-                    runtime_options = config
-                    next_config = TrackrConfig.from_dict(config)
-                else:
-                    next_config = TrackrConfig.from_dict(config)
+                runtime_options, next_config = self._coerce_config(config)
+                resolution = resolve_output_root(next_config)
+                if resolution.state == OUTPUT_ROOT_STATE_NEEDS_USER_CHOICE:
+                    self._set_state("stopped", "output root choice required")
+                    return _ok(self._output_root_payload(resolution, needs_user_choice=True))
+                if resolution.state != OUTPUT_ROOT_STATE_RESOLVED or resolution.output_root is None:
+                    raise RuntimeError("unable to resolve output root")
+                next_config = next_config.with_output_root(
+                    resolution.output_root,
+                    migration_prompt_seen=resolution.migration_prompt_seen,
+                )
 
                 self._config = next_config
                 self._configure_runtime_pipeline(runtime_options)
@@ -124,6 +133,28 @@ class TrackrCore:
                 self._set_state("error", f"start error: {exc}")
                 self._emit("error", {"message": str(exc)})
                 return _err("start_failed", str(exc))
+
+    def resolve_output_root(self, config: dict[str, Any] | TrackrConfig | None = None) -> dict[str, Any]:
+        with self._lock:
+            try:
+                _runtime_options, next_config = self._coerce_config(config)
+                resolution = resolve_output_root(next_config)
+                return _ok(self._output_root_payload(resolution))
+            except Exception as exc:
+                return _err("resolve_output_root_failed", str(exc))
+
+    def set_output_root_choice(self, choice: str) -> dict[str, Any]:
+        with self._lock:
+            try:
+                resolution = persist_output_root_choice(choice)
+                if self._config is not None and resolution.output_root is not None:
+                    self._config = self._config.with_output_root(
+                        resolution.output_root,
+                        migration_prompt_seen=resolution.migration_prompt_seen,
+                    )
+                return _ok(self._output_root_payload(resolution))
+            except Exception as exc:
+                return _err("set_output_root_choice_failed", str(exc))
 
     def stop(self) -> dict[str, Any]:
         with self._lock:
@@ -270,6 +301,32 @@ class TrackrCore:
         self._startup_probe_count = max(0, probe_count)
         self._startup_probe_interval_seconds = max(0.1, probe_interval_ms / 1000.0)
         self._last_metadata_wait_status_at = 0.0
+
+    def _coerce_config(
+        self,
+        config: dict[str, Any] | TrackrConfig | None,
+    ) -> tuple[dict[str, Any], TrackrConfig]:
+        runtime_options: dict[str, Any] = {}
+        if isinstance(config, TrackrConfig):
+            return runtime_options, config
+        if isinstance(config, dict):
+            runtime_options = config
+            return runtime_options, TrackrConfig.from_dict(config)
+        return runtime_options, TrackrConfig.from_dict(config)
+
+    def _output_root_payload(
+        self,
+        resolution: Any,
+        needs_user_choice: bool = False,
+    ) -> dict[str, Any]:
+        return {
+            "state": resolution.state,
+            "needs_user_choice": bool(needs_user_choice or resolution.state == OUTPUT_ROOT_STATE_NEEDS_USER_CHOICE),
+            "output_root": str(resolution.output_root) if resolution.output_root is not None else None,
+            "legacy_output_root": str(resolution.legacy_output_root),
+            "trackr_output_root": str(resolution.trackr_output_root),
+            "migration_prompt_seen": bool(resolution.migration_prompt_seen),
+        }
 
     def _start_device_listener(self, runtime_bridge: Any) -> None:
         bridge = runtime_bridge if runtime_bridge is not None else NullDeviceBridge()
@@ -437,9 +494,14 @@ class TrackrCore:
             api_enabled = self._config.api_enabled
             api_access_mode = self._config.api_access_mode
             share_count = self._config.share_play_count_via_api
+            output_root = str(self._config.output_root) if self._config.output_root is not None else None
+            migration_prompt_seen = self._config.migration_prompt_seen
             if api_enabled:
                 api_bind = self._config.effective_bind_host
                 api_port = self._config.api_port
+        else:
+            output_root = None
+            migration_prompt_seen = False
 
         return {
             "app_state": self._app_state,
@@ -452,6 +514,8 @@ class TrackrCore:
             "api_enabled": api_enabled,
             "api_access_mode": api_access_mode,
             "share_play_count_via_api": share_count,
+            "output_root": output_root,
+            "migration_prompt_seen": migration_prompt_seen,
         }
 
     def _emit(self, event_type: str, payload: dict[str, Any]) -> None:

@@ -18,6 +18,10 @@ Expose a single service object with exactly these methods:
 8. `set_template(template_html)`
 9. `reset_template()`
 
+Additive methods allowed for output-root migration flow:
+10. `resolve_output_root(config?)`
+11. `set_output_root_choice(choice)` where `choice` is `"legacy"` or `"trackr"`
+
 ## 3. Method Contracts
 ### 3.1 `start(config)`
 - Starts TRACKR processing loop and activates a session.

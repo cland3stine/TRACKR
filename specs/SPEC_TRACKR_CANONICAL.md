@@ -5,6 +5,10 @@
 - `ui/trackr-dashboard.jsx` is the UI layout contract and must not be redesigned by core implementation work.
 - The default output root is `%USERPROFILE%\TRACKR` for this phase.
 - Output root remains user-configurable where configuration is supported.
+- Migration rule (legacy folder prompt):
+  - If `%USERPROFILE%\NowPlayingLite` exists and no explicit `output_root` is configured yet, prompt once to choose `NowPlayingLite` or `TRACKR`.
+  - Persist `output_root` and `migration_prompt_seen` after choice.
+  - If `output_root` is already explicitly set, do not prompt.
 - This spec supersedes legacy output behavior from Java where explicitly marked as removed.
 
 ## 2. Locked Output Contract
