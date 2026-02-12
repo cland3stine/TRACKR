@@ -196,18 +196,7 @@ const StateBadge = ({ state }) => {
 };
 
 // ─── MOCK DATA ───────────────────────────────────────────────────────────────
-const MOCK_TRACKS = [
-  { time: "00:00", artist: "Marsh", title: "Eu Quero", plays: 4 },
-  { time: "05:32", artist: "Yotto", title: "The One You Left Behind", plays: 1 },
-  { time: "12:18", artist: "Tinlicker", title: "About You (Dosem Remix)", plays: 7 },
-  { time: "18:45", artist: "Joris Voorn", title: "Antigone", plays: 12 },
-  { time: "24:10", artist: "Stephan Bodzin", title: "Powers of Ten", plays: 3 },
-  { time: "29:44", artist: "Adriatique", title: "Nude", plays: 9 },
-  { time: "35:20", artist: "Tale Of Us", title: "Endless (Patrice Bäumel Remix)", plays: 2 },
-  { time: "41:05", artist: "ARTBAT", title: "Talavera", plays: 15 },
-  { time: "46:38", artist: "Rufus Du Sol", title: "Innerbloom (What So Not Remix)", plays: 6 },
-  { time: "52:30", artist: "Ben Böhmer", title: "Beyond Beliefs", plays: 2 },
-];
+const EM_DASH = "—";
 
 const DEFAULT_TEMPLATE = `<!DOCTYPE html>
 <html>
@@ -255,6 +244,52 @@ const DEFAULT_TEMPLATE = `<!DOCTYPE html>
 
 // ─── MAIN APP ────────────────────────────────────────────────────────────────
 export default function TRACKR() {
+  const parseTrackLine = (line = "") => {
+    const s = String(line || "").trim();
+    const m = s.match(/^(.+?)\s+[-–—]\s+(.+)$/);
+    if (!m) return { artist: s || EM_DASH, title: "" };
+    return { artist: (m[1] || "").trim() || EM_DASH, title: (m[2] || "").trim() };
+  };
+
+  const toUiTrack = (item = {}) => {
+    const split = parseTrackLine(item.line || "");
+    return {
+      time: item.time || "",
+      artist: split.artist,
+      title: split.title,
+      plays: Number.isFinite(item.play_count) ? item.play_count : 0,
+    };
+  };
+
+  const parseSessionDisplay = (sessionFileName) => {
+    const raw = String(sessionFileName || "").trim();
+    const m = raw.match(/^(\d{4}-\d{2}-\d{2})\((\d+)\)-tracklist\.txt$/);
+    if (!m) return { label: raw || EM_DASH };
+    return { label: `${m[1]}(${m[2]})` };
+  };
+
+  const resolveContractCore = () => {
+    if (typeof window === "undefined") return null;
+    const candidates = [window.trackrCore, window.TRACKR_CORE, window.trackrBridge, window.trackr];
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+      if (
+        typeof candidate.start === "function" &&
+        typeof candidate.stop === "function" &&
+        typeof candidate.refresh === "function" &&
+        typeof candidate.get_status === "function"
+      ) {
+        return candidate;
+      }
+    }
+    return null;
+  };
+
+  const renderTrackText = (track) => {
+    if (!track) return EM_DASH;
+    return track.title ? `${track.artist} — ${track.title}` : track.artist || EM_DASH;
+  };
+
   const [appState, setAppState] = useState("stopped"); // stopped, starting, running, stopping, error
   const [activeTab, setActiveTab] = useState("live");
   const [timestamps, setTimestamps] = useState(true);
@@ -264,25 +299,29 @@ export default function TRACKR() {
   const [savedTemplate, setSavedTemplate] = useState(DEFAULT_TEMPLATE);
   const [startInTray, setStartInTray] = useState(false);
   const [startWithWindows, setStartWithWindows] = useState(false);
-  const [outputDir, setOutputDir] = useState("C:\\DJ\\TRACKR\\output");
+  const [outputDir] = useState("%USERPROFILE%\\NowPlayingLite");
   const [apiEnabled, setApiEnabled] = useState(true);
   const [apiAccessMode, setApiAccessMode] = useState("lan");
   const [apiBindHost, setApiBindHost] = useState("0.0.0.0");
   const [apiPort] = useState(8755);
-  const [lanIp, setLanIp] = useState("192.168.1.50");
+  const [lanIp] = useState("192.168.1.50");
   const [toasts, setToasts] = useState([]);
-  const [publishedAgo, setPublishedAgo] = useState(42);
-  const [tracks, setTracks] = useState(MOCK_TRACKS);
-  const [sessionIndex, setSessionIndex] = useState(1);
+  const [publishedAgo, setPublishedAgo] = useState(0);
+  const [tracks, setTracks] = useState([]);
+  const [sessionLabel, setSessionLabel] = useState(EM_DASH);
+  const [deviceCount, setDeviceCount] = useState(0);
   const tracklistRef = useRef(null);
   const timerRef = useRef(null);
+  const coreRef = useRef(null);
+  const unsubscribeRef = useRef(null);
+  const statusPollRef = useRef(null);
 
   const isRunning = appState === "running";
   const isTransitioning = appState === "starting" || appState === "stopping";
   const currentTrack = tracks[tracks.length - 1];
   const previousTrack = tracks.length >= 2 ? tracks[tracks.length - 2] : null;
-  const deviceCount = isRunning ? 2 : appState === "starting" ? 0 : 0;
-  const connectionState = isRunning ? "online" : appState === "starting" ? "scanning" : "offline";
+  const connectionState =
+    appState === "starting" ? "scanning" : isRunning ? (deviceCount > 0 ? "online" : "scanning") : "offline";
   const templateDirty = template !== savedTemplate;
 
   // Auto-increment "published ago"
@@ -291,6 +330,8 @@ export default function TRACKR() {
       timerRef.current = setInterval(() => setPublishedAgo((p) => p + 1), 1000);
       return () => clearInterval(timerRef.current);
     }
+    if (timerRef.current) clearInterval(timerRef.current);
+    return undefined;
   }, [isRunning]);
 
   const addToast = useCallback((msg, severity = "info") => {
@@ -299,53 +340,217 @@ export default function TRACKR() {
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 8000);
   }, []);
 
-  const handleStartStop = () => {
+  const callCore = useCallback(async (method, ...args) => {
+    if (!coreRef.current) coreRef.current = resolveContractCore();
+    const core = coreRef.current;
+    if (!core || typeof core[method] !== "function") {
+      return { ok: false, error: { code: "bridge_unavailable", message: `Missing core method: ${method}` } };
+    }
+    try {
+      const result = await Promise.resolve(core[method](...args));
+      if (result && typeof result === "object") return result;
+      return { ok: false, error: { code: "invalid_response", message: "Invalid core response" } };
+    } catch (error) {
+      return { ok: false, error: { code: "bridge_exception", message: error?.message || String(error) } };
+    }
+  }, []);
+
+  const syncStatus = useCallback((status) => {
+    if (!status) return;
+    if (status.app_state) setAppState(status.app_state);
+    if (Number.isFinite(status.device_count)) setDeviceCount(status.device_count);
+    if (status.api_access_mode) setApiAccessMode(status.api_access_mode);
+    if (typeof status.api_enabled === "boolean") setApiEnabled(status.api_enabled);
+    if (typeof status.share_play_count_via_api === "boolean") setSharePlayCount(status.share_play_count_via_api);
+    if (status.api_effective_bind_host) setApiBindHost(status.api_effective_bind_host);
+    if (status.session_file_name) {
+      const parsed = parseSessionDisplay(status.session_file_name);
+      setSessionLabel(parsed.label);
+    } else {
+      setSessionLabel(EM_DASH);
+    }
+  }, []);
+
+  const reloadTracklist = useCallback(async () => {
+    const res = await callCore("get_running_tracklist");
+    if (!res?.ok) return;
+    const items = Array.isArray(res.data?.items) ? res.data.items : [];
+    setTracks(items.map((item) => toUiTrack(item)));
+  }, [callCore]);
+
+  const reloadTemplate = useCallback(async () => {
+    const res = await callCore("get_template");
+    if (!res?.ok) return;
+    const next = res.data?.template || DEFAULT_TEMPLATE;
+    setTemplate(next);
+    setSavedTemplate(next);
+  }, [callCore]);
+
+  const refreshFromCore = useCallback(async () => {
+    const statusRes = await callCore("get_status");
+    if (statusRes?.ok) syncStatus(statusRes.data);
+    await reloadTracklist();
+  }, [callCore, syncStatus, reloadTracklist]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const bind = async () => {
+      await refreshFromCore();
+      await reloadTemplate();
+
+      const subRes = await callCore("subscribe_events", (event) => {
+        if (!mounted || !event) return;
+        const payload = event.payload || {};
+
+        if (event.event_type === "state_changed" && payload.app_state) {
+          setAppState(payload.app_state);
+          return;
+        }
+
+        if (event.event_type === "publish_succeeded") {
+          setPublishedAgo(0);
+          reloadTracklist();
+          return;
+        }
+
+        if (event.event_type === "tracklist_appended") {
+          setPublishedAgo(0);
+          setTracks((prev) => [...prev, toUiTrack(payload)]);
+          return;
+        }
+
+        if (event.event_type === "api_rebound") {
+          if (typeof payload.enabled === "boolean") setApiEnabled(payload.enabled);
+          if (payload.bind_host) setApiBindHost(payload.bind_host);
+        }
+      });
+
+      if (subRes?.ok && subRes.data?.unsubscribe) {
+        unsubscribeRef.current = subRes.data.unsubscribe;
+      }
+
+      statusPollRef.current = setInterval(() => {
+        refreshFromCore();
+      }, 2000);
+    };
+
+    bind();
+
+    return () => {
+      mounted = false;
+      if (statusPollRef.current) clearInterval(statusPollRef.current);
+      if (typeof unsubscribeRef.current === "function") unsubscribeRef.current();
+    };
+  }, [callCore, refreshFromCore, reloadTemplate, reloadTracklist]);
+
+  const buildConfig = useCallback(
+    () => ({
+      output_root: outputDir,
+      delay_seconds: delay,
+      timestamps_enabled: timestamps,
+      api_enabled: apiEnabled,
+      api_access_mode: apiAccessMode,
+      share_play_count_via_api: sharePlayCount,
+      api_port: apiPort,
+    }),
+    [outputDir, delay, timestamps, apiEnabled, apiAccessMode, sharePlayCount, apiPort]
+  );
+
+  const handleStartStop = useCallback(async () => {
     if (appState === "stopped" || appState === "error") {
       setAppState("starting");
-      setTimeout(() => {
-        setAppState("running");
-        setPublishedAgo(0);
-        addToast("Connected — 2 CDJs online", "success");
-      }, 1800);
-    } else if (appState === "running") {
-      setAppState("stopping");
-      setTimeout(() => {
-        setAppState("stopped");
-        addToast("TRACKR stopped", "info");
-      }, 1200);
+      const res = await callCore("start", buildConfig());
+      if (!res?.ok) {
+        setAppState("error");
+        addToast(`Start failed: ${res?.error?.message || "Unknown error"}`, "error");
+        return;
+      }
+      setPublishedAgo(0);
+      await refreshFromCore();
+      addToast("TRACKR started", "success");
+      return;
     }
-  };
 
-  const handleRefresh = () => {
+    if (appState === "running") {
+      setAppState("stopping");
+      const res = await callCore("stop");
+      if (!res?.ok) {
+        setAppState("error");
+        addToast(`Stop failed: ${res?.error?.message || "Unknown error"}`, "error");
+        return;
+      }
+      await refreshFromCore();
+      addToast("TRACKR stopped", "info");
+    }
+  }, [appState, addToast, buildConfig, callCore, refreshFromCore]);
+
+  const handleRefresh = useCallback(async () => {
     if (!isRunning) return;
     setAppState("stopping");
-    setTimeout(() => {
-      setTracks([]);
-      setSessionIndex((i) => i + 1);
-      setAppState("starting");
-      setTimeout(() => {
-        setAppState("running");
-        setPublishedAgo(0);
-        setTracks(MOCK_TRACKS.slice(0, 3));
-        addToast("New session started", "success");
-      }, 1200);
-    }, 800);
-  };
+    const res = await callCore("refresh");
+    if (!res?.ok) {
+      setAppState("error");
+      addToast(`Refresh failed: ${res?.error?.message || "Unknown error"}`, "error");
+      return;
+    }
+    setPublishedAgo(0);
+    await refreshFromCore();
+    addToast("New session started", "success");
+  }, [isRunning, callCore, addToast, refreshFromCore]);
 
-  const handleSaveTemplate = () => {
-    setSavedTemplate(template);
+  const handleSaveTemplate = useCallback(async () => {
+    const res = await callCore("set_template", template);
+    if (!res?.ok) {
+      addToast(`Template save failed: ${res?.error?.message || "Unknown error"}`, "error");
+      return;
+    }
+    const next = res.data?.template || template;
+    setTemplate(next);
+    setSavedTemplate(next);
     addToast("Template saved & applied", "success");
-  };
+  }, [template, callCore, addToast]);
 
-  const handleRestoreTemplate = () => {
-    setTemplate(DEFAULT_TEMPLATE);
-    setSavedTemplate(DEFAULT_TEMPLATE);
+  const handleRestoreTemplate = useCallback(async () => {
+    const res = await callCore("reset_template");
+    if (!res?.ok) {
+      addToast(`Template reset failed: ${res?.error?.message || "Unknown error"}`, "error");
+      return;
+    }
+    const next = res.data?.template || DEFAULT_TEMPLATE;
+    setTemplate(next);
+    setSavedTemplate(next);
     addToast("Default template restored", "info");
-  };
+  }, [callCore, addToast]);
+
+  const handleApiEnabledChange = useCallback(
+    (next) => {
+      setApiEnabled(next);
+      if (isRunning) addToast("API setting will apply on next refresh/start", "info");
+    },
+    [isRunning, addToast]
+  );
+
+  const handleSharePlayCountChange = useCallback(
+    (next) => {
+      setSharePlayCount(next);
+      if (isRunning) addToast("API setting will apply on next refresh/start", "info");
+    },
+    [isRunning, addToast]
+  );
+
+  const handleApiAccessModeChange = useCallback(
+    (mode) => {
+      setApiAccessMode(mode);
+      setApiBindHost(mode === "localhost" ? "127.0.0.1" : "0.0.0.0");
+      if (isRunning) addToast("API setting will apply on next refresh/start", "info");
+    },
+    [isRunning, addToast]
+  );
 
   const formatAgo = (s) => (s < 60 ? `${s}s ago` : `${Math.floor(s / 60)}m ${s % 60}s ago`);
 
-  // ─── TABS ────────────────────────────────────────────────────────────────
+  // ─── TABS ─────────────────────────────────────────────────────────────────
   const tabs = [
     { id: "live", label: "LIVE" },
     { id: "template", label: templateDirty ? "TEMPLATE •" : "TEMPLATE" },
@@ -509,7 +714,7 @@ export default function TRACKR() {
           {/* Current track */}
           {isRunning && currentTrack ? (
             <span style={{ ...font(12, 600), color: C.textPrimary }}>
-              {currentTrack.artist} — {currentTrack.title}
+              {renderTrackText(currentTrack)}
             </span>
           ) : (
             <span style={{ ...font(12, 400), color: C.textMuted }}>—</span>
@@ -543,7 +748,7 @@ export default function TRACKR() {
               </span>
               <div style={{ width: 1, height: 16, background: C.borderRack, flexShrink: 0 }} />
               <span style={{ ...font(11, 400), color: C.textDim, flexShrink: 0 }}>
-                {previousTrack.artist} — {previousTrack.title}
+                {renderTrackText(previousTrack)}
               </span>
             </>
           )}
@@ -607,7 +812,7 @@ export default function TRACKR() {
                   📁 {outputDir}
                 </div>
                 <div style={{ ...font(9, 400), color: C.textMuted, marginTop: 2 }}>
-                  Session: 2026-02-11({sessionIndex})
+                  Session: {sessionLabel}
                 </div>
               </div>
             </div>
@@ -768,7 +973,7 @@ export default function TRACKR() {
             {activeTab === "live" && (
               <RackPanel
                 label="SESSION TRACKLIST"
-                labelRight={`2026-02-11(${sessionIndex}) — ${tracks.length} tracks`}
+                labelRight={`${sessionLabel} — ${tracks.length} tracks`}
                 style={{ height: "100%", display: "flex", flexDirection: "column" }}
               >
                 <div
@@ -839,9 +1044,13 @@ export default function TRACKR() {
                               whiteSpace: "nowrap",
                             }}
                           >
-                            {track.artist}{" "}
-                            <span style={{ color: C.textMuted }}>—</span>{" "}
-                            {track.title}
+                            {track.title ? (
+                              <>
+                                {track.artist} <span style={{ color: C.textMuted }}>—</span> {track.title}
+                              </>
+                            ) : (
+                              track.artist
+                            )}
                           </span>
 
                           {/* Play count */}
@@ -1003,8 +1212,8 @@ export default function TRACKR() {
                     API
                   </span>
                   <div style={{ marginTop: 8 }}>
-                    <Toggle label="Enable local API" on={apiEnabled} onChange={setApiEnabled} />
-                    <Toggle label="Share play count via API" on={sharePlayCount} onChange={setSharePlayCount} disabled={!apiEnabled} />
+                    <Toggle label="Enable local API" on={apiEnabled} onChange={handleApiEnabledChange} />
+                    <Toggle label="Share play count via API" on={sharePlayCount} onChange={handleSharePlayCountChange} disabled={!apiEnabled} />
                     <div style={{ ...font(9, 400), color: C.textMuted, marginTop: 2, marginBottom: 14 }}>
                       When disabled, TRACKR does not expose local endpoints.
                     </div>
@@ -1031,8 +1240,7 @@ export default function TRACKR() {
                             <button
                               key={opt.id}
                               onClick={() => {
-                                setApiAccessMode(opt.id);
-                                setApiBindHost(opt.id === "localhost" ? "127.0.0.1" : "0.0.0.0");
+                                handleApiAccessModeChange(opt.id);
                               }}
                               style={{
                                 ...font(9, active ? 700 : 500),
