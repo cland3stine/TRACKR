@@ -302,6 +302,7 @@ export default function TRACKR() {
   const [outputDir, setOutputDir] = useState("");
   const [migrationPromptSeen, setMigrationPromptSeen] = useState(false);
   const [outputRootChoice, setOutputRootChoice] = useState(null);
+  const [confirmDialog, setConfirmDialog] = useState(null);
   const [apiEnabled, setApiEnabled] = useState(true);
   const [apiAccessMode, setApiAccessMode] = useState("lan");
   const [apiBindHost, setApiBindHost] = useState("0.0.0.0");
@@ -482,6 +483,31 @@ export default function TRACKR() {
     [outputDir, migrationPromptSeen, delay, timestamps, apiEnabled, apiAccessMode, sharePlayCount, apiPort]
   );
 
+  const performStop = useCallback(async () => {
+    setAppState("stopping");
+    const res = await callCore("stop");
+    if (!res?.ok) {
+      setAppState("error");
+      addToast(`Stop failed: ${res?.error?.message || "Unknown error"}`, "error");
+      return;
+    }
+    await refreshFromCore();
+    addToast("TRACKR stopped", "info");
+  }, [callCore, addToast, refreshFromCore]);
+
+  const performRefresh = useCallback(async () => {
+    setAppState("stopping");
+    const res = await callCore("refresh");
+    if (!res?.ok) {
+      setAppState("error");
+      addToast(`Refresh failed: ${res?.error?.message || "Unknown error"}`, "error");
+      return;
+    }
+    setPublishedAgo(0);
+    await refreshFromCore();
+    addToast("New session started", "success");
+  }, [callCore, addToast, refreshFromCore]);
+
   const handleStartStop = useCallback(async () => {
     if (appState === "stopped" || appState === "error") {
       if (outputRootChoice) {
@@ -508,31 +534,31 @@ export default function TRACKR() {
     }
 
     if (appState === "running") {
-      setAppState("stopping");
-      const res = await callCore("stop");
-      if (!res?.ok) {
-        setAppState("error");
-        addToast(`Stop failed: ${res?.error?.message || "Unknown error"}`, "error");
-        return;
-      }
-      await refreshFromCore();
-      addToast("TRACKR stopped", "info");
+      setConfirmDialog({ type: "stop", message: "ARE YOU SURE YOU WANT TO STOP THE SESSION?" });
     }
-  }, [appState, addToast, applyOutputRootResolution, buildConfig, callCore, outputRootChoice, refreshFromCore]);
+  }, [appState, addToast, applyOutputRootResolution, buildConfig, callCore, outputRootChoice]);
 
   const handleRefresh = useCallback(async () => {
     if (!isRunning) return;
-    setAppState("stopping");
-    const res = await callCore("refresh");
-    if (!res?.ok) {
-      setAppState("error");
-      addToast(`Refresh failed: ${res?.error?.message || "Unknown error"}`, "error");
+    setConfirmDialog({ type: "refresh", message: "ARE YOU SURE YOU WANT TO REFRESH THE SESSION?" });
+  }, [isRunning]);
+
+  const handleConfirmCancel = useCallback(() => {
+    setConfirmDialog(null);
+  }, []);
+
+  const handleConfirmProceed = useCallback(async () => {
+    if (!confirmDialog?.type) return;
+    const nextAction = confirmDialog.type;
+    setConfirmDialog(null);
+    if (nextAction === "stop") {
+      await performStop();
       return;
     }
-    setPublishedAgo(0);
-    await refreshFromCore();
-    addToast("New session started", "success");
-  }, [isRunning, callCore, addToast, refreshFromCore]);
+    if (nextAction === "refresh") {
+      await performRefresh();
+    }
+  }, [confirmDialog, performStop, performRefresh]);
 
   const handleSaveTemplate = useCallback(async () => {
     const res = await callCore("set_template", template);
@@ -1414,7 +1440,49 @@ export default function TRACKR() {
         </div>
       </div>
 
-      {/* ═══ TOASTS ═══ */}
+      {confirmDialog && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.62)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 96,
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 620,
+              background: C.bgPanel,
+              border: `1px solid ${C.borderRack}`,
+              borderRadius: 6,
+              padding: 18,
+              boxShadow: "0 10px 28px rgba(0,0,0,0.45)",
+            }}
+          >
+            <div style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 2.2, textTransform: "uppercase" }}>
+              SESSION CONFIRMATION
+            </div>
+            <div style={{ ...font(14, 600), color: C.textPrimary, marginTop: 8 }}>{confirmDialog.message}</div>
+            <div style={{ ...font(11, 400), color: C.textDim, marginTop: 8 }}>
+              This action clears the running session tracklist view for the current session.
+            </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+              <Btn color={C.amber} onClick={handleConfirmCancel}>
+                CANCEL
+              </Btn>
+              <Btn color={C.red} onClick={handleConfirmProceed}>
+                CONFIRM
+              </Btn>
+            </div>
+          </div>
+        </div>
+      )}
+
       {outputRootChoice && (
         <div
           style={{

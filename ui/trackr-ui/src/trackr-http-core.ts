@@ -42,6 +42,13 @@ function nowUtcIso(): string {
   return new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 
+function formatElapsedMmSs(totalSeconds: number): string {
+  const safe = Math.max(0, Math.floor(totalSeconds));
+  const minutes = Math.floor(safe / 60);
+  const seconds = safe % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
 function ok(data: AnyObj = {}): CoreResult {
   return { ok: true, data };
 }
@@ -166,6 +173,8 @@ class TrackrHttpCore {
   private migrationPromptSeen = false;
   private runningTracklist: Array<{ time: string; line: string; play_count: number }> = [];
   private playCount = 0;
+  private lastAppendedTrackLine: string | null = null;
+  private sessionStartedAtMs: number | null = null;
 
   constructor(apiBaseUrl: string) {
     this.apiBaseUrl = apiBaseUrl.replace(/\/+$/, "");
@@ -194,6 +203,14 @@ class TrackrHttpCore {
   async refresh(): Promise<CoreResult> {
     const response = await fetchJson(this.apiBaseUrl, "/control/refresh", { method: "POST" });
     const result = responseToCoreResult(response, true);
+    if (result.ok) {
+      // Refresh starts a new session, so reset local running-session UI state.
+      this.runningTracklist = [];
+      this.lastPublishedLine = null;
+      this.lastAppendedTrackLine = null;
+      this.playCount = 0;
+      this.sessionStartedAtMs = Date.now();
+    }
     await this.refreshBackendState();
     return result.ok ? ok({ status: this.snapshotStatus() }) : result;
   }
@@ -356,10 +373,14 @@ class TrackrHttpCore {
 
   private applyStatus(status: AnyObj): void {
     const previousState = this.appState;
+    const previousSessionFileName = this.sessionFileName;
     this.appState = asString(status.app_state, this.appState || "stopped");
     this.statusText = asString(status.status_text, this.statusText);
     this.deviceCount = asNumber(status.device_count, this.deviceCount);
-    this.lastPublishedLine = asString(status.last_published_line, "") || null;
+    const reportedLastPublished = asString(status.last_published_line, "");
+    if (reportedLastPublished) {
+      this.lastPublishedLine = reportedLastPublished;
+    }
     this.sessionFileName = asString(status.session_file_name, "") || null;
     this.apiBindHost = asString(status.api_effective_bind_host, this.apiBindHost);
     this.apiPort = asNumber(status.api_port, this.apiPort);
@@ -369,6 +390,24 @@ class TrackrHttpCore {
     this.outputRoot = asString(status.output_root, this.outputRoot);
     this.migrationPromptSeen = asBool(status.migration_prompt_seen, this.migrationPromptSeen);
     this.backendRunning = this.appState === "running";
+    const sessionChanged =
+      !!previousSessionFileName &&
+      !!this.sessionFileName &&
+      previousSessionFileName !== this.sessionFileName;
+    if (sessionChanged) {
+      this.runningTracklist = [];
+      this.lastAppendedTrackLine = null;
+      this.sessionStartedAtMs = Date.now();
+    }
+    if (this.appState === "stopped" || this.appState === "error") {
+      this.runningTracklist = [];
+      this.lastPublishedLine = null;
+      this.lastAppendedTrackLine = null;
+      this.sessionStartedAtMs = null;
+    }
+    if (this.appState === "running" && this.sessionStartedAtMs === null) {
+      this.sessionStartedAtMs = Date.now();
+    }
 
     if (previousState !== this.appState) {
       this.emit("state_changed", { app_state: this.appState });
@@ -405,13 +444,21 @@ class TrackrHttpCore {
   private appendTrackIfNew(line: string): void {
     const cleaned = asString(line);
     if (!cleaned || cleaned === EM_DASH) return;
-    if (cleaned === this.lastPublishedLine) return;
-    this.lastPublishedLine = cleaned;
+    if (!this.lastPublishedLine || cleaned !== this.lastPublishedLine) return;
+    if (cleaned === this.lastAppendedTrackLine) return;
+    this.lastAppendedTrackLine = cleaned;
+    if (this.sessionStartedAtMs === null) {
+      this.sessionStartedAtMs = Date.now();
+    }
+    const elapsedSeconds =
+      this.runningTracklist.length === 0
+        ? 0
+        : Math.max(0, (Date.now() - this.sessionStartedAtMs) / 1000);
     const nextPlayCount =
       this.playCount > 0
         ? this.playCount
         : (this.runningTracklist[this.runningTracklist.length - 1]?.play_count || 0) + 1;
-    const item = { time: "", line: cleaned, play_count: nextPlayCount };
+    const item = { time: formatElapsedMmSs(elapsedSeconds), line: cleaned, play_count: nextPlayCount };
     this.runningTracklist.push(item);
     this.emit("tracklist_appended", item);
     this.emit("publish_succeeded", { line: cleaned, play_count: nextPlayCount });

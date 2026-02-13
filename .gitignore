@@ -26,6 +26,10 @@ ui/trackr-ui/node_modules/
 ui/trackr-ui/dist/
 ui/trackr-ui/src-tauri/target/
 
+# Local TRACKR runtime outputs/preferences when testing in repo root
+TRACKR/
+trackr_config.json
+
 # Keep Tauri scaffold source tracked (root has a broad src/ ignore rule)
 !ui/trackr-ui/src/
 !ui/trackr-ui/src/**

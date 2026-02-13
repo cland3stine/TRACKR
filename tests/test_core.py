@@ -73,6 +73,35 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(items[0]["play_count"], 1)
             self.assertEqual(items[1]["play_count"], 2)
 
+    def test_publish_dedupe_uses_normalized_line(self) -> None:
+        with repo_temp_dir() as temp_dir:
+            core = TrackrCore()
+            self.addCleanup(core.shutdown)
+            start_result = core.start(
+                {
+                    "output_root": str(temp_dir),
+                    "delay_seconds": 0,
+                    "timestamps_enabled": True,
+                    "api_enabled": False,
+                    "api_access_mode": "localhost",
+                    "share_play_count_via_api": False,
+                }
+            )
+            self.assertTrue(start_result["ok"])
+
+            first = core.publish("Artist  -   Track A", published_at=100.0)
+            self.assertTrue(first["ok"])
+            self.assertTrue(first["data"]["published"])
+
+            duplicate = core.publish("artist - track a", published_at=101.0)
+            self.assertTrue(duplicate["ok"])
+            self.assertFalse(duplicate["data"]["published"])
+
+            running_tracklist = core.get_running_tracklist()
+            self.assertTrue(running_tracklist["ok"])
+            items = running_tracklist["data"]["items"]
+            self.assertEqual(len(items), 1)
+
     def test_start_gates_all_operational_side_effects_until_output_choice(self) -> None:
         with repo_temp_dir() as home_dir:
             legacy_root = home_dir / "NowPlayingLite"

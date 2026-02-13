@@ -20,7 +20,7 @@ from trackr.config import (
 from trackr.db import TrackrDatabase
 from trackr.device_bridge import DeckStatus, DeviceBridge, RealDeviceBridge
 from trackr.template import TemplateStore
-from trackr.text_cleaner import EM_DASH, clean_track_line
+from trackr.text_cleaner import EM_DASH, clean_track_line, normalize_for_dedupe
 from trackr.writer import OutputWriter
 
 EventCallback = Callable[[dict[str, Any]], None]
@@ -36,12 +36,13 @@ def _err(code: str, message: str) -> dict[str, Any]:
 
 
 class TrackrCore:
-    def __init__(self) -> None:
+    def __init__(self, default_device_bridge_factory: Callable[[], DeviceBridge] | None = None) -> None:
         self._lock = RLock()
         self._app_state = "stopped"
         self._status_text = "stopped"
         self._device_count = 0
         self._last_published_line: str | None = None
+        self._last_published_key: str | None = None
         self._config: TrackrConfig | None = None
         self._db: TrackrDatabase | None = None
         self._writer: OutputWriter | None = None
@@ -64,6 +65,9 @@ class TrackrCore:
         self._pending_start_runtime_options: dict[str, Any] | None = None
         self._pending_start_home_dir: Path | None = None
         self._config_home_dir: Path | None = None
+        self._default_device_bridge_factory: Callable[[], DeviceBridge] = (
+            default_device_bridge_factory if default_device_bridge_factory is not None else RealDeviceBridge
+        )
 
     def start_api_supervisor(self, config: dict[str, Any] | TrackrConfig | None = None) -> dict[str, Any]:
         with self._lock:
@@ -290,7 +294,8 @@ class TrackrCore:
             if not cleaned_line:
                 return _err("invalid_track_line", "track_line must be non-empty")
 
-            if cleaned_line == self._last_published_line:
+            normalized_key = normalize_for_dedupe(cleaned_line)
+            if normalized_key and normalized_key == self._last_published_key:
                 self._emit("publish_skipped_dedupe", {"line": cleaned_line})
                 return _ok({"published": False, "reason": "dedupe"})
 
@@ -310,6 +315,7 @@ class TrackrCore:
                 self._emit("tracklist_appended", tracklist_item)
 
             self._last_published_line = cleaned_line
+            self._last_published_key = normalized_key or None
             self._status_text = "published"
             self._emit(
                 "publish_succeeded",
@@ -442,7 +448,7 @@ class TrackrCore:
         }
 
     def _start_device_listener(self, runtime_bridge: Any) -> None:
-        bridge = runtime_bridge if runtime_bridge is not None else RealDeviceBridge()
+        bridge = runtime_bridge if runtime_bridge is not None else self._default_device_bridge_factory()
         self._device_bridge = bridge
         logger.info("starting device bridge: %s", type(bridge).__name__)
         self._device_bridge.start(self._on_device_status, self._on_device_count)
@@ -575,7 +581,8 @@ class TrackrCore:
     def _schedule_delayed_publish(self, device_number: int, line: str) -> None:
         if self._config is None:
             return
-        key = f"{device_number}|{line}"
+        normalized = normalize_for_dedupe(line)
+        key = f"{device_number}|{normalized or line}"
         if key == self._pending_publish_key and self._pending_publish_timer is not None:
             return
 
@@ -629,6 +636,7 @@ class TrackrCore:
         else:
             output_root = None
             migration_prompt_seen = False
+        runtime_bridge = type(self._device_bridge).__name__ if self._device_bridge is not None else None
 
         return {
             "app_state": self._app_state,
@@ -643,6 +651,7 @@ class TrackrCore:
             "share_play_count_via_api": share_count,
             "output_root": output_root,
             "migration_prompt_seen": migration_prompt_seen,
+            "runtime_bridge": runtime_bridge,
         }
 
     def _emit(self, event_type: str, payload: dict[str, Any]) -> None:
@@ -673,6 +682,7 @@ class TrackrCore:
         self._templates = None
         self._running_tracklist.clear()
         self._last_published_line = None
+        self._last_published_key = None
         self._set_state("stopped", "stopped")
 
     def _ensure_api_server_running(self, config: TrackrConfig) -> None:

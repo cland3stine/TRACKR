@@ -63,6 +63,7 @@ class ApiTests(unittest.TestCase):
             status_payload = wait_get_json(f"http://127.0.0.1:{lan_port}/status")
             self.assertEqual(status_payload["app_state"], "running")
             self.assertEqual(status_payload["api_access_mode"], "lan")
+            self.assertEqual(status_payload["runtime_bridge"], "RealDeviceBridge")
 
     def test_nowplaying_play_count_omitted_or_included_without_file_changes(self) -> None:
         with repo_temp_dir() as temp_dir:
