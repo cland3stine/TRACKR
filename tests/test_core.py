@@ -39,6 +39,7 @@ class CoreTests(unittest.TestCase):
     def test_play_count_increments_only_on_publish(self) -> None:
         with repo_temp_dir() as temp_dir:
             core = TrackrCore()
+            self.addCleanup(core.shutdown)
             start_result = core.start(
                 {
                     "output_root": str(temp_dir),

@@ -16,10 +16,10 @@ class ApiTests(unittest.TestCase):
     def test_localhost_vs_lan_bind_configuration(self) -> None:
         with repo_temp_dir() as temp_dir:
             localhost_port = find_free_port()
-            core = TrackrCore()
-            self.addCleanup(core.stop)
+            localhost_core = TrackrCore()
+            self.addCleanup(localhost_core.shutdown)
 
-            start_local = core.start(
+            start_local = localhost_core.start(
                 {
                     "output_root": str(temp_dir),
                     "delay_seconds": 3,
@@ -31,17 +31,17 @@ class ApiTests(unittest.TestCase):
                 }
             )
             self.assertTrue(start_local["ok"])
-            status_local = core.get_status()["data"]
+            status_local = localhost_core.get_status()["data"]
             self.assertEqual(status_local["api_effective_bind_host"], "127.0.0.1")
 
             health_local = wait_get_json(f"http://127.0.0.1:{localhost_port}/health")
             self.assertTrue(health_local["ok"])
             self.assertTrue(health_local["is_running"])
 
-            core.stop()
-
             lan_port = find_free_port()
-            start_lan = core.start(
+            lan_core = TrackrCore()
+            self.addCleanup(lan_core.shutdown)
+            start_lan = lan_core.start(
                 {
                     "output_root": str(temp_dir),
                     "delay_seconds": 3,
@@ -53,7 +53,7 @@ class ApiTests(unittest.TestCase):
                 }
             )
             self.assertTrue(start_lan["ok"])
-            status_lan = core.get_status()["data"]
+            status_lan = lan_core.get_status()["data"]
             self.assertEqual(status_lan["api_effective_bind_host"], "0.0.0.0")
 
             health_lan = wait_get_json(f"http://127.0.0.1:{lan_port}/health")
@@ -67,9 +67,9 @@ class ApiTests(unittest.TestCase):
     def test_nowplaying_play_count_omitted_or_included_without_file_changes(self) -> None:
         with repo_temp_dir() as temp_dir:
             core = TrackrCore()
-            self.addCleanup(core.stop)
+            self.addCleanup(core.shutdown)
 
-            first_port = find_free_port()
+            api_port = find_free_port()
             start_hidden_count = core.start(
                 {
                     "output_root": str(temp_dir),
@@ -78,7 +78,7 @@ class ApiTests(unittest.TestCase):
                     "api_enabled": True,
                     "api_access_mode": "localhost",
                     "share_play_count_via_api": False,
-                    "api_port": first_port,
+                    "api_port": api_port,
                 }
             )
             self.assertTrue(start_hidden_count["ok"])
@@ -92,7 +92,7 @@ class ApiTests(unittest.TestCase):
             overlay_before_one = overlay_path_one.read_bytes()
             session_before_one = session_path_one.read_bytes()
 
-            nowplaying_without_count = wait_get_json(f"http://127.0.0.1:{first_port}/nowplaying")
+            nowplaying_without_count = wait_get_json(f"http://127.0.0.1:{api_port}/nowplaying")
             self.assertEqual(nowplaying_without_count["current"], "Artist - Track One")
             self.assertEqual(nowplaying_without_count["previous"], EM_DASH)
             self.assertNotIn("play_count", nowplaying_without_count)
@@ -101,7 +101,6 @@ class ApiTests(unittest.TestCase):
 
             core.stop()
 
-            second_port = find_free_port()
             start_shared_count = core.start(
                 {
                     "output_root": str(temp_dir),
@@ -110,7 +109,7 @@ class ApiTests(unittest.TestCase):
                     "api_enabled": True,
                     "api_access_mode": "localhost",
                     "share_play_count_via_api": True,
-                    "api_port": second_port,
+                    "api_port": api_port,
                 }
             )
             self.assertTrue(start_shared_count["ok"])
@@ -124,13 +123,70 @@ class ApiTests(unittest.TestCase):
             overlay_before_two = overlay_path_two.read_bytes()
             session_before_two = session_path_two.read_bytes()
 
-            nowplaying_with_count = wait_get_json(f"http://127.0.0.1:{second_port}/nowplaying")
+            nowplaying_with_count = wait_get_json(f"http://127.0.0.1:{api_port}/nowplaying")
             self.assertEqual(nowplaying_with_count["current"], "Artist - Track Two")
             self.assertEqual(nowplaying_with_count["previous"], EM_DASH)
             self.assertIn("play_count", nowplaying_with_count)
             self.assertEqual(nowplaying_with_count["play_count"], 2)
             self.assertEqual(overlay_path_two.read_bytes(), overlay_before_two)
             self.assertEqual(session_path_two.read_bytes(), session_before_two)
+
+    def test_start_stop_start_again_and_api_remains_alive(self) -> None:
+        with repo_temp_dir() as temp_dir:
+            core = TrackrCore()
+            self.addCleanup(core.shutdown)
+            port = find_free_port()
+
+            supervisor = core.start_api_supervisor(
+                {
+                    "output_root": str(temp_dir),
+                    "api_enabled": True,
+                    "api_access_mode": "localhost",
+                    "api_port": port,
+                }
+            )
+            self.assertTrue(supervisor["ok"])
+
+            first_start_status, _first_start_payload = request_json(
+                f"http://127.0.0.1:{port}/control/start",
+                method="POST",
+                payload={
+                    "output_root": str(temp_dir),
+                    "delay_seconds": 1,
+                    "timestamps_enabled": True,
+                    "api_enabled": True,
+                    "api_access_mode": "localhost",
+                    "api_port": port,
+                },
+            )
+            self.assertEqual(first_start_status, 200)
+
+            stop_status, _stop_payload = request_json(
+                f"http://127.0.0.1:{port}/control/stop",
+                method="POST",
+            )
+            self.assertEqual(stop_status, 200)
+
+            health_after_stop = wait_get_json(f"http://127.0.0.1:{port}/health")
+            self.assertTrue(health_after_stop["ok"])
+            self.assertFalse(health_after_stop["is_running"])
+
+            second_start_status, _second_start_payload = request_json(
+                f"http://127.0.0.1:{port}/control/start",
+                method="POST",
+                payload={
+                    "output_root": str(temp_dir),
+                    "delay_seconds": 1,
+                    "timestamps_enabled": True,
+                    "api_enabled": True,
+                    "api_access_mode": "localhost",
+                    "api_port": port,
+                },
+            )
+            self.assertEqual(second_start_status, 200)
+
+            status_payload = wait_get_json(f"http://127.0.0.1:{port}/status")
+            self.assertEqual(status_payload["app_state"], "running")
 
     def test_control_start_refused_when_output_root_choice_unresolved(self) -> None:
         with repo_temp_dir() as home_dir:
@@ -143,7 +199,7 @@ class ApiTests(unittest.TestCase):
             )
             server.start()
             self.addCleanup(server.stop)
-            self.addCleanup(core.stop)
+            self.addCleanup(core.shutdown)
 
             status_code, payload = request_json(
                 f"http://127.0.0.1:{server.port}/control/start",
@@ -176,7 +232,7 @@ class ApiTests(unittest.TestCase):
             )
             server.start()
             self.addCleanup(server.stop)
-            self.addCleanup(core.stop)
+            self.addCleanup(core.shutdown)
 
             start_status, _ = request_json(
                 f"http://127.0.0.1:{server.port}/control/start",

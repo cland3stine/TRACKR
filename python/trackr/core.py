@@ -63,6 +63,42 @@ class TrackrCore:
         self._pending_start_home_dir: Path | None = None
         self._config_home_dir: Path | None = None
 
+    def start_api_supervisor(self, config: dict[str, Any] | TrackrConfig | None = None) -> dict[str, Any]:
+        with self._lock:
+            try:
+                runtime_options, requested = self._coerce_config(config)
+                home_dir = self._extract_home_dir(runtime_options) or self._config_home_dir or self._pending_start_home_dir
+                if home_dir is not None:
+                    self._config_home_dir = home_dir
+
+                if config is None:
+                    next_config = self._effective_config_locked(home_dir=home_dir)
+                elif isinstance(config, TrackrConfig):
+                    next_config = requested
+                else:
+                    base = self._effective_config_locked(home_dir=home_dir)
+                    merged = base.to_dict()
+                    merged.update(dict(config or {}))
+                    next_config = TrackrConfig.from_dict(merged)
+
+                self._config = next_config
+                self._ensure_api_server_running(next_config)
+                return _ok(
+                    {
+                        "api_started": self._api_server is not None,
+                        "bind_host": next_config.effective_bind_host,
+                        "port": next_config.api_port,
+                    }
+                )
+            except Exception as exc:
+                return _err("api_supervisor_start_failed", str(exc))
+
+    def shutdown(self) -> dict[str, Any]:
+        with self._lock:
+            self._stop_engine_locked()
+            self._stop_api_server()
+            return _ok({"status": self._snapshot_status()})
+
     def start(self, config: dict[str, Any] | TrackrConfig | None) -> dict[str, Any]:
         with self._lock:
             if self._app_state == "running":
@@ -91,7 +127,6 @@ class TrackrCore:
                 self._pending_start_home_dir = None
                 return self._start_with_resolved_config(next_config, runtime_options)
             except Exception as exc:
-                self._stop_api_server()
                 self._stop_listener_pipeline()
                 if self._db is not None:
                     self._db.close()
@@ -149,20 +184,7 @@ class TrackrCore:
 
     def stop(self) -> dict[str, Any]:
         with self._lock:
-            if self._app_state == "stopped":
-                return _ok({"status": self._snapshot_status()})
-
-            self._set_state("stopping", "stopping")
-            self._stop_api_server()
-            self._stop_listener_pipeline()
-            if self._db is not None:
-                self._db.close()
-                self._db = None
-            self._writer = None
-            self._templates = None
-            self._running_tracklist.clear()
-            self._last_published_line = None
-            self._set_state("stopped", "stopped")
+            self._stop_engine_locked()
             return _ok({"status": self._snapshot_status()})
 
     def refresh(self) -> dict[str, Any]:
@@ -334,7 +356,6 @@ class TrackrCore:
         runtime_options: dict[str, Any],
     ) -> dict[str, Any]:
         self._set_state("starting", "starting")
-        self._stop_api_server()
         self._stop_listener_pipeline()
         if self._db is not None:
             self._db.close()
@@ -361,13 +382,7 @@ class TrackrCore:
         self._set_state("running", "running")
         self._status_text = "listening (close rekordbox on this PC)"
 
-        if next_config.api_enabled:
-            self._api_server = TrackrApiServer(
-                bind_host=next_config.effective_bind_host,
-                port=next_config.api_port,
-                route_handlers=self._api_route_handlers(),
-            )
-            self._api_server.start()
+        self._ensure_api_server_running(next_config)
 
         self._start_device_listener(runtime_options.get("device_bridge"))
         self._emit(
@@ -630,6 +645,32 @@ class TrackrCore:
             except Exception:
                 continue
 
+    def _stop_engine_locked(self) -> None:
+        if self._app_state not in {"stopped", "stopping"}:
+            self._set_state("stopping", "stopping")
+
+        self._stop_listener_pipeline()
+        if self._db is not None:
+            self._db.close()
+            self._db = None
+        self._writer = None
+        self._templates = None
+        self._running_tracklist.clear()
+        self._last_published_line = None
+        self._set_state("stopped", "stopped")
+
+    def _ensure_api_server_running(self, config: TrackrConfig) -> None:
+        if self._api_server is not None:
+            return
+        if not config.api_enabled:
+            return
+        self._api_server = TrackrApiServer(
+            bind_host=config.effective_bind_host,
+            port=config.api_port,
+            route_handlers=self._api_route_handlers(),
+        )
+        self._api_server.start()
+
     def _stop_api_server(self) -> None:
         if self._api_server is not None:
             self._api_server.stop()
@@ -662,17 +703,11 @@ class TrackrCore:
         return self._api_result(self.get_status(), unwrap_data=True)
 
     def _api_route_control_start(self, body: dict[str, Any] | None) -> tuple[int, dict[str, Any]]:
-        overrides = dict(body or {})
-        base = {}
-        base_result = self.get_config()
-        if base_result.get("ok"):
-            candidate = base_result.get("data")
-            if isinstance(candidate, dict):
-                base = dict(candidate)
-        merged = dict(base)
-        merged.update(overrides)
-
-        result = self.start(merged)
+        payload = dict(body or {})
+        if payload:
+            result = self.start(payload)
+        else:
+            result = self.start(None)
         if result.get("ok"):
             data = result.get("data")
             if isinstance(data, dict) and data.get("needs_user_choice"):

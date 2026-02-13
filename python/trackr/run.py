@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+import traceback
 
 from trackr.config import TrackrConfig
 from trackr.core import TrackrCore
@@ -18,7 +19,19 @@ def _print_error(error: dict[str, object] | None) -> None:
 def main() -> int:
     core = TrackrCore()
     try:
-        start_result = core.start(TrackrConfig.from_dict({}))
+        cfg = TrackrConfig.from_dict({})
+        supervisor = core.start_api_supervisor(cfg)
+        if not supervisor.get("ok"):
+            _print_error(supervisor.get("error"))  # type: ignore[arg-type]
+            return 1
+
+        try:
+            start_result = core.start(cfg)
+            print("START RESULT:", start_result)
+        except Exception:
+            traceback.print_exc()
+            raise
+
         if not start_result.get("ok"):
             _print_error(start_result.get("error"))  # type: ignore[arg-type]
             return 1
@@ -27,7 +40,8 @@ def main() -> int:
         if isinstance(data, dict) and data.get("needs_user_choice"):
             print("TRACKR requires an output root choice before startup.")
             print("Choose via UI/API: POST /output-root/choose with {\"choice\":\"legacy\"|\"trackr\"}.")
-            return 0
+            while True:
+                time.sleep(1.0)
 
         print("TRACKR running")
         while True:
@@ -35,7 +49,7 @@ def main() -> int:
     except KeyboardInterrupt:
         pass
     finally:
-        core.stop()
+        core.shutdown()
     return 0
 
 
