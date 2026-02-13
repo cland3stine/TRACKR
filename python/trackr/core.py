@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import logging
 from pathlib import Path
 from threading import RLock, Timer
 import time
@@ -17,12 +18,13 @@ from trackr.config import (
     save_persisted_config,
 )
 from trackr.db import TrackrDatabase
-from trackr.device_bridge import DeckStatus, DeviceBridge, NullDeviceBridge
+from trackr.device_bridge import DeckStatus, DeviceBridge, RealDeviceBridge
 from trackr.template import TemplateStore
 from trackr.text_cleaner import EM_DASH, clean_track_line
 from trackr.writer import OutputWriter
 
 EventCallback = Callable[[dict[str, Any]], None]
+logger = logging.getLogger(__name__)
 
 
 def _ok(data: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -440,8 +442,9 @@ class TrackrCore:
         }
 
     def _start_device_listener(self, runtime_bridge: Any) -> None:
-        bridge = runtime_bridge if runtime_bridge is not None else NullDeviceBridge()
+        bridge = runtime_bridge if runtime_bridge is not None else RealDeviceBridge()
         self._device_bridge = bridge
+        logger.info("starting device bridge: %s", type(bridge).__name__)
         self._device_bridge.start(self._on_device_status, self._on_device_count)
         self._status_text = "listening (close rekordbox on this PC)"
         self._emit("status_message", {"status_text": self._status_text})
@@ -455,6 +458,7 @@ class TrackrCore:
             self._startup_probe_timer.cancel()
             self._startup_probe_timer = None
         if self._device_bridge is not None:
+            logger.info("stopping device bridge: %s", type(self._device_bridge).__name__)
             try:
                 self._device_bridge.stop()
             except Exception:
@@ -476,12 +480,24 @@ class TrackrCore:
         with self._lock:
             if self._app_state not in {"starting", "running"}:
                 return
-            self._device_count = max(0, int(count))
+            next_count = max(0, int(count))
+            previous_count = self._device_count
+            self._device_count = next_count
+            if next_count > previous_count:
+                logger.info("device found (count %s -> %s)", previous_count, next_count)
+            elif next_count < previous_count:
+                logger.info("device lost (count %s -> %s)", previous_count, next_count)
 
     def _on_device_status(self, status: DeckStatus) -> None:
         with self._lock:
             if self._app_state != "running":
                 return
+            logger.debug(
+                "status update deck=%s on_air=%s playing=%s",
+                status.device_number,
+                status.is_on_air,
+                status.is_playing,
+            )
             self._process_status(status, retries_left=self._metadata_retry_attempts)
 
     def _run_startup_probe(self, remaining: int) -> None:

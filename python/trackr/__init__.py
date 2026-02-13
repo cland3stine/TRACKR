@@ -2,7 +2,7 @@
 
 from trackr.config import TrackrConfig
 from trackr.core import TrackrCore
-from trackr.device_bridge import DeckStatus, NullDeviceBridge, TrackMetadata
+from trackr.device_bridge import DeckStatus, NullDeviceBridge, RealDeviceBridge, TrackMetadata
 from trackr.simulated_source import SimulatedEventSource, SimulatedTrackEvent
 
 __all__ = [
@@ -11,6 +11,7 @@ __all__ = [
     "DeckStatus",
     "TrackMetadata",
     "NullDeviceBridge",
+    "RealDeviceBridge",
     "SimulatedEventSource",
     "SimulatedTrackEvent",
 ]

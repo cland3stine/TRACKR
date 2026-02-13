@@ -190,6 +190,12 @@ class DeviceListenerTests(unittest.TestCase):
             self.assertTrue(ok)
             self.assertEqual(self._running_lines(core), ["Probe Artist - Warmup"])
 
+    def test_injected_bridge_is_used_as_runtime_bridge(self) -> None:
+        with repo_temp_dir() as temp_dir:
+            bridge = FakeBridge()
+            core = self._start_core(temp_dir, bridge)
+            self.assertIs(core._device_bridge, bridge)
+
 
 if __name__ == "__main__":
     unittest.main()
