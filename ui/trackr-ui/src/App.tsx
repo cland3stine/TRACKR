@@ -8,7 +8,7 @@ function App() {
 
   useEffect(() => {
     const bridge = installTrackrHttpBridge();
-    void bridge;
+    void bridge.resolve_output_root?.();
 
     let cancelled = false;
     const runPoll = async () => {
@@ -19,7 +19,7 @@ function App() {
     void runPoll();
     const timer = setInterval(() => {
       void runPoll();
-    }, 2000);
+    }, 3000);
 
     return () => {
       cancelled = true;
@@ -32,7 +32,7 @@ function App() {
       <TrackrDashboard />
       <div className="backend-status" aria-live="polite">
         <span className={`backend-dot ${backendConnected ? "ok" : "down"}`} />
-        <span>Backend: {backendConnected ? "Connected" : "Disconnected"}</span>
+        <span>{backendConnected ? "Connected" : "Backend Offline"}</span>
       </div>
     </>
   );

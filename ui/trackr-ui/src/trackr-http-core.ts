@@ -8,15 +8,15 @@ export type CoreResult = {
 
 type EventCallback = (event: AnyObj) => void;
 
-const EM_DASH = "—";
+const EM_DASH = "\u2014";
 const DEFAULT_OUTPUT_ROOT = "%USERPROFILE%\\TRACKR";
-const LEGACY_OUTPUT_ROOT = "%USERPROFILE%\\NowPlayingLite";
+
 const DEFAULT_TEMPLATE = `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8" /></head>
 <body style="margin:0;background:transparent;font-family:Segoe UI,sans-serif;">
-  <div id="current">—</div>
-  <div id="previous">—</div>
+  <div id="current">\u2014</div>
+  <div id="previous">\u2014</div>
 </body>
 </html>`;
 
@@ -29,6 +29,13 @@ const DEFAULT_CONFIG: AnyObj = {
   api_access_mode: "lan",
   share_play_count_via_api: false,
   api_port: 8755,
+};
+
+type JsonResponse = {
+  ok: boolean;
+  status: number;
+  data: AnyObj;
+  message?: string;
 };
 
 function nowUtcIso(): string {
@@ -59,12 +66,21 @@ function asNumber(value: unknown, fallback = 0): number {
   return fallback;
 }
 
+function asObject(value: unknown): AnyObj {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return value as AnyObj;
+}
+
+function healthOk(response: JsonResponse): boolean {
+  return response.ok && response.data.ok === true;
+}
+
 async function fetchJson(
   baseUrl: string,
   path: string,
   init?: RequestInit,
   timeoutMs = 1500,
-): Promise<{ ok: boolean; status: number; data: AnyObj; message?: string }> {
+): Promise<JsonResponse> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -77,7 +93,7 @@ async function fetchJson(
       },
     });
     const text = await response.text();
-    const parsed = text ? (JSON.parse(text) as AnyObj) : {};
+    const parsed = text ? asObject(JSON.parse(text)) : {};
     return {
       ok: response.ok,
       status: response.status,
@@ -92,6 +108,37 @@ async function fetchJson(
   }
 }
 
+function responseToCoreResult(response: JsonResponse, unwrapEnvelope = false): CoreResult {
+  const payload = asObject(response.data);
+
+  if (response.ok) {
+    if (unwrapEnvelope && typeof payload.ok === "boolean") {
+      if (!payload.ok) {
+        const backendError = asObject(payload.error);
+        return err(
+          asString(backendError.code, "request_failed"),
+          asString(backendError.message, "request failed"),
+        );
+      }
+      return ok(asObject(payload.data));
+    }
+    return ok(payload);
+  }
+
+  const backendError = asObject(payload.error);
+  if (backendError.code || backendError.message) {
+    return err(
+      asString(backendError.code, response.status === 0 ? "backend_offline" : "request_failed"),
+      asString(backendError.message, response.message || "request failed"),
+    );
+  }
+
+  return err(
+    response.status === 0 ? "backend_offline" : "request_failed",
+    response.message || "request failed",
+  );
+}
+
 class TrackrHttpCore {
   private readonly apiBaseUrl: string;
   private readonly subscribers = new Map<number, EventCallback>();
@@ -103,11 +150,20 @@ class TrackrHttpCore {
 
   private backendConnected = false;
   private backendRunning = false;
-  private mockRunning = false;
   private sessionFileName: string | null = null;
   private deviceCount = 0;
   private currentLine = EM_DASH;
+  private previousLine = EM_DASH;
   private lastPublishedLine: string | null = null;
+  private appState = "stopped";
+  private statusText = "Backend Offline";
+  private apiBindHost = "127.0.0.1";
+  private apiPort = 8755;
+  private apiEnabled = true;
+  private apiAccessMode = "localhost";
+  private sharePlayCount = false;
+  private outputRoot = DEFAULT_OUTPUT_ROOT;
+  private migrationPromptSeen = false;
   private runningTracklist: Array<{ time: string; line: string; play_count: number }> = [];
   private playCount = 0;
 
@@ -116,62 +172,49 @@ class TrackrHttpCore {
   }
 
   async start(config: AnyObj): Promise<CoreResult> {
-    this.config = { ...this.config, ...config };
+    this.config = { ...this.config, ...asObject(config) };
     await this.set_config(this.config);
 
     const response = await fetchJson(this.apiBaseUrl, "/control/start", {
       method: "POST",
       body: JSON.stringify(this.config),
     });
-    if (response.ok) {
-      this.mockRunning = false;
-      await this.refreshBackendState();
-      return ok({ status: this.snapshotStatus() });
-    }
-
-    // TODO: remove fallback once /control/start is implemented server-side.
-    this.mockRunning = true;
-    this.emit("state_changed", { app_state: "running", mocked: true });
-    return ok({ mocked: true, status: this.snapshotStatus() });
+    const result = responseToCoreResult(response, true);
+    await this.refreshBackendState();
+    return result.ok ? ok({ status: this.snapshotStatus() }) : result;
   }
 
   async stop(): Promise<CoreResult> {
-    const response = await fetchJson(this.apiBaseUrl, "/control/stop", {
-      method: "POST",
-    });
-    if (response.ok) {
-      this.mockRunning = false;
-      await this.refreshBackendState();
-      return ok({ status: this.snapshotStatus() });
-    }
-
-    // TODO: remove fallback once /control/stop is implemented server-side.
-    this.mockRunning = false;
-    this.emit("state_changed", { app_state: "stopped", mocked: true });
-    return ok({ mocked: true, status: this.snapshotStatus() });
+    const response = await fetchJson(this.apiBaseUrl, "/control/stop", { method: "POST" });
+    const result = responseToCoreResult(response, true);
+    await this.refreshBackendState();
+    return result.ok ? ok({ status: this.snapshotStatus() }) : result;
   }
 
   async refresh(): Promise<CoreResult> {
-    const response = await fetchJson(this.apiBaseUrl, "/control/refresh", {
-      method: "POST",
-    });
-    if (response.ok) {
-      this.runningTracklist = [];
-      this.lastPublishedLine = null;
-      await this.refreshBackendState();
-      return ok({ status: this.snapshotStatus() });
+    const response = await fetchJson(this.apiBaseUrl, "/control/refresh", { method: "POST" });
+    const result = responseToCoreResult(response, true);
+    await this.refreshBackendState();
+    return result.ok ? ok({ status: this.snapshotStatus() }) : result;
+  }
+
+  async getStatus(): Promise<CoreResult> {
+    const response = await fetchJson(this.apiBaseUrl, "/status", { method: "GET" });
+    if (!response.ok) {
+      this.backendConnected = false;
+      this.backendRunning = false;
+      this.appState = "stopped";
+      this.statusText = "Backend Offline";
+      return ok(this.snapshotStatus());
     }
 
-    // TODO: remove fallback once /control/refresh is implemented server-side.
-    this.runningTracklist = [];
-    this.lastPublishedLine = null;
-    this.emit("status_message", { status_text: "refresh mocked (endpoint missing)" });
-    return ok({ mocked: true, status: this.snapshotStatus() });
+    this.applyStatus(asObject(response.data));
+    this.backendConnected = true;
+    return ok(this.snapshotStatus());
   }
 
   async get_status(): Promise<CoreResult> {
-    await this.refreshBackendState();
-    return ok(this.snapshotStatus());
+    return this.getStatus();
   }
 
   subscribe_events(callback: EventCallback): CoreResult {
@@ -194,92 +237,99 @@ class TrackrHttpCore {
 
   async get_config(): Promise<CoreResult> {
     const response = await fetchJson(this.apiBaseUrl, "/config", { method: "GET" });
-    if (response.ok) {
-      this.config = { ...this.config, ...response.data };
-      return ok({ ...this.config });
-    }
-
-    // TODO: remove fallback once /config is implemented server-side.
-    return ok({ ...this.config, mocked: true });
+    const result = responseToCoreResult(response, false);
+    if (result.ok && result.data) this.config = { ...this.config, ...result.data };
+    return result;
   }
 
   async set_config(config: AnyObj): Promise<CoreResult> {
-    this.config = { ...this.config, ...config };
+    this.config = { ...this.config, ...asObject(config) };
     const response = await fetchJson(this.apiBaseUrl, "/config", {
       method: "POST",
       body: JSON.stringify(this.config),
     });
-    if (response.ok) {
-      this.config = { ...this.config, ...response.data };
-      return ok({ ...this.config });
-    }
-
-    // TODO: remove fallback once /config is implemented server-side.
-    return ok({ ...this.config, mocked: true });
+    const result = responseToCoreResult(response, false);
+    if (result.ok && result.data) this.config = { ...this.config, ...result.data };
+    return result;
   }
 
   async get_template(): Promise<CoreResult> {
     const response = await fetchJson(this.apiBaseUrl, "/template", { method: "GET" });
-    if (response.ok) {
-      const value = asString((response.data as AnyObj).template, this.template);
-      this.template = value || this.template;
+    const result = responseToCoreResult(response, false);
+    if (result.ok) {
+      this.template = asString(result.data?.template, this.template);
       return ok({ template: this.template });
     }
-
-    // TODO: remove fallback once /template is implemented server-side.
-    return ok({ template: this.template, mocked: true });
+    return result;
   }
 
   async set_template(templateHtml: string): Promise<CoreResult> {
     const next = asString(templateHtml);
     if (!next) return err("invalid_template", "template_html must be non-empty");
-    this.template = next;
+
     const response = await fetchJson(this.apiBaseUrl, "/template", {
       method: "POST",
       body: JSON.stringify({ template: next }),
     });
-    if (response.ok) return ok({ template: next });
-
-    // TODO: remove fallback once /template is implemented server-side.
-    return ok({ template: next, mocked: true });
+    const result = responseToCoreResult(response, false);
+    if (result.ok) {
+      this.template = asString(result.data?.template, next);
+      return ok({ template: this.template });
+    }
+    return result;
   }
 
   async reset_template(): Promise<CoreResult> {
-    return this.set_template(DEFAULT_TEMPLATE);
+    const response = await fetchJson(this.apiBaseUrl, "/template/reset", { method: "POST" });
+    const result = responseToCoreResult(response, false);
+    if (result.ok) {
+      this.template = asString(result.data?.template, DEFAULT_TEMPLATE);
+      return ok({ template: this.template });
+    }
+    return result;
+  }
+
+  async resolveOutputRoot(config?: AnyObj): Promise<CoreResult> {
+    if (config && typeof config === "object") {
+      this.config = { ...this.config, ...asObject(config) };
+    }
+    const response = await fetchJson(this.apiBaseUrl, "/output-root/resolve", { method: "GET" });
+    const result = responseToCoreResult(response, false);
+    if (result.ok && result.data?.chosen_output_root) {
+      this.outputRoot = asString(result.data.chosen_output_root, this.outputRoot);
+      this.config = { ...this.config, output_root: this.outputRoot };
+    }
+    return result;
   }
 
   async resolve_output_root(config?: AnyObj): Promise<CoreResult> {
-    if (config && typeof config === "object") {
-      this.config = { ...this.config, ...config };
+    return this.resolveOutputRoot(config);
+  }
+
+  async chooseOutputRoot(choice: string): Promise<CoreResult> {
+    const normalized = asString(choice).toLowerCase();
+    if (normalized !== "legacy" && normalized !== "trackr") {
+      return err("invalid_choice", "choice must be 'legacy' or 'trackr'");
     }
-    const outputRoot = asString(this.config.output_root, DEFAULT_OUTPUT_ROOT);
-    return ok({
-      state: "resolved",
-      needs_user_choice: false,
-      output_root: outputRoot,
-      legacy_output_root: LEGACY_OUTPUT_ROOT,
-      trackr_output_root: DEFAULT_OUTPUT_ROOT,
-      migration_prompt_seen: true,
+
+    const response = await fetchJson(this.apiBaseUrl, "/output-root/choose", {
+      method: "POST",
+      body: JSON.stringify({ choice: normalized }),
     });
+    const result = responseToCoreResult(response, false);
+    if (result.ok) {
+      const chosen = asString(result.data?.output_root, "");
+      if (chosen) {
+        this.outputRoot = chosen;
+        this.config = { ...this.config, output_root: chosen, migration_prompt_seen: true };
+      }
+      await this.refreshBackendState();
+    }
+    return result;
   }
 
   async set_output_root_choice(choice: string): Promise<CoreResult> {
-    const nextRoot = choice === "legacy" ? LEGACY_OUTPUT_ROOT : DEFAULT_OUTPUT_ROOT;
-    this.config = {
-      ...this.config,
-      output_root: nextRoot,
-      migration_prompt_seen: true,
-    };
-    await this.set_config(this.config);
-    return ok({
-      state: "resolved",
-      needs_user_choice: false,
-      output_root: nextRoot,
-      legacy_output_root: LEGACY_OUTPUT_ROOT,
-      trackr_output_root: DEFAULT_OUTPUT_ROOT,
-      migration_prompt_seen: true,
-      status: this.snapshotStatus(),
-    });
+    return this.chooseOutputRoot(choice);
   }
 
   private ensurePolling(): void {
@@ -299,32 +349,56 @@ class TrackrHttpCore {
       try {
         callback(event);
       } catch {
-        // Swallow subscriber errors to keep UI polling stable.
+        // Keep poll loop stable.
       }
     }
   }
 
+  private applyStatus(status: AnyObj): void {
+    const previousState = this.appState;
+    this.appState = asString(status.app_state, this.appState || "stopped");
+    this.statusText = asString(status.status_text, this.statusText);
+    this.deviceCount = asNumber(status.device_count, this.deviceCount);
+    this.lastPublishedLine = asString(status.last_published_line, "") || null;
+    this.sessionFileName = asString(status.session_file_name, "") || null;
+    this.apiBindHost = asString(status.api_effective_bind_host, this.apiBindHost);
+    this.apiPort = asNumber(status.api_port, this.apiPort);
+    this.apiEnabled = asBool(status.api_enabled, this.apiEnabled);
+    this.apiAccessMode = asString(status.api_access_mode, this.apiAccessMode);
+    this.sharePlayCount = asBool(status.share_play_count_via_api, this.sharePlayCount);
+    this.outputRoot = asString(status.output_root, this.outputRoot);
+    this.migrationPromptSeen = asBool(status.migration_prompt_seen, this.migrationPromptSeen);
+    this.backendRunning = this.appState === "running";
+
+    if (previousState !== this.appState) {
+      this.emit("state_changed", { app_state: this.appState });
+    }
+  }
+
   private async refreshBackendState(): Promise<void> {
-    const previousAppState = asString(this.snapshotStatus().app_state, "stopped");
     const healthResponse = await fetchJson(this.apiBaseUrl, "/health", { method: "GET" });
-    this.backendConnected = healthResponse.ok;
-    if (healthResponse.ok) {
-      this.backendRunning = asBool((healthResponse.data as AnyObj).is_running, false);
+    this.backendConnected = healthOk(healthResponse);
+    if (!this.backendConnected) {
+      this.backendRunning = false;
+      this.appState = "stopped";
+      this.statusText = "Backend Offline";
+      return;
+    }
+
+    const statusResponse = await fetchJson(this.apiBaseUrl, "/status", { method: "GET" });
+    if (statusResponse.ok) {
+      this.applyStatus(asObject(statusResponse.data));
     }
 
     const nowPlayingResponse = await fetchJson(this.apiBaseUrl, "/nowplaying", { method: "GET" });
     if (nowPlayingResponse.ok) {
-      const payload = nowPlayingResponse.data as AnyObj;
+      const payload = asObject(nowPlayingResponse.data);
       this.currentLine = asString(payload.current, EM_DASH);
-      this.sessionFileName = asString(payload.session_file, "") || null;
-      this.deviceCount = asNumber(payload.device_count, 0);
+      this.previousLine = asString(payload.previous, EM_DASH);
+      this.sessionFileName = asString(payload.session_file, "") || this.sessionFileName;
+      this.deviceCount = asNumber(payload.device_count, this.deviceCount);
       this.playCount = asNumber(payload.play_count, this.playCount);
       this.appendTrackIfNew(this.currentLine);
-    }
-
-    const currentAppState = asString(this.snapshotStatus().app_state, "stopped");
-    if (previousAppState !== currentAppState) {
-      this.emit("state_changed", { app_state: currentAppState });
     }
   }
 
@@ -332,10 +406,11 @@ class TrackrHttpCore {
     const cleaned = asString(line);
     if (!cleaned || cleaned === EM_DASH) return;
     if (cleaned === this.lastPublishedLine) return;
-
     this.lastPublishedLine = cleaned;
     const nextPlayCount =
-      this.playCount > 0 ? this.playCount : (this.runningTracklist[this.runningTracklist.length - 1]?.play_count || 0) + 1;
+      this.playCount > 0
+        ? this.playCount
+        : (this.runningTracklist[this.runningTracklist.length - 1]?.play_count || 0) + 1;
     const item = { time: "", line: cleaned, play_count: nextPlayCount };
     this.runningTracklist.push(item);
     this.emit("tracklist_appended", item);
@@ -343,21 +418,23 @@ class TrackrHttpCore {
   }
 
   private snapshotStatus(): AnyObj {
-    const appState = this.backendRunning || this.mockRunning ? "running" : "stopped";
     return {
-      app_state: appState,
-      status_text: this.backendConnected ? "connected" : "backend disconnected",
+      app_state: this.appState,
+      status_text: this.backendConnected ? this.statusText : "Backend Offline",
       device_count: this.deviceCount,
       last_published_line: this.lastPublishedLine,
       session_file_name: this.sessionFileName,
-      api_effective_bind_host: "127.0.0.1",
-      api_port: asNumber(this.config.api_port, 8755),
-      api_enabled: asBool(this.config.api_enabled, true),
-      api_access_mode: asString(this.config.api_access_mode, "localhost"),
-      share_play_count_via_api: asBool(this.config.share_play_count_via_api, false),
-      output_root: asString(this.config.output_root, DEFAULT_OUTPUT_ROOT),
-      migration_prompt_seen: true,
+      api_effective_bind_host: this.apiBindHost,
+      api_port: this.apiPort,
+      api_enabled: this.apiEnabled,
+      api_access_mode: this.apiAccessMode,
+      share_play_count_via_api: this.sharePlayCount,
+      output_root: this.outputRoot,
+      migration_prompt_seen: this.migrationPromptSeen,
       backend_connected: this.backendConnected,
+      current: this.currentLine,
+      previous: this.previousLine,
+      is_running: this.backendRunning,
     };
   }
 }
@@ -365,8 +442,11 @@ class TrackrHttpCore {
 function readApiBaseUrl(): string {
   const fromStorage = localStorage.getItem("trackr.apiBaseUrl");
   const fromEnv = (import.meta.env.VITE_TRACKR_API_BASE as string | undefined) || "";
-  const raw = asString(fromStorage, asString(fromEnv, "http://127.0.0.1:8755"));
-  return raw.replace(/\/+$/, "");
+  const raw = asString(fromStorage, asString(fromEnv, "/api")).replace(/\/+$/, "");
+  if (raw === "http://127.0.0.1:8755" || raw === "http://localhost:8755") {
+    return "/api";
+  }
+  return raw;
 }
 
 export function installTrackrHttpBridge(): TrackrHttpCore {
@@ -378,5 +458,5 @@ export function installTrackrHttpBridge(): TrackrHttpCore {
 
 export async function pollBackendHealthOnce(): Promise<boolean> {
   const response = await fetchJson(readApiBaseUrl(), "/health", { method: "GET" }, 1200);
-  return response.ok && asBool((response.data as AnyObj).ok, true);
+  return healthOk(response);
 }
