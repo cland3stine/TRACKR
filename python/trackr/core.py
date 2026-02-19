@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import logging
 from pathlib import Path
+import socket
 from threading import RLock, Timer
 import time
 from typing import Any, Callable
@@ -33,6 +34,16 @@ def _ok(data: dict[str, Any] | None = None) -> dict[str, Any]:
 
 def _err(code: str, message: str) -> dict[str, Any]:
     return {"ok": False, "error": {"code": code, "message": message}}
+
+
+def _detect_lan_ip() -> str:
+    """Best-effort LAN IP detection using a dummy UDP connect."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("10.255.255.255", 1))
+            return s.getsockname()[0]
+    except Exception:
+        return "127.0.0.1"
 
 
 class TrackrCore:
@@ -290,7 +301,8 @@ class TrackrCore:
             if self._writer is None or self._db is None:
                 return _err("not_started", "core is not started")
 
-            cleaned_line = clean_track_line(track_line)
+            strip = self._config.strip_mix_labels if self._config else True
+            cleaned_line = clean_track_line(track_line, strip_mix_labels=strip)
             if not cleaned_line:
                 return _err("invalid_track_line", "track_line must be non-empty")
 
@@ -572,10 +584,11 @@ class TrackrCore:
         timer.start()
 
     def _line_from_metadata(self, title: str | None, artist: str | None) -> str:
-        cleaned_title = clean_track_line(title)
+        strip = self._config.strip_mix_labels if self._config else True
+        cleaned_title = clean_track_line(title, strip_mix_labels=strip)
         if not cleaned_title:
             return ""
-        cleaned_artist = clean_track_line(artist)
+        cleaned_artist = clean_track_line(artist, strip_mix_labels=strip)
         return f"{cleaned_artist} - {cleaned_title}" if cleaned_artist else cleaned_title
 
     def _schedule_delayed_publish(self, device_number: int, line: str) -> None:
@@ -645,6 +658,7 @@ class TrackrCore:
             "last_published_line": self._last_published_line,
             "session_file_name": session_name,
             "api_effective_bind_host": api_bind,
+            "lan_ip": _detect_lan_ip(),
             "api_port": api_port,
             "api_enabled": api_enabled,
             "api_access_mode": api_access_mode,

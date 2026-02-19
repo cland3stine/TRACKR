@@ -22,6 +22,7 @@ class TrackrConfig:
     migration_prompt_seen: bool = False
     delay_seconds: float = 3
     timestamps_enabled: bool = True
+    strip_mix_labels: bool = True
     api_enabled: bool = True
     api_access_mode: str = API_ACCESS_LAN
     share_play_count_via_api: bool = False
@@ -70,6 +71,7 @@ class TrackrConfig:
             "migration_prompt_seen": self.migration_prompt_seen,
             "delay_seconds": self.delay_seconds,
             "timestamps_enabled": self.timestamps_enabled,
+            "strip_mix_labels": self.strip_mix_labels,
             "api_enabled": self.api_enabled,
             "api_access_mode": self.api_access_mode,
             "share_play_count_via_api": self.share_play_count_via_api,
@@ -99,6 +101,7 @@ class TrackrConfig:
             migration_prompt_seen=bool(data.get("migration_prompt_seen", False)),
             delay_seconds=delay_seconds,
             timestamps_enabled=bool(data.get("timestamps_enabled", True)),
+            strip_mix_labels=bool(data.get("strip_mix_labels", True)),
             api_enabled=bool(data.get("api_enabled", True)),
             api_access_mode=api_access_mode,
             share_play_count_via_api=bool(data.get("share_play_count_via_api", False)),

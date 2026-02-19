@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
 
 // ─── DESIGN TOKENS ───────────────────────────────────────────────────────────
 const C = {
@@ -293,6 +294,7 @@ export default function TRACKR() {
   const [appState, setAppState] = useState("stopped"); // stopped, starting, running, stopping, error
   const [activeTab, setActiveTab] = useState("live");
   const [timestamps, setTimestamps] = useState(true);
+  const [stripMixLabels, setStripMixLabels] = useState(true);
   const [sharePlayCount, setSharePlayCount] = useState(false);
   const [delay, setDelay] = useState(3);
   const [template, setTemplate] = useState(DEFAULT_TEMPLATE);
@@ -307,7 +309,7 @@ export default function TRACKR() {
   const [apiAccessMode, setApiAccessMode] = useState("lan");
   const [apiBindHost, setApiBindHost] = useState("0.0.0.0");
   const [apiPort] = useState(8755);
-  const [lanIp] = useState("192.168.1.50");
+  const [lanIp, setLanIp] = useState("127.0.0.1");
   const [toasts, setToasts] = useState([]);
   const [publishedAgo, setPublishedAgo] = useState(0);
   const [tracks, setTracks] = useState([]);
@@ -364,6 +366,8 @@ export default function TRACKR() {
     if (Number.isFinite(status.device_count)) setDeviceCount(status.device_count);
     if (status.api_access_mode) setApiAccessMode(status.api_access_mode);
     if (typeof status.api_enabled === "boolean") setApiEnabled(status.api_enabled);
+    if (typeof status.strip_mix_labels === "boolean") setStripMixLabels(status.strip_mix_labels);
+    if (status.lan_ip) setLanIp(status.lan_ip);
     if (typeof status.share_play_count_via_api === "boolean") setSharePlayCount(status.share_play_count_via_api);
     if (typeof status.migration_prompt_seen === "boolean") setMigrationPromptSeen(status.migration_prompt_seen);
     if (status.api_effective_bind_host) setApiBindHost(status.api_effective_bind_host);
@@ -475,6 +479,7 @@ export default function TRACKR() {
       migration_prompt_seen: migrationPromptSeen,
       delay_seconds: delay,
       timestamps_enabled: timestamps,
+      strip_mix_labels: stripMixLabels,
       api_enabled: apiEnabled,
       api_access_mode: apiAccessMode,
       share_play_count_via_api: sharePlayCount,
@@ -601,6 +606,22 @@ export default function TRACKR() {
     },
     [addToast, applyOutputRootResolution, callCore, refreshFromCore]
   );
+
+  const handleBrowseOutputDir = useCallback(async () => {
+    try {
+      const selected = await open({ directory: true, title: "Select TRACKR output folder" });
+      if (!selected) return;
+      setOutputDir(selected);
+      const result = await callCore("set_config", { output_root: selected, migration_prompt_seen: true });
+      if (result?.ok) {
+        addToast(`Output folder set to ${selected}`, "success");
+      } else {
+        addToast("Failed to update output folder", "error");
+      }
+    } catch (err) {
+      addToast(`Browse failed: ${err?.message || err}`, "error");
+    }
+  }, [callCore, addToast]);
 
   const handleApiEnabledChange = useCallback(
     (next) => {
@@ -1002,6 +1023,7 @@ export default function TRACKR() {
               </div>
 
               <Toggle label="Timestamps" on={timestamps} onChange={setTimestamps} disabled={isRunning} />
+              <Toggle label="Strip Original/Extended" on={stripMixLabels} onChange={setStripMixLabels} disabled={isRunning} />
             </div>
           </RackPanel>
         </div>
@@ -1250,7 +1272,7 @@ export default function TRACKR() {
                     >
                       {outputDir || "%USERPROFILE%\\TRACKR"}
                     </div>
-                    <Btn color={C.blue} onClick={() => addToast("Folder picker (native dialog)", "info")}>
+                    <Btn color={C.blue} onClick={handleBrowseOutputDir} disabled={isRunning}>
                       BROWSE
                     </Btn>
                   </div>
