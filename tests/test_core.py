@@ -143,8 +143,8 @@ class CoreTests(unittest.TestCase):
             self.assertFalse(_port_is_open(port))
 
             self.assertFalse((legacy_root / "overlay").exists())
-            self.assertFalse((legacy_root / "overlay" / "nowplaying.txt").exists())
-            self.assertFalse((legacy_root / "overlay" / "nowplaying.html").exists())
+            self.assertFalse((legacy_root / "overlay" / "trackr-2-line.txt").exists())
+            self.assertFalse((legacy_root / "overlay" / "trackr-obs.html").exists())
             self.assertFalse((legacy_root / "trackr.db").exists())
             self.assertFalse((trackr_root / "overlay").exists())
             self.assertFalse((trackr_root / "trackr.db").exists())
@@ -179,8 +179,8 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(bridge.start_calls, 1)
 
             # Operational startup happens only after choice is resolved.
-            self.assertTrue((legacy_root / "overlay" / "nowplaying.txt").exists())
-            self.assertTrue((legacy_root / "overlay" / "nowplaying.html").exists())
+            self.assertTrue((legacy_root / "overlay" / "trackr-2-line.txt").exists())
+            self.assertTrue((legacy_root / "overlay" / "trackr-obs.html").exists())
             self.assertTrue((legacy_root / "trackr.db").exists())
 
 

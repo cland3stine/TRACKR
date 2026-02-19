@@ -25,7 +25,7 @@ DEFAULT_TEMPLATE = """<!DOCTYPE html>
   <script>
     async function poll() {
       try {
-        const response = await fetch("nowplaying.txt?t=" + Date.now(), { cache: "no-store" });
+        const response = await fetch("trackr-2-line.txt?t=" + Date.now(), { cache: "no-store" });
         const text = await response.text();
         const lines = text.split(/\\r?\\n/);
         document.getElementById("current").textContent = (lines[0] || "—").trim() || "—";
@@ -44,7 +44,7 @@ class TemplateStore:
     def __init__(self, output_root: Path, db: TrackrDatabase) -> None:
         self._output_root = output_root
         self._db = db
-        self._overlay_html_path = output_root / "overlay" / "nowplaying.html"
+        self._overlay_html_path = output_root / "overlay" / "trackr-obs.html"
 
     @property
     def overlay_html_path(self) -> Path:

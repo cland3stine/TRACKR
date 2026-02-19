@@ -89,7 +89,7 @@ class ApiTests(unittest.TestCase):
 
             status_one = core.get_status()["data"]
             session_path_one = Path(temp_dir) / status_one["session_file_name"]
-            overlay_path_one = Path(temp_dir) / "overlay" / "nowplaying.txt"
+            overlay_path_one = Path(temp_dir) / "overlay" / "trackr-2-line.txt"
             overlay_before_one = overlay_path_one.read_bytes()
             session_before_one = session_path_one.read_bytes()
 
@@ -120,7 +120,7 @@ class ApiTests(unittest.TestCase):
 
             status_two = core.get_status()["data"]
             session_path_two = Path(temp_dir) / status_two["session_file_name"]
-            overlay_path_two = Path(temp_dir) / "overlay" / "nowplaying.txt"
+            overlay_path_two = Path(temp_dir) / "overlay" / "trackr-2-line.txt"
             overlay_before_two = overlay_path_two.read_bytes()
             session_before_two = session_path_two.read_bytes()
 
@@ -257,8 +257,8 @@ class ApiTests(unittest.TestCase):
             self.assertFalse(set_payload["ok"])
             self.assertEqual(set_payload["error"]["code"], "needs_user_choice")
 
-            legacy_html = legacy_root / "overlay" / "nowplaying.html"
-            trackr_html = home_dir / "TRACKR" / "overlay" / "nowplaying.html"
+            legacy_html = legacy_root / "overlay" / "trackr-obs.html"
+            trackr_html = home_dir / "TRACKR" / "overlay" / "trackr-obs.html"
             self.assertFalse(legacy_html.exists())
             self.assertFalse(trackr_html.exists())
 

@@ -919,7 +919,7 @@ class TrackrCore:
         if self._writer is not None:
             overlay_path = self._writer.overlay_nowplaying_path
         elif self._config is not None:
-            overlay_path = self._config.overlay_dir / "nowplaying.txt"
+            overlay_path = self._config.overlay_dir / "trackr-2-line.txt"
 
         if overlay_path is None or not overlay_path.exists():
             return EM_DASH, EM_DASH

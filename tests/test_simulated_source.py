@@ -55,7 +55,7 @@ class SimulatedSourceTests(unittest.TestCase):
             self.assertEqual([item["line"] for item in items], fixture["expected_published_lines"])
             self.assertEqual([item["play_count"] for item in items], [1, 2, 3])
 
-            overlay_path = Path(temp_dir) / "overlay" / "nowplaying.txt"
+            overlay_path = Path(temp_dir) / "overlay" / "trackr-2-line.txt"
             self.assertEqual(
                 overlay_path.read_bytes(),
                 "D - Four\r\nC - Three\r\n".encode("utf-8"),

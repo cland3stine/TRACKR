@@ -228,7 +228,7 @@ const DEFAULT_TEMPLATE = `<!DOCTYPE html>
   <script>
     async function poll() {
       try {
-        const r = await fetch('nowplaying.txt?_=' + Date.now());
+        const r = await fetch('trackr-2-line.txt?_=' + Date.now());
         const t = await r.text();
         const lines = t.trim().split('\\n');
         document.getElementById('nowplaying')
@@ -387,7 +387,7 @@ export default function TRACKR() {
     }
     if (payload.state === "needs_user_choice" || payload.needs_user_choice) {
       setOutputRootChoice({
-        legacy: payload.legacy_output_root || `${"%USERPROFILE%"}\\NowPlayingLite`,
+        legacy: payload.legacy_output_root || `${"%USERPROFILE%"}\\TRACKR`,
         trackr: payload.trackr_output_root || `${"%USERPROFILE%"}\\TRACKR`,
       });
       return;
@@ -599,7 +599,7 @@ export default function TRACKR() {
       applyOutputRootResolution(res.data);
       await refreshFromCore();
       if (choice === "legacy") {
-        addToast("Using NowPlayingLite output folder.", "info");
+        addToast("Using legacy output folder.", "info");
       } else {
         addToast("Switched output folder to TRACKR.", "success");
       }
@@ -1452,7 +1452,7 @@ export default function TRACKR() {
                       Pro DJ Link track publisher for OBS
                     </div>
                     <div style={{ ...font(9, 400), color: C.textMuted, marginTop: 2 }}>
-                      Pioneer CDJ → nowplaying.txt → OBS overlay
+                      Pioneer CDJ → trackr-2-line.txt → OBS overlay
                     </div>
                   </div>
                 </div>
@@ -1533,7 +1533,7 @@ export default function TRACKR() {
               OUTPUT FOLDER CHOICE
             </div>
             <div style={{ ...font(14, 600), color: C.textPrimary, marginTop: 8 }}>
-              Legacy output folder detected: NowPlayingLite
+              Legacy output folder detected
             </div>
             <div style={{ ...font(11, 400), color: C.textDim, marginTop: 8 }}>
               Choose where TRACKR should write outputs. You can change this later in Settings.
@@ -1548,7 +1548,7 @@ export default function TRACKR() {
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
               <Btn color={C.amber} onClick={() => handleOutputRootChoice("legacy")}>
-                USE NOWPLAYINGLITE
+                USE LEGACY FOLDER
               </Btn>
               <Btn color={C.green} onClick={() => handleOutputRootChoice("trackr")}>
                 SWITCH TO TRACKR

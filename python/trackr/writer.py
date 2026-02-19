@@ -11,7 +11,7 @@ class OutputWriter:
     def __init__(self, output_root: Path, timestamps_enabled: bool, delay_seconds: int) -> None:
         self._output_root = output_root
         self._overlay_dir = output_root / "overlay"
-        self._overlay_nowplaying_path = self._overlay_dir / "nowplaying.txt"
+        self._overlay_nowplaying_path = self._overlay_dir / "trackr-2-line.txt"
         self._session_tracker = SessionTracker(output_root, timestamps_enabled, delay_seconds)
         self._previous_overlay_line = EM_DASH
         self._running_entries: list[SessionEntry] = []
