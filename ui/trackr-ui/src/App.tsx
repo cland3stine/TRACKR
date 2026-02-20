@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import "./App.css";
+import SplashScreen from "./SplashScreen";
 import TrackrDashboard from "./trackr-dashboard.jsx";
 import { installTrackrHttpBridge, pollBackendHealthOnce } from "./trackr-http-core";
 
@@ -27,8 +28,13 @@ function App() {
     };
   }, []);
 
+  const splashStatus = backendConnected
+    ? "Ready"
+    : "Connecting to backend...";
+
   return (
     <>
+      <SplashScreen status={splashStatus} visible={!backendConnected} />
       <TrackrDashboard />
       <div className="backend-status" aria-live="polite">
         <span className={`backend-dot ${backendConnected ? "ok" : "down"}`} />
