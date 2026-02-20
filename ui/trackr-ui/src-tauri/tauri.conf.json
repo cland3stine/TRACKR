@@ -26,6 +26,7 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
     "externalBin": ["binaries/trackr-backend"],
     "resources": {
       "../../../build/jpackage/NowPlayingLite-DeviceStartFixed/": "NowPlayingLite/"
@@ -37,5 +38,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/cland3stine/TRACKR/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM5Q0I5MkZEMzIxMEQxNUQKUldSZDBSQXkvWkxMeVJ3WFhPUTFWUkNHWDZaVDRuWkdyd0lnc3NtNmFIK3locXNVUFRuWldxbnkK"
+    }
   }
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
+import { checkForUpdate } from "./updater";
 
 // ─── DESIGN TOKENS ───────────────────────────────────────────────────────────
 const C = {
@@ -315,6 +316,7 @@ export default function TRACKR() {
   const [tracks, setTracks] = useState([]);
   const [sessionLabel, setSessionLabel] = useState(EM_DASH);
   const [deviceCount, setDeviceCount] = useState(0);
+  const [updateStatus, setUpdateStatus] = useState({ state: "idle" });
   const tracklistRef = useRef(null);
   const timerRef = useRef(null);
   const coreRef = useRef(null);
@@ -1453,6 +1455,33 @@ export default function TRACKR() {
                     </div>
                     <div style={{ ...font(9, 400), color: C.textMuted, marginTop: 2 }}>
                       Pioneer CDJ → trackr-2-line.txt → OBS overlay
+                    </div>
+                    <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10 }}>
+                      <Btn
+                        color={C.blue}
+                        onClick={() => checkForUpdate(setUpdateStatus)}
+                        disabled={updateStatus.state === "checking" || updateStatus.state === "downloading"}
+                      >
+                        {updateStatus.state === "checking" ? "CHECKING..." :
+                         updateStatus.state === "downloading" ? `DOWNLOADING ${Math.round((updateStatus.progress || 0) * 100)}%` :
+                         updateStatus.state === "ready" ? "RESTARTING..." :
+                         "CHECK FOR UPDATES"}
+                      </Btn>
+                      {updateStatus.state === "available" && (
+                        <span style={{ ...font(9, 400), color: C.green }}>
+                          v{updateStatus.version} available — downloading...
+                        </span>
+                      )}
+                      {updateStatus.state === "up-to-date" && (
+                        <span style={{ ...font(9, 400), color: C.textDim }}>
+                          Up to date
+                        </span>
+                      )}
+                      {updateStatus.state === "error" && (
+                        <span style={{ ...font(9, 400), color: C.red }}>
+                          {updateStatus.message}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
