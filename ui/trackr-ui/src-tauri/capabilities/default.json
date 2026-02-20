@@ -11,7 +11,7 @@
       "identifier": "shell:allow-spawn",
       "allow": [
         {
-          "name": "binaries/trackr-backend",
+          "name": "trackr-backend",
           "sidecar": true
         }
       ]

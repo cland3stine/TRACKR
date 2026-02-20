@@ -316,6 +316,7 @@ export default function TRACKR() {
   const [tracks, setTracks] = useState([]);
   const [sessionLabel, setSessionLabel] = useState(EM_DASH);
   const [deviceCount, setDeviceCount] = useState(0);
+  const [devices, setDevices] = useState([]);
   const [updateStatus, setUpdateStatus] = useState({ state: "idle" });
   const tracklistRef = useRef(null);
   const timerRef = useRef(null);
@@ -329,6 +330,9 @@ export default function TRACKR() {
   const previousTrack = tracks.length >= 2 ? tracks[tracks.length - 2] : null;
   const connectionState =
     appState === "starting" ? "scanning" : isRunning ? (deviceCount > 0 ? "online" : "scanning") : "offline";
+  const deviceLabel = devices.length > 0
+    ? devices.map((d) => `${d.count} ${d.name}`).join(" · ")
+    : `${deviceCount} Device${deviceCount !== 1 ? "s" : ""}`;
   const templateDirty = template !== savedTemplate;
 
   // Auto-increment "published ago"
@@ -366,6 +370,7 @@ export default function TRACKR() {
     if (!status) return;
     if (status.app_state) setAppState(status.app_state);
     if (Number.isFinite(status.device_count)) setDeviceCount(status.device_count);
+    if (Array.isArray(status.devices)) setDevices(status.devices);
     if (status.api_access_mode) setApiAccessMode(status.api_access_mode);
     if (typeof status.api_enabled === "boolean") setApiEnabled(status.api_enabled);
     if (typeof status.strip_mix_labels === "boolean") setStripMixLabels(status.strip_mix_labels);
@@ -751,7 +756,7 @@ export default function TRACKR() {
                 paddingLeft: 10,
               }}
             >
-              {deviceCount} CDJ{deviceCount !== 1 ? "s" : ""}
+              {deviceLabel}
             </span>
           </div>
 
@@ -892,7 +897,7 @@ export default function TRACKR() {
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
               <Led color={deviceCount > 0 ? C.green : C.red} size={6} />
               <span style={{ ...font(10, 400), color: C.textDim }}>
-                {deviceCount} CDJ{deviceCount !== 1 ? "s" : ""} Online
+                {deviceLabel} Online
               </span>
             </div>
 

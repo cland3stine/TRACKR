@@ -10,7 +10,7 @@ import sys
 from threading import Event, RLock, Thread
 import time
 import os
-from typing import Callable
+from typing import Any, Callable
 
 from trackr.device_bridge import (
     DeckStatus,
@@ -121,9 +121,19 @@ def _sidecar_process_ids(executable: Path) -> list[int]:
 def _terminate_process_pid(pid: int) -> None:
     if os.name != "nt":
         return
+    try:
+        subprocess.run(
+            ["taskkill", "/PID", str(int(pid)), "/F", "/T"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except Exception:
+        return
 
 
-def _count_pioneer_devices_from_arp_text(text: str) -> int:
+def _pioneer_ips_from_arp_text(text: str) -> set[str]:
+    """Parse ``arp -a`` output and return IPs with Pioneer/AlphaTheta MACs."""
     seen_ips: set[str] = set()
     for raw_line in str(text or "").splitlines():
         match = _ARP_DEVICE_LINE.match(raw_line.strip())
@@ -134,16 +144,32 @@ def _count_pioneer_devices_from_arp_text(text: str) -> int:
         prefix = mac[:8]
         if prefix in _PIONEER_OUI_PREFIXES:
             seen_ips.add(ip)
-    return len(seen_ips)
+    return seen_ips
+
+
+def _count_pioneer_devices_from_arp_text(text: str) -> int:
+    return len(_pioneer_ips_from_arp_text(text))
+
+
+def _is_pdl_device_active(ip: str, timeout_seconds: float = 0.5) -> bool:
+    """Check if a Pro DJ Link device is fully booted (not just in standby).
+
+    Probes TCP 50002 which CDJs/DJMs listen on when running Pro DJ Link.
+    Devices in standby keep their network interface alive (respond to ping)
+    but don't have Pro DJ Link services running — TCP 50002 will time out.
+    """
+    import socket as _socket
     try:
-        subprocess.run(
-            ["taskkill", "/PID", str(int(pid)), "/F", "/T"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        sock = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+        sock.settimeout(timeout_seconds)
+        err = sock.connect_ex((str(ip), 50002))
+        sock.close()
+        # 0 = port open (connected), device is running Pro DJ Link
+        # 10061 = WSAECONNREFUSED — device OS is up, port just not listening
+        #         (could be mid-boot); treat as active to avoid flicker
+        return err == 0 or err == 10061
     except Exception:
-        return
+        return False
 
 
 class JavaNowPlayingSidecarBridge:
@@ -178,6 +204,7 @@ class JavaNowPlayingSidecarBridge:
         self._sidecar_started_by_bridge = False
         self._last_lan_count_probe_at = 0.0
         self._last_known_device_count = 0
+        self._last_known_active_ips: list[str] = []
         self._last_file_mtime: float = 0.0
         self._bridge_started_wall_time: float = 0.0
 
@@ -381,9 +408,10 @@ class JavaNowPlayingSidecarBridge:
         except Exception:
             return
 
-    def _probe_lan_device_count(self) -> int | None:
+    def _probe_lan_devices(self) -> list[str]:
+        """Return list of reachable Pioneer device IPs via ARP + ping."""
         if os.name != "nt":
-            return None
+            return []
         try:
             result = subprocess.run(
                 ["arp", "-a"],
@@ -393,10 +421,24 @@ class JavaNowPlayingSidecarBridge:
                 timeout=1.5,
             )
         except Exception:
-            return None
+            return []
         if result.returncode != 0:
-            return None
-        return _count_pioneer_devices_from_arp_text(result.stdout or "")
+            return []
+        candidate_ips = _pioneer_ips_from_arp_text(result.stdout or "")
+        return [ip for ip in sorted(candidate_ips) if _is_pdl_device_active(ip)]
+
+    def _probe_lan_device_count(self) -> int | None:
+        active = self._probe_lan_devices()
+        with self._lock:
+            self._last_known_active_ips = list(active)
+        return len(active)
+
+    def get_device_summaries(self) -> list[dict[str, Any]]:
+        with self._lock:
+            active = list(getattr(self, "_last_known_active_ips", []))
+        if not active:
+            return []
+        return [{"name": "Pioneer Device", "count": len(active)}]
 
 
 @dataclass
@@ -435,6 +477,11 @@ class HybridDeviceBridge:
             merged[int(status.device_number)] = status
         return list(merged.values())
 
+    def get_device_summaries(self) -> list[dict[str, Any]]:
+        if hasattr(self.discovery_bridge, "get_device_summaries"):
+            return self.discovery_bridge.get_device_summaries()
+        return []
+
     def _forward_status(self, status: DeckStatus) -> None:
         callback = self._on_status
         if callback is None:
@@ -446,8 +493,12 @@ def build_runtime_device_bridge() -> DeviceBridge:
     """Runtime default bridge.
 
     Prefer Java Beat Link sidecar when available; it provides on-air/playing
-    status + metadata and avoids UDP bind contention with Python discovery.
-    Fallback to Python discovery bridge when sidecar executable is unavailable.
+    status + metadata.  Device discovery uses ARP-based probing (with ping
+    validation) because sharing UDP broadcast ports with the Java sidecar is
+    unreliable on Windows.
+
+    Falls back to RealDeviceBridge (direct Pro DJ Link UDP) when the sidecar
+    is not available — this path provides full device-name parsing.
     """
     sidecar_executable = _detect_sidecar_executable()
     if sidecar_executable is not None and sidecar_executable.exists():

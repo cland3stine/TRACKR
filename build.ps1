@@ -15,7 +15,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = $PSScriptRoot
-$SidecarDir = "$RepoRoot\ui\trackr-ui\src-tauri\binaries"
+$SidecarDir = "$RepoRoot\ui\trackr-ui\src-tauri"
 $TargetTriple = "x86_64-pc-windows-msvc"
 $SidecarExe = "$SidecarDir\trackr-backend-$TargetTriple.exe"
 $JavaSidecarDir = "$RepoRoot\build\jpackage\NowPlayingLite-DeviceStartFixed"
@@ -27,7 +27,7 @@ Write-Host "`n=== TRACKR Build ===" -ForegroundColor Cyan
 Write-Host "`n[1/6] Cleaning previous build artifacts..." -ForegroundColor Yellow
 if (Test-Path "$RepoRoot\dist") { Remove-Item "$RepoRoot\dist" -Recurse -Force }
 if (Test-Path "$RepoRoot\__pycache__") { Remove-Item "$RepoRoot\__pycache__" -Recurse -Force }
-# Remove old frozen exe but keep the binaries directory (skip if reusing)
+# Remove old frozen exe (skip if reusing)
 if (-not $SkipPyInstaller -and (Test-Path $SidecarExe)) { Remove-Item $SidecarExe -Force }
 
 # ── Step 2: Freeze Python backend with PyInstaller ──────────────────────────
@@ -42,9 +42,6 @@ if (-not $SkipPyInstaller) {
         pip install pyinstaller
         if ($LASTEXITCODE -ne 0) { throw "Failed to install PyInstaller" }
     }
-
-    # Ensure binaries directory exists
-    if (-not (Test-Path $SidecarDir)) { New-Item -ItemType Directory -Path $SidecarDir -Force | Out-Null }
 
     # Run PyInstaller from repo root so pathex resolves correctly
     Push-Location $RepoRoot

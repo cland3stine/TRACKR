@@ -651,10 +651,15 @@ class TrackrCore:
             migration_prompt_seen = False
         runtime_bridge = type(self._device_bridge).__name__ if self._device_bridge is not None else None
 
+        devices: list[dict[str, Any]] = []
+        if self._device_bridge is not None and hasattr(self._device_bridge, "get_device_summaries"):
+            devices = self._device_bridge.get_device_summaries()
+
         return {
             "app_state": self._app_state,
             "status_text": self._status_text,
             "device_count": self._device_count,
+            "devices": devices,
             "last_published_line": self._last_published_line,
             "session_file_name": session_name,
             "api_effective_bind_host": api_bind,

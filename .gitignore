@@ -25,7 +25,7 @@ SPEC_NOWPLAYINGLITE_CODEX.md
 ui/trackr-ui/node_modules/
 ui/trackr-ui/dist/
 ui/trackr-ui/src-tauri/target/
-ui/trackr-ui/src-tauri/binaries/
+ui/trackr-ui/src-tauri/trackr-backend-*.exe
 
 # Claude Code local settings
 .claude/

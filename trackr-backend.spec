@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 # PyInstaller spec for TRACKR Python backend sidecar.
-# Output lands in ui/trackr-ui/src-tauri/binaries/ with Tauri target-triple naming.
+# Output lands in ui/trackr-ui/src-tauri/ with Tauri target-triple naming.
 
 import os, platform
 

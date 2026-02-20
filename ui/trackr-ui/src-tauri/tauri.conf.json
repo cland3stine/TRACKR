@@ -27,7 +27,7 @@
     "active": true,
     "targets": ["nsis"],
     "createUpdaterArtifacts": true,
-    "externalBin": ["binaries/trackr-backend"],
+    "externalBin": ["trackr-backend"],
     "resources": {
       "../../../build/jpackage/NowPlayingLite-DeviceStartFixed/": "beatlink/"
     },

@@ -14,7 +14,7 @@ pub fn run() {
         .setup(|app| {
             let sidecar_child: Option<CommandChild> = match app
                 .shell()
-                .sidecar("binaries/trackr-backend")
+                .sidecar("trackr-backend")
             {
                 Ok(cmd) => match cmd.spawn() {
                     Ok((mut rx, child)) => {

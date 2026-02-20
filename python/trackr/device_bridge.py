@@ -1,16 +1,21 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections import Counter
+from dataclasses import dataclass, field
 import logging
 import select
 import socket
 from threading import Event, RLock, Thread
 import time
-from typing import Callable, Protocol
+from typing import Any, Callable, Protocol
 
 StatusCallback = Callable[["DeckStatus"], None]
 DeviceCountCallback = Callable[[int], None]
 logger = logging.getLogger(__name__)
+
+# Pro DJ Link magic header — first 10 bytes of every valid packet.
+_PDL_MAGIC = b"Qspt1WmJOL"
+_PDL_MAGIC_LEN = len(_PDL_MAGIC)
 
 
 @dataclass(frozen=True)
@@ -58,12 +63,16 @@ class NullDeviceBridge:
     def get_latest_statuses(self) -> list[DeckStatus]:
         return []
 
+    def get_device_summaries(self) -> list[dict[str, Any]]:
+        return []
+
 
 @dataclass
 class _DiscoveredDevice:
     ip: str
     device_number: int
     last_seen_monotonic: float
+    device_name: str = ""
 
 
 class RealDeviceBridge:
@@ -137,6 +146,7 @@ class RealDeviceBridge:
             try:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
                 sock.bind(("", int(port)))
                 sock.setblocking(False)
                 self._sockets.append(sock)
@@ -186,8 +196,32 @@ class RealDeviceBridge:
                 self._ingest_packet(ip, payload, local_port=local_port)
             self._expire_stale_devices()
 
+    def get_device_summaries(self) -> list[dict[str, Any]]:
+        """Return device counts grouped by model name, e.g.
+        [{"name": "CDJ-3000", "count": 4}, {"name": "DJM-A9", "count": 1}]
+        """
+        with self._lock:
+            names = [d.device_name or "Unknown" for d in self._devices_by_ip.values()]
+        counts = Counter(names)
+        return [{"name": name, "count": count} for name, count in sorted(counts.items())]
+
+    @staticmethod
+    def _parse_device_name(payload: bytes) -> str:
+        """Extract device name from a Pro DJ Link packet (bytes 0x0B–0x1E)."""
+        if len(payload) < 0x1F:
+            return ""
+        raw = payload[0x0B:0x1F]
+        # Null-terminated ASCII string, strip padding.
+        name = raw.split(b"\x00", 1)[0].decode("ascii", errors="replace").strip()
+        return name
+
     def _ingest_packet(self, ip: str, payload: bytes, local_port: int) -> None:
+        # Validate Pro DJ Link magic header — reject non-PDL traffic.
+        if len(payload) < _PDL_MAGIC_LEN or payload[:_PDL_MAGIC_LEN] != _PDL_MAGIC:
+            return
+
         now = time.monotonic()
+        device_name = self._parse_device_name(payload)
         found: _DiscoveredDevice | None = None
         emit_count = False
         emit_status: DeckStatus | None = None
@@ -197,7 +231,10 @@ class RealDeviceBridge:
             existing = self._devices_by_ip.get(ip)
             if existing is None:
                 device_number = self._infer_device_number(payload, ip)
-                found = _DiscoveredDevice(ip=ip, device_number=device_number, last_seen_monotonic=now)
+                found = _DiscoveredDevice(
+                    ip=ip, device_number=device_number,
+                    last_seen_monotonic=now, device_name=device_name,
+                )
                 self._devices_by_ip[ip] = found
                 status = DeckStatus(device_number=device_number, is_on_air=False, is_playing=False)
                 self._status_by_device[device_number] = status
@@ -205,12 +242,15 @@ class RealDeviceBridge:
                 emit_count = True
             else:
                 existing.last_seen_monotonic = now
+                if device_name and not existing.device_name:
+                    existing.device_name = device_name
             emit_count_value = len(self._devices_by_ip)
 
         if found is not None:
             logger.info(
-                "device found: deck=%s ip=%s via_udp_port=%s",
+                "device found: deck=%s name=%s ip=%s via_udp_port=%s",
                 found.device_number,
+                found.device_name or "?",
                 found.ip,
                 local_port,
             )
