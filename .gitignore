@@ -25,6 +25,10 @@ SPEC_NOWPLAYINGLITE_CODEX.md
 ui/trackr-ui/node_modules/
 ui/trackr-ui/dist/
 ui/trackr-ui/src-tauri/target/
+ui/trackr-ui/src-tauri/binaries/
+
+# Claude Code local settings
+.claude/
 
 # Local TRACKR runtime outputs/preferences when testing in repo root
 TRACKR/

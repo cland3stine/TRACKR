@@ -88,7 +88,10 @@ if (-not $SkipNpmInstall) {
 Write-Host "`n[5/6] Setting updater signing key..." -ForegroundColor Yellow
 if (Test-Path $SigningKeyPath) {
     $env:TAURI_SIGNING_PRIVATE_KEY = Get-Content $SigningKeyPath -Raw
-    $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ""
+    $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = $env:TRACKR_SIGN_PASSWORD
+    if (-not $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) {
+        throw "TRACKR_SIGN_PASSWORD env var not set.`nSet it before running: `$env:TRACKR_SIGN_PASSWORD = 'your-password'"
+    }
     Write-Host "  Signing key loaded from: $SigningKeyPath" -ForegroundColor Green
 } else {
     throw "Signing key not found at: $SigningKeyPath`nRun: npx tauri signer generate -w `"$SigningKeyPath`""
@@ -97,6 +100,11 @@ if (Test-Path $SigningKeyPath) {
 # ── Step 6: Tauri build ─────────────────────────────────────────────────────
 Write-Host "`n[6/6] Building Tauri NSIS installer..." -ForegroundColor Yellow
 Push-Location "$RepoRoot\ui\trackr-ui"
+# Clean trackr-ui build-script cache to avoid "Access is denied" on jpackage resources
+# (Full cargo clean can trigger Application Control errors; targeted removal is safer)
+$buildDir = "$RepoRoot\ui\trackr-ui\src-tauri\target\release\build"
+Get-ChildItem "$buildDir\trackr-ui-*" -Directory -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+Get-ChildItem "$RepoRoot\ui\trackr-ui\src-tauri\target\release\.fingerprint\trackr-ui-*" -Directory -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 npx tauri build 2>&1
 if ($LASTEXITCODE -ne 0) { Pop-Location; throw "Tauri build failed" }
 Pop-Location
@@ -107,9 +115,15 @@ $installer = Get-ChildItem "$installerDir\*.exe" -ErrorAction SilentlyContinue |
 
 if ($installer) {
     $installerSize = [math]::Round($installer.Length / 1MB, 1)
+    $sig = Get-ChildItem "$installerDir\*.sig" -ErrorAction SilentlyContinue | Select-Object -First 1
     Write-Host "`n=== Build Complete ===" -ForegroundColor Green
     Write-Host "  Installer: $($installer.FullName)" -ForegroundColor Green
     Write-Host "  Size: $installerSize MB" -ForegroundColor Green
+    if ($sig) {
+        Write-Host "  Signature: $($sig.FullName)" -ForegroundColor Green
+    } else {
+        Write-Host "  WARNING: No .sig file found — updater signing may have failed" -ForegroundColor Red
+    }
 } else {
     Write-Host "`n=== Build Complete ===" -ForegroundColor Green
     Write-Host "  Check output at: $installerDir" -ForegroundColor Yellow
