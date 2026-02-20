@@ -64,14 +64,14 @@ if (-not $SkipPyInstaller) {
     }
 }
 
-# ── Step 3: Verify Java sidecar ────────────────────────────────────────────
-Write-Host "`n[3/6] Verifying Java sidecar..." -ForegroundColor Yellow
+# ── Step 3: Verify Beat Link sidecar ──────────────────────────────────────
+Write-Host "`n[3/6] Verifying Beat Link sidecar..." -ForegroundColor Yellow
 $javaExe = "$JavaSidecarDir\NowPlayingLite.exe"
 if (-not (Test-Path $javaExe)) {
-    throw "Java sidecar not found at: $javaExe`nRun jpackage build first."
+    throw "Beat Link sidecar not found at: $javaExe`nRun jpackage build first."
 }
 $javaSize = [math]::Round((Get-ChildItem $JavaSidecarDir -Recurse -File | Measure-Object -Property Length -Sum).Sum / 1MB, 1)
-Write-Host "  Java sidecar OK: $JavaSidecarDir ($javaSize MB)" -ForegroundColor Green
+Write-Host "  Beat Link sidecar OK: $JavaSidecarDir ($javaSize MB)" -ForegroundColor Green
 
 # ── Step 4: npm install ─────────────────────────────────────────────────────
 if (-not $SkipNpmInstall) {

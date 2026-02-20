@@ -52,7 +52,7 @@ def _detect_sidecar_executable() -> Path | None:
     # Frozen mode (PyInstaller): look for NowPlayingLite in Tauri resources
     if getattr(sys, "frozen", False):
         frozen_dir = Path(sys.executable).resolve().parent
-        frozen_candidate = frozen_dir / "NowPlayingLite" / "NowPlayingLite.exe"
+        frozen_candidate = frozen_dir / "beatlink" / "NowPlayingLite.exe"
         if frozen_candidate.exists():
             return frozen_candidate
 

@@ -489,8 +489,11 @@ class TrackrHttpCore {
 function readApiBaseUrl(): string {
   const fromStorage = localStorage.getItem("trackr.apiBaseUrl");
   const fromEnv = (import.meta.env.VITE_TRACKR_API_BASE as string | undefined) || "";
-  const raw = asString(fromStorage, asString(fromEnv, "/api")).replace(/\/+$/, "");
-  if (raw === "http://127.0.0.1:8755" || raw === "http://localhost:8755") {
+  // Dev mode: Vite proxy forwards /api/* to backend, so use relative path.
+  // Production: no proxy, must use the actual backend URL.
+  const defaultUrl = import.meta.env.DEV ? "/api" : "http://127.0.0.1:8755";
+  const raw = asString(fromStorage, asString(fromEnv, defaultUrl)).replace(/\/+$/, "");
+  if (import.meta.env.DEV && (raw === "http://127.0.0.1:8755" || raw === "http://localhost:8755")) {
     return "/api";
   }
   return raw;
