@@ -28,7 +28,7 @@ _ARP_DEVICE_LINE = re.compile(
     re.IGNORECASE,
 )
 _PIONEER_OUI_PREFIXES = {
-    "00-17-88",  # Pioneer
+    # "00-17-88" omitted — shared with Philips Hue bridge (false positives)
     "2c-f0-a2",  # Pioneer
     "8c-f5-a3",  # Pioneer
     "c8-3d-fc",  # AlphaTheta/Pioneer DJ
@@ -157,17 +157,25 @@ def _is_pdl_device_active(ip: str, timeout_seconds: float = 0.5) -> bool:
     Probes TCP 50002 which CDJs/DJMs listen on when running Pro DJ Link.
     Devices in standby keep their network interface alive (respond to ping)
     but don't have Pro DJ Link services running — TCP 50002 will time out.
+
+    Uses blocking connect() instead of connect_ex() because connect_ex()
+    returns WSAEWOULDBLOCK (10035) on Windows even with a timeout set,
+    which made every probe fail.
     """
     import socket as _socket
     try:
         sock = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
         sock.settimeout(timeout_seconds)
-        err = sock.connect_ex((str(ip), 50002))
+        sock.connect((str(ip), 50002))
         sock.close()
-        # 0 = port open (connected), device is running Pro DJ Link
-        # 10061 = WSAECONNREFUSED — device OS is up, port just not listening
-        #         (could be mid-boot); treat as active to avoid flicker
-        return err == 0 or err == 10061
+        return True
+    except ConnectionRefusedError:
+        # OS is up, port not listening — could be mid-boot; treat as active
+        # to avoid flicker
+        return True
+    except (_socket.timeout, TimeoutError):
+        # No response at all — device in standby or unreachable
+        return False
     except Exception:
         return False
 
@@ -425,7 +433,7 @@ class JavaNowPlayingSidecarBridge:
         if result.returncode != 0:
             return []
         candidate_ips = _pioneer_ips_from_arp_text(result.stdout or "")
-        return [ip for ip in sorted(candidate_ips) if _is_pdl_device_active(ip)]
+        return sorted(candidate_ips)
 
     def _probe_lan_device_count(self) -> int | None:
         active = self._probe_lan_devices()
@@ -454,12 +462,15 @@ class HybridDeviceBridge:
         self._on_status = on_status
         self._on_device_count = on_device_count
 
-        self.metadata_bridge.start(self._forward_status, lambda _count: None)
+        # Bind UDP ports BEFORE spawning the Java sidecar so Python gets
+        # the sockets first.  Both sides use SO_REUSEADDR, but grabbing
+        # ports first avoids the "address already in use" race.
         self.discovery_bridge.start(self._forward_status, on_device_count)
+        self.metadata_bridge.start(self._forward_status, lambda _count: None)
 
     def stop(self) -> None:
-        self.metadata_bridge.stop()
         self.discovery_bridge.stop()
+        self.metadata_bridge.stop()
         self._on_status = None
         self._on_device_count = None
 
@@ -492,10 +503,13 @@ class HybridDeviceBridge:
 def build_runtime_device_bridge() -> DeviceBridge:
     """Runtime default bridge.
 
-    Prefer Java Beat Link sidecar when available; it provides on-air/playing
-    status + metadata.  Device discovery uses ARP-based probing (with ping
-    validation) because sharing UDP broadcast ports with the Java sidecar is
-    unreliable on Windows.
+    Prefer Java Beat Link sidecar when available; it provides track metadata
+    (artist/title) via its overlay file.  Device discovery uses ARP-based
+    probing with Pioneer MAC filtering.
+
+    UDP port sharing between the Java sidecar and Python is not possible on
+    Windows — only one process can receive broadcast packets per port.  So
+    when the sidecar is running, we delegate counting to ARP instead.
 
     Falls back to RealDeviceBridge (direct Pro DJ Link UDP) when the sidecar
     is not available — this path provides full device-name parsing.

@@ -52,7 +52,8 @@ Interface: 192.168.1.177 --- 0x8
   192.168.1.159         00-17-88-b3-0e-51     dynamic
   192.168.1.170         b0-fc-0d-7f-44-ae     dynamic
 """
-        self.assertEqual(_count_pioneer_devices_from_arp_text(arp_text), 4)
+        # 3 not 4: 00-17-88 is excluded (shared with Philips Hue)
+        self.assertEqual(_count_pioneer_devices_from_arp_text(arp_text), 3)
 
     def test_runtime_builder_prefers_sidecar_when_executable_exists(self) -> None:
         with repo_temp_dir() as temp_dir:
