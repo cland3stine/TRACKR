@@ -5,7 +5,7 @@
 #   - Python 3.12+ with PyInstaller: pip install pyinstaller
 #   - Node.js + npm
 #   - Rust toolchain (rustup)
-#   - Java sidecar already jpackaged at build/jpackage/NowPlayingLite-DeviceStartFixed/
+#   - Java sidecar at build/jpackage/trackr-sidecar/
 #   - Tauri updater signing key at ~/.tauri/trackr.key (npx tauri signer generate -w ~/.tauri/trackr.key)
 
 param(
@@ -18,7 +18,7 @@ $RepoRoot = $PSScriptRoot
 $SidecarDir = "$RepoRoot\ui\trackr-ui\src-tauri"
 $TargetTriple = "x86_64-pc-windows-msvc"
 $SidecarExe = "$SidecarDir\trackr-backend-$TargetTriple.exe"
-$JavaSidecarDir = "$RepoRoot\build\jpackage\NowPlayingLite-DeviceStartFixed"
+$JavaSidecarDir = "$RepoRoot\build\jpackage\trackr-sidecar"
 $SigningKeyPath = "$env:USERPROFILE\.tauri\trackr.key"
 
 Write-Host "`n=== TRACKR Build ===" -ForegroundColor Cyan
@@ -63,7 +63,7 @@ if (-not $SkipPyInstaller) {
 
 # ── Step 3: Verify Beat Link sidecar ──────────────────────────────────────
 Write-Host "`n[3/6] Verifying Beat Link sidecar..." -ForegroundColor Yellow
-$javaExe = "$JavaSidecarDir\NowPlayingLite.exe"
+$javaExe = "$JavaSidecarDir\trackr-sidecar.exe"
 if (-not (Test-Path $javaExe)) {
     throw "Beat Link sidecar not found at: $javaExe`nRun jpackage build first."
 }

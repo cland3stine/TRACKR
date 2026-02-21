@@ -57,7 +57,7 @@ Interface: 192.168.1.177 --- 0x8
 
     def test_runtime_builder_prefers_sidecar_when_executable_exists(self) -> None:
         with repo_temp_dir() as temp_dir:
-            sidecar_exe = temp_dir / "NowPlayingLite.exe"
+            sidecar_exe = temp_dir / "trackr-sidecar.exe"
             sidecar_exe.write_text("", encoding="utf-8")
             with patch("trackr.beatlink_bridge._detect_sidecar_executable", return_value=sidecar_exe):
                 bridge = build_runtime_device_bridge()

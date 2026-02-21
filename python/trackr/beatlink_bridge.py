@@ -49,10 +49,10 @@ def _split_artist_title(line: str) -> tuple[str, str]:
 
 
 def _detect_sidecar_executable() -> Path | None:
-    # Frozen mode (PyInstaller): look for NowPlayingLite in Tauri resources
+    # Frozen mode (PyInstaller): look for sidecar in Tauri resources
     if getattr(sys, "frozen", False):
         frozen_dir = Path(sys.executable).resolve().parent
-        frozen_candidate = frozen_dir / "beatlink" / "NowPlayingLite.exe"
+        frozen_candidate = frozen_dir / "beatlink" / "trackr-sidecar.exe"
         if frozen_candidate.exists():
             return frozen_candidate
 
@@ -62,7 +62,7 @@ def _detect_sidecar_executable() -> Path | None:
     if not jpackage_dir.exists():
         return None
     candidates = sorted(
-        jpackage_dir.glob("*/NowPlayingLite.exe"),
+        jpackage_dir.glob("*/trackr-sidecar.exe"),
         key=lambda path: path.stat().st_mtime,
         reverse=True,
     )
@@ -204,6 +204,8 @@ class JavaNowPlayingSidecarBridge:
         self._last_line: str | None = None
         self._poll_interval_seconds = max(0.1, float(poll_interval_seconds))
         self._recent_file_window_seconds = max(10.0, float(recent_file_window_seconds))
+        # The sidecar writes to ~/NowPlayingLite/ — this is hardcoded in
+        # the Java app and cannot be changed without rebuilding it.
         self._nowplaying_path = nowplaying_path or (Path.home() / "NowPlayingLite" / "overlay" / "nowplaying.txt")
         self._sidecar_executable = sidecar_executable or _detect_sidecar_executable()
         self._restart_existing_sidecar = bool(restart_existing_sidecar)
@@ -277,13 +279,13 @@ class JavaNowPlayingSidecarBridge:
             return
         running_pids = _sidecar_process_ids(self._sidecar_executable)
         if running_pids and self._restart_existing_sidecar:
-            logger.info("restarting existing Beat Link sidecar processes: %s", running_pids)
+            logger.info("restarting existing trackr sidecar processes: %s", running_pids)
             for pid in running_pids:
                 _terminate_process_pid(pid)
             time.sleep(0.2)
             running_pids = _sidecar_process_ids(self._sidecar_executable)
         if running_pids:
-            logger.info("Beat Link sidecar already running: %s", self._sidecar_executable.name)
+            logger.info("trackr sidecar already running: %s", self._sidecar_executable.name)
             self._sidecar_started_by_bridge = False
             return
         try:
@@ -294,9 +296,9 @@ class JavaNowPlayingSidecarBridge:
             )
             self._sidecar_process = process
             self._sidecar_started_by_bridge = True
-            logger.info("started Beat Link sidecar: %s", self._sidecar_executable)
+            logger.info("started trackr sidecar: %s", self._sidecar_executable)
         except Exception as exc:
-            logger.warning("unable to start Beat Link sidecar %s: %s", self._sidecar_executable, exc)
+            logger.warning("unable to start trackr sidecar %s: %s", self._sidecar_executable, exc)
 
     def _stop_sidecar_process(self, process: subprocess.Popen[str]) -> None:
         try:
@@ -503,7 +505,7 @@ class HybridDeviceBridge:
 def build_runtime_device_bridge() -> DeviceBridge:
     """Runtime default bridge.
 
-    Prefer Java Beat Link sidecar when available; it provides track metadata
+    Prefer Java trackr sidecar when available; it provides track metadata
     (artist/title) via its overlay file.  Device discovery uses ARP-based
     probing with Pioneer MAC filtering.
 

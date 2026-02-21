@@ -568,7 +568,7 @@ export default function TRACKR() {
       applyOutputRootResolution(res.data);
       await refreshFromCore();
       if (choice === "legacy") {
-        addToast("Using NowPlayingLite output folder.", "info");
+        addToast("Using legacy output folder.", "info");
       } else {
         addToast("Switched output folder to TRACKR.", "success");
       }
@@ -1443,7 +1443,7 @@ export default function TRACKR() {
               OUTPUT FOLDER CHOICE
             </div>
             <div style={{ ...font(14, 600), color: C.textPrimary, marginTop: 8 }}>
-              Legacy output folder detected: NowPlayingLite
+              Legacy output folder detected
             </div>
             <div style={{ ...font(11, 400), color: C.textDim, marginTop: 8 }}>
               Choose where TRACKR should write outputs. You can change this later in Settings.
