@@ -18,7 +18,7 @@
 
 - [ ] Test device discovery
   - [ ] Run `bringOnline()` → `autoconfigFromPeers()`
-  - [ ] Confirm all 3 CDJ-3000s detected with correct model names (`"CDJ-3000"`)
+  - [ ] Confirm all 4 CDJ-3000s detected with correct model names (`"CDJ-3000"`)
   - [ ] Confirm DJM-A9 mixer detected
   - [ ] Confirm device numbers match physical deck positions
   - [ ] Log device connect/disconnect events
@@ -667,7 +667,7 @@ The current Tauri + Python + Java sidecar architecture is proven and works. It r
 
 The migration is complete when:
 
-1. [ ] All 3 CDJ-3000s detected by name and count in real-time
+1. [ ] All 4 CDJ-3000s detected by name and count in real-time
 2. [ ] Track metadata resolves correctly (artist, title)
 3. [ ] Publish pipeline works identically (gates, delay, dedupe)
 4. [ ] `overlay/nowplaying.txt` output matches v2 format exactly

@@ -1,0 +1,20 @@
+{
+  "name": "trackr-prolink-test",
+  "version": "1.0.0",
+  "description": "Phase 0: Validate prolink-connect with CDJ-3000s + DJM-A9",
+  "main": "test.ts",
+  "scripts": {
+    "test": "npx ts-node test.ts"
+  },
+  "dependencies": {
+    "prolink-connect": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "ts-node": "latest",
+    "typescript": "latest"
+  },
+  "overrides": {
+    "better-sqlite3": "^12.6.2"
+  }
+}

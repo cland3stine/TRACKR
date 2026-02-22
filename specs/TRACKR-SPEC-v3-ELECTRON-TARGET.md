@@ -561,7 +561,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
 Before proceeding with migration, confirm prolink-connect:
 
-- [ ] Detects all 3 CDJ-3000s by name and device number
+- [ ] Detects all 4 CDJ-3000s by name and device number
 - [ ] Detects DJM-A9 mixer
 - [ ] Resolves track metadata (artist, title) when a track is loaded
 - [ ] Reports `isOnAir` correctly when fader is up on DJM-A9
