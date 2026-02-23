@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, Tray } from 'electron';
 import path from 'path';
 
 import {
@@ -12,6 +12,7 @@ import {
   getConfig, setConfig, resolveOutputRoot, persistOutputRootChoice, getEffectiveBindHost,
 } from './store';
 import { startApiServer, stopApiServer, ApiDeps } from './api';
+import { createTray, refreshTray, destroyTray, TrayCallbacks } from './tray';
 
 // Enforce single instance — second launch focuses the existing window.
 const gotLock = app.requestSingleInstanceLock();
@@ -20,17 +21,71 @@ if (!gotLock) app.quit();
 // ─── runtime state ───────────────────────────────────────────────────────────
 
 let mainWindow:    BrowserWindow  | null = null;
+let _tray:         Tray           | null = null;
 let db:            TrackrDatabase | null = null;
 let outputWriter:  OutputWriter   | null = null;
 let templateStore: TemplateStore  | null = null;
 let _isRunning = false;
 let _lastPublishedLine: string | null = null;
+let _forceQuit = false;  // set by tray "Quit" to allow real exit
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 /** Forward an event to the renderer. */
 function emit(channel: string, ...args: unknown[]): void {
   mainWindow?.webContents.send(channel, ...args);
+}
+
+/** Apply Windows login-item settings from current config. */
+function applyStartupSettings(): void {
+  const cfg = getConfig();
+  app.setLoginItemSettings({
+    openAtLogin: cfg.startWithWindows,
+    args:        cfg.startInTray ? ['--hidden'] : [],
+  });
+}
+
+/** Build tray callbacks that close over current module state. */
+function buildTrayCallbacks(): TrayCallbacks {
+  return {
+    isRunning:       () => _isRunning,
+    isWindowVisible: () => mainWindow?.isVisible() ?? false,
+    onShowHide: () => {
+      if (!mainWindow) return;
+      if (mainWindow.isVisible()) {
+        mainWindow.hide();
+      } else {
+        mainWindow.show();
+        mainWindow.focus();
+      }
+      refreshTray(buildTrayCallbacks());
+    },
+    onNewSession: () => {
+      if (!outputWriter) return;
+      const sessionFile = outputWriter.startNewSession();
+      _lastPublishedLine = null;
+      emit('trackr:session-started', { sessionFile });
+    },
+    onStartStop: () => {
+      if (_isRunning) {
+        _isRunning = false;
+        emit('trackr:state', { state: 'stopped' });
+      } else {
+        const resolution = resolveOutputRoot();
+        if (resolution.outputRoot) initModules(resolution.outputRoot);
+      }
+      refreshTray(buildTrayCallbacks());
+    },
+    onQuit: () => {
+      _forceQuit = true;
+      void stopProlink().catch(() => {}).finally(() => {
+        stopApiServer();
+        db?.close();
+        destroyTray();
+        app.quit();
+      });
+    },
+  };
 }
 
 /** Build the deps object that wires the REST API to runtime state. */
@@ -52,7 +107,8 @@ function buildApiDeps(): ApiDeps {
     getConfig,
     setConfig: (partial) => {
       setConfig(partial);
-      if (partial['delaySeconds'] != null) setPublishDelay((partial['delaySeconds'] as number) * 1000);
+      if (partial['delaySeconds']     != null) setPublishDelay((partial['delaySeconds'] as number) * 1000);
+      if (partial['startWithWindows'] != null || partial['startInTray'] != null) applyStartupSettings();
       return getConfig();
     },
 
@@ -65,6 +121,7 @@ function buildApiDeps(): ApiDeps {
     controlStop: () => {
       _isRunning = false;
       emit('trackr:state', { state: 'stopped' });
+      refreshTray(buildTrayCallbacks());
     },
     controlRefresh: () => {
       if (!outputWriter) return { ok: false };
@@ -106,6 +163,7 @@ function initModules(outputRoot: string): void {
 
   _isRunning = true;
   emit('trackr:state', { state: 'running', outputRoot });
+  refreshTray(buildTrayCallbacks());
   console.log(`[main] Initialized — output root: ${outputRoot}`);
 }
 
@@ -134,10 +192,13 @@ function handlePublish(line: string, deviceId: number, publishedAt: number): voi
 // ─── window ──────────────────────────────────────────────────────────────────
 
 function createWindow(): void {
+  const startHidden = process.argv.includes('--hidden') || getConfig().startInTray;
+
   mainWindow = new BrowserWindow({
     width: 1200, height: 900, minWidth: 1200, minHeight: 900,
     title: 'TRACKR',
     backgroundColor: '#0a0a0a',
+    show: false,  // Reveal via ready-to-show to avoid white flash
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -145,13 +206,27 @@ function createWindow(): void {
     },
   });
 
+  mainWindow.once('ready-to-show', () => {
+    if (!startHidden) mainWindow?.show();
+  });
+
+  // Close to tray — X hides the window, tray "Quit" does the real exit.
+  mainWindow.on('close', (e) => {
+    if (!_forceQuit) {
+      e.preventDefault();
+      mainWindow?.hide();
+      refreshTray(buildTrayCallbacks());
+    }
+  });
+
+  mainWindow.on('closed', () => { mainWindow = null; });
+
   const devUrl = process.env['ELECTRON_DEV_VITE_URL'];
   if (devUrl) {
     void mainWindow.loadURL(devUrl);
   } else {
     void mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
   }
-  mainWindow.on('closed', () => { mainWindow = null; });
 }
 
 // ─── IPC ─────────────────────────────────────────────────────────────────────
@@ -168,7 +243,8 @@ function registerIpc(): void {
   ipcMain.handle('config:set', (_event, partial: Record<string, unknown>) => {
     setConfig(partial);
     const cfg = getConfig();
-    if (partial['delaySeconds'] != null) setPublishDelay(cfg.delaySeconds * 1000);
+    if (partial['delaySeconds']     != null) setPublishDelay(cfg.delaySeconds * 1000);
+    if (partial['startWithWindows'] != null || partial['startInTray'] != null) applyStartupSettings();
     return cfg;
   });
 
@@ -250,6 +326,12 @@ app.whenReady().then(() => {
   setPublishCallback(handlePublish);
   setPublishDelay(getConfig().delaySeconds * 1000);
 
+  // System tray
+  _tray = createTray(buildTrayCallbacks());
+
+  // Windows login-item settings (startup-with-Windows)
+  applyStartupSettings();
+
   const resolution = resolveOutputRoot();
   if (resolution.state === 'resolved' && resolution.outputRoot) {
     try {
@@ -276,10 +358,8 @@ app.on('second-instance', () => {
   }
 });
 
+// With close-to-tray, window-all-closed does NOT quit.
+// Real quit is triggered by tray "Quit TRACKR" (sets _forceQuit = true).
 app.on('window-all-closed', () => {
-  void stopProlink().catch(() => {}).finally(() => {
-    stopApiServer();
-    db?.close();
-    app.quit();
-  });
+  // no-op — app lives in tray
 });

@@ -80,6 +80,8 @@ function configToApi(cfg: TrackrConfig): Record<string, unknown> {
     api_access_mode:           cfg.apiAccessMode,
     share_play_count_via_api:  cfg.sharePlayCountViaApi,
     api_port:                  cfg.apiPort,
+    start_with_windows:        cfg.startWithWindows,
+    start_in_tray:             cfg.startInTray,
   };
 }
 
@@ -93,6 +95,8 @@ function apiBodyToConfigPartial(raw: Record<string, unknown>): Record<string, un
   if ('api_access_mode'          in raw) out.apiAccessMode         = raw.api_access_mode;
   if ('share_play_count_via_api' in raw) out.sharePlayCountViaApi  = raw.share_play_count_via_api;
   if ('api_port'                 in raw) out.apiPort               = raw.api_port;
+  if ('start_with_windows'       in raw) out.startWithWindows      = raw.start_with_windows;
+  if ('start_in_tray'            in raw) out.startInTray           = raw.start_in_tray;
   return out;
 }
 
@@ -164,6 +168,8 @@ function buildApp(deps: ApiDeps): Express {
       output_root:              cfg.outputRoot || null,
       migration_prompt_seen:    cfg.migrationPromptSeen,
       runtime_bridge:           'prolink-connect',
+      start_with_windows:       cfg.startWithWindows,
+      start_in_tray:            cfg.startInTray,
     });
   });
 

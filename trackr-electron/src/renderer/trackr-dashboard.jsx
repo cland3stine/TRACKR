@@ -376,6 +376,8 @@ export default function TRACKR() {
     if (status.lan_ip) setLanIp(status.lan_ip);
     if (typeof status.share_play_count_via_api === "boolean") setSharePlayCount(status.share_play_count_via_api);
     if (typeof status.migration_prompt_seen === "boolean") setMigrationPromptSeen(status.migration_prompt_seen);
+    if (typeof status.start_with_windows === "boolean") setStartWithWindows(status.start_with_windows);
+    if (typeof status.start_in_tray === "boolean") setStartInTray(status.start_in_tray);
     if (status.api_effective_bind_host) setApiBindHost(status.api_effective_bind_host);
     if (status.output_root) setOutputDir(status.output_root);
     if (status.session_file_name) {
@@ -628,6 +630,16 @@ export default function TRACKR() {
       addToast(`Browse failed: ${err?.message || err}`, "error");
     }
   }, [callCore, addToast]);
+
+  const handleStartInTrayChange = useCallback(async (next) => {
+    setStartInTray(next);
+    await callCore("set_config", { start_in_tray: next });
+  }, [callCore]);
+
+  const handleStartWithWindowsChange = useCallback(async (next) => {
+    setStartWithWindows(next);
+    await callCore("set_config", { start_with_windows: next });
+  }, [callCore]);
 
   const handleApiEnabledChange = useCallback(
     (next) => {
@@ -1299,8 +1311,8 @@ export default function TRACKR() {
                     STARTUP
                   </span>
                   <div style={{ marginTop: 8 }}>
-                    <Toggle label="Start in system tray" on={startInTray} onChange={setStartInTray} />
-                    <Toggle label="Start with Windows" on={startWithWindows} onChange={setStartWithWindows} />
+                    <Toggle label="Start in system tray" on={startInTray} onChange={handleStartInTrayChange} />
+                    <Toggle label="Start with Windows" on={startWithWindows} onChange={handleStartWithWindowsChange} />
                   </div>
                 </div>
 

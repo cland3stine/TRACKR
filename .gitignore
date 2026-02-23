@@ -51,3 +51,7 @@ trackr_config.json
 # Keep Electron app source tracked
 !trackr-electron/src/
 !trackr-electron/src/**
+
+# Keep Electron app assets tracked (icon.ico etc)
+!trackr-electron/assets/
+!trackr-electron/assets/**

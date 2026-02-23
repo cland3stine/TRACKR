@@ -23,6 +23,8 @@ export interface TrackrConfig {
   apiAccessMode:         'localhost' | 'lan';
   sharePlayCountViaApi:  boolean;
   apiPort:               number;
+  startWithWindows:      boolean;
+  startInTray:           boolean;
 }
 
 export interface OutputRootResolution {
@@ -45,6 +47,8 @@ interface StoreType {
   apiAccessMode:            string;
   sharePlayCountViaApi:     boolean;
   apiPort:                  number;
+  startWithWindows:         boolean;
+  startInTray:              boolean;
   _migrationFromPythonDone: boolean;
 }
 
@@ -58,6 +62,8 @@ const DEFAULTS: StoreType = {
   apiAccessMode:            'lan',
   sharePlayCountViaApi:     false,
   apiPort:                  8755,
+  startWithWindows:         false,
+  startInTray:              false,
   _migrationFromPythonDone: false,
 };
 
@@ -128,6 +134,8 @@ function _rawToConfig(raw: StoreType): TrackrConfig {
     apiAccessMode:        mode,
     sharePlayCountViaApi: raw.sharePlayCountViaApi,
     apiPort:              raw.apiPort,
+    startWithWindows:     raw.startWithWindows,
+    startInTray:          raw.startInTray,
   };
 }
 
