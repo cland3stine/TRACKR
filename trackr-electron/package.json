@@ -6,7 +6,8 @@
   "scripts": {
     "compile": "tsc -p tsconfig.main.json",
     "start": "npm run compile && electron .",
-    "build": "npm run compile && electron-builder"
+    "build": "npm run compile && electron-builder",
+    "postinstall": "electron-rebuild -f -w better-sqlite3"
   },
   "build": {
     "appId": "com.clandestine.trackr",
@@ -18,7 +19,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },
@@ -37,6 +40,7 @@
     "better-sqlite3": "^12.6.2"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.3",
     "@types/node": "^22.0.0",
     "electron": "^34.0.0",
     "electron-builder": "^25.0.0",
