@@ -9,15 +9,13 @@
  *   Timer:  PUBLISH_DELAY_MS before committing (default 3s)
  *   Gate 3: Dedupe against lastPublished
  *
- * Phase 3 note: resolveMetadata() returns raw track.title for now.
- *   Art's library has IDv3 stripped — track.artist is always null,
- *   full "Key - Artist - Title (Mix)" string lives in track.title.
- *   Phase 3 will pass the result through cleanTrackLine() here.
- *
- * Phase 3 note: PUBLISH_DELAY_MS will come from the config store.
+ * Phase 3: resolveMetadata() applies cleanTrackLine() to track.title.
+ *   setPublishDelay(ms) wires the delay from the config store.
+ *   setPublishCallback(fn) lets index.ts handle file I/O on publish.
  */
 
 import { bringOnline, CDJStatus, DeviceType } from 'prolink-connect';
+import { cleanTrackLine } from './cleaner';
 
 // ─── types ───────────────────────────────────────────────────────────────────
 
@@ -29,12 +27,15 @@ export interface DeviceSummary {
 /** Forward an event to the renderer (mainWindow.webContents.send). */
 export type EmitFn = (channel: string, ...args: unknown[]) => void;
 
+/** Called in the main process when a track is confirmed for publish. */
+export type PublishCallback = (line: string, deviceId: number, publishedAt: number) => void;
+
 type Network = Awaited<ReturnType<typeof bringOnline>>;
 
 // ─── constants ───────────────────────────────────────────────────────────────
 
-/** Delay (ms) between publish trigger and actual publish. Phase 3: from config. */
-const PUBLISH_DELAY_MS  = 3_000;
+/** Delay (ms) — updated at runtime via setPublishDelay(). */
+let _publishDelayMs = 3_000;
 
 /** Max metadata fetch attempts before giving up. */
 const METADATA_RETRIES  = 6;
@@ -44,10 +45,11 @@ const METADATA_RETRY_MS = 350;
 
 // ─── module state ────────────────────────────────────────────────────────────
 
-let _network:       Network | null = null;
-let _emit:          EmitFn  | null = null;
+let _network:      Network         | null = null;
+let _emit:         EmitFn          | null = null;
+let _onPublish:    PublishCallback | null = null;
 
-let _pendingTimer:  ReturnType<typeof setTimeout> | null = null;
+let _pendingTimer: ReturnType<typeof setTimeout> | null = null;
 let _pendingKey:    string | null = null;
 let _lastPublished: string | null = null;
 
@@ -129,15 +131,20 @@ function schedulePending(key: string, line: string, deviceId: number): void {
     }
 
     _lastPublished = line;
+    const publishedAt = Date.now() / 1000;
     console.log(`[prolink] PUBLISH device=#${deviceId}: "${line}"`);
-    _emit?.('trackr:publish', { line, deviceId });
-  }, PUBLISH_DELAY_MS);
+    _onPublish?.(line, deviceId, publishedAt);
+    _emit?.('trackr:publish', { line, deviceId, publishedAt });
+  }, _publishDelayMs);
 }
 
 /**
  * Resolve track metadata with retries (Gate 2).
  *
- * Returns raw track.title — Phase 3 will wrap with cleanTrackLine().
+ * Returns the cleaned track line ready for publish.
+ * Art's library: IDv3 stripped, track.artist is null, full
+ * "Key - Artist - Title (Mix)" string is in track.title.
+ * cleanTrackLine() strips the Camelot key and normalizes the result.
  */
 async function resolveMetadata(status: CDJStatus.State): Promise<string | null> {
   const net = _network;
@@ -152,8 +159,7 @@ async function resolveMetadata(status: CDJStatus.State): Promise<string | null> 
         trackType: status.trackType,
         trackId:   status.trackId,
       });
-      // Phase 3: return cleanTrackLine(track.title) once cleaner is ported
-      if (track?.title) return track.title;
+      if (track?.title) return cleanTrackLine(track.title) || null;
     } catch (err) {
       console.error(`[prolink] getMetadata attempt ${attempt}/${METADATA_RETRIES}:`, err);
     }
@@ -193,6 +199,18 @@ function handleStatus(status: CDJStatus.State): void {
     }
     schedulePending(`${deviceId}|${line}`, line, deviceId);
   }).catch(err => console.error('[prolink] resolveMetadata error:', err));
+}
+
+// ─── phase 3 config hooks ────────────────────────────────────────────────────
+
+/** Update the publish delay (called from index.ts when config changes). */
+export function setPublishDelay(ms: number): void {
+  _publishDelayMs = Math.max(0, ms);
+}
+
+/** Set a callback that fires in the main process when a track is published. */
+export function setPublishCallback(cb: PublishCallback | null): void {
+  _onPublish = cb;
 }
 
 // ─── lifecycle ───────────────────────────────────────────────────────────────
@@ -245,7 +263,8 @@ export async function stopProlink(): Promise<void> {
   _lastState.clear();
   _lastPublished = null;
   _emit?.('trackr:disconnected', {});
-  _emit = null;
+  _emit      = null;
+  _onPublish = null;
 
   if (_network) {
     try { await _network.disconnect(); } catch { /* ignore */ }
