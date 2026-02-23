@@ -11,6 +11,7 @@ import { TemplateStore, DEFAULT_TEMPLATE } from './template';
 import {
   getConfig, setConfig, resolveOutputRoot, persistOutputRootChoice, getEffectiveBindHost,
 } from './store';
+import { startOverlayServer, stopOverlayServer } from './overlay-server';
 
 // Enforce single instance — second launch focuses the existing window.
 const gotLock = app.requestSingleInstanceLock();
@@ -41,6 +42,7 @@ function initModules(outputRoot: string): void {
   outputWriter  = new OutputWriter(outputRoot, config.timestampsEnabled, config.delaySeconds);
   templateStore = new TemplateStore(outputRoot, db);
 
+  startOverlayServer(path.join(outputRoot, 'overlay'), config.apiPort);
   outputWriter.ensureOverlayNowplayingExists();
   templateStore.ensureTemplateFile();
   outputWriter.startNewSession();
@@ -212,6 +214,7 @@ app.on('second-instance', () => {
 
 app.on('window-all-closed', () => {
   void stopProlink().catch(() => {}).finally(() => {
+    stopOverlayServer();
     db?.close();
     app.quit();
   });

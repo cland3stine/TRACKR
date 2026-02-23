@@ -30,7 +30,7 @@ export const DEFAULT_TEMPLATE = `<!DOCTYPE html>
   <script>
     async function poll() {
       try {
-        const r = await fetch("trackr-2-line.txt?t=" + Date.now(), { cache: "no-store" });
+        const r = await fetch("http://127.0.0.1:8755/trackr-2-line.txt?t=" + Date.now(), { cache: "no-store" });
         const t = await r.text();
         const lines = t.split(/\\r?\\n/);
         document.getElementById("current").textContent  = (lines[0] || "\u2014").trim() || "\u2014";
@@ -74,6 +74,13 @@ export class TemplateStore {
   }
 
   ensureTemplateFile(): string {
+    const saved = this._db.getPref(TEMPLATE_PREF_KEY);
+    // Auto-migrate: saved template uses the old relative-path fetch which Chromium
+    // blocks from file:// URLs. Reset to DEFAULT_TEMPLATE (HTTP URL).
+    if (saved && (saved.includes('fetch("trackr-2-line.txt') || saved.includes("fetch('trackr-2-line.txt"))) {
+      console.log('[template] Auto-migrating legacy relative-path template → HTTP URL.');
+      return this.resetTemplate();
+    }
     this._writeTemplate(this.getTemplate());
     return this._overlayHtmlPath;
   }
