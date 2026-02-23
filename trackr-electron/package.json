@@ -1,0 +1,45 @@
+{
+  "name": "trackr",
+  "version": "1.0.0",
+  "description": "Real-time DJ set track publishing for OBS overlays",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "compile": "tsc -p tsconfig.main.json",
+    "start": "npm run compile && electron .",
+    "build": "npm run compile && electron-builder"
+  },
+  "build": {
+    "appId": "com.clandestine.trackr",
+    "productName": "TRACKR",
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  },
+  "dependencies": {
+    "prolink-connect": "^0.11.0"
+  },
+  "overrides": {
+    "better-sqlite3": "^12.6.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "electron": "^34.0.0",
+    "electron-builder": "^25.0.0",
+    "typescript": "^5.0.0"
+  }
+}

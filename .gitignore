@@ -24,6 +24,11 @@ SPEC_NOWPLAYINGLITE_CODEX.md
 # Phase 0 prolink-connect test project
 trackr-prolink-test/node_modules/
 
+# Phase 1+ Electron app
+trackr-electron/node_modules/
+trackr-electron/dist/
+trackr-electron/release/
+
 # TRACKR Tauri wrapper build/dependency outputs
 ui/trackr-ui/node_modules/
 ui/trackr-ui/dist/
@@ -42,3 +47,7 @@ trackr_config.json
 !ui/trackr-ui/src/**
 !ui/trackr-ui/src-tauri/src/
 !ui/trackr-ui/src-tauri/src/**
+
+# Keep Electron app source tracked
+!trackr-electron/src/
+!trackr-electron/src/**
