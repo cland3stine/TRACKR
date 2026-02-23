@@ -35,6 +35,7 @@
   },
   "dependencies": {
     "electron-store": "^8.2.0",
+    "express": "^5.2.1",
     "prolink-connect": "^0.11.0"
   },
   "overrides": {
@@ -42,6 +43,7 @@
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.3",
+    "@types/express": "^5.0.6",
     "@types/node": "^22.0.0",
     "electron": "^34.0.0",
     "electron-builder": "^25.0.0",

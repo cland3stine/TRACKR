@@ -11,7 +11,7 @@ import { TemplateStore, DEFAULT_TEMPLATE } from './template';
 import {
   getConfig, setConfig, resolveOutputRoot, persistOutputRootChoice, getEffectiveBindHost,
 } from './store';
-import { startOverlayServer, stopOverlayServer } from './overlay-server';
+import { startApiServer, stopApiServer, ApiDeps } from './api';
 
 // Enforce single instance — second launch focuses the existing window.
 const gotLock = app.requestSingleInstanceLock();
@@ -33,6 +33,60 @@ function emit(channel: string, ...args: unknown[]): void {
   mainWindow?.webContents.send(channel, ...args);
 }
 
+/** Build the deps object that wires the REST API to runtime state. */
+function buildApiDeps(): ApiDeps {
+  return {
+    isRunning:         () => _isRunning,
+    lastPublishedLine: () => _lastPublishedLine,
+    deviceCount:       () => getDeviceCount(),
+    deviceSummaries:   () => getDeviceSummaries(),
+    playCount:         () => db?.getPlayCount() ?? 0,
+    sharePlayCount:    () => getConfig().sharePlayCountViaApi,
+    sessionFileName:   () => outputWriter?.sessionFile ?? null,
+    overlayTxtPath:    () => outputWriter?.overlayNowplayingPath ?? null,
+    overlayDir:        () => {
+      const root = getConfig().outputRoot;
+      return root ? path.join(root, 'overlay') : null;
+    },
+
+    getConfig,
+    setConfig: (partial) => {
+      setConfig(partial);
+      if (partial['delaySeconds'] != null) setPublishDelay((partial['delaySeconds'] as number) * 1000);
+      return getConfig();
+    },
+
+    controlStart: () => {
+      const resolution = resolveOutputRoot();
+      if (resolution.state === 'needs_user_choice') return { ok: false, needsUserChoice: true };
+      if (resolution.outputRoot) initModules(resolution.outputRoot);
+      return { ok: true };
+    },
+    controlStop: () => {
+      _isRunning = false;
+      emit('trackr:state', { state: 'stopped' });
+    },
+    controlRefresh: () => {
+      if (!outputWriter) return { ok: false };
+      const sessionFile = outputWriter.startNewSession();
+      _lastPublishedLine = null;
+      emit('trackr:session-started', { sessionFile });
+      return { ok: true, sessionFile };
+    },
+
+    getTemplate:   () => templateStore?.getTemplate() ?? DEFAULT_TEMPLATE,
+    setTemplate:   (html) => { templateStore?.setTemplate(html); },
+    resetTemplate: () => templateStore?.resetTemplate() ?? DEFAULT_TEMPLATE,
+
+    resolveOutputRoot,
+    chooseOutputRoot: (choice) => {
+      const resolution = persistOutputRootChoice(choice);
+      if (resolution.outputRoot) initModules(resolution.outputRoot);
+      return resolution;
+    },
+  };
+}
+
 /** Initialize file-based modules for a resolved output root. */
 function initModules(outputRoot: string): void {
   const config = getConfig();
@@ -42,7 +96,8 @@ function initModules(outputRoot: string): void {
   outputWriter  = new OutputWriter(outputRoot, config.timestampsEnabled, config.delaySeconds);
   templateStore = new TemplateStore(outputRoot, db);
 
-  startOverlayServer(path.join(outputRoot, 'overlay'), config.apiPort);
+  // Start REST API + static overlay server (replaces overlay-server.ts)
+  startApiServer(buildApiDeps(), config.apiPort, getEffectiveBindHost(config));
   outputWriter.ensureOverlayNowplayingExists();
   templateStore.ensureTemplateFile();
   outputWriter.startNewSession();
@@ -106,7 +161,6 @@ function registerIpc(): void {
   ipcMain.handle('config:set', (_event, partial: Record<string, unknown>) => {
     setConfig(partial);
     const cfg = getConfig();
-    // Propagate delay change to prolink timer immediately
     if (partial['delaySeconds'] != null) setPublishDelay(cfg.delaySeconds * 1000);
     return cfg;
   });
@@ -151,21 +205,21 @@ function registerIpc(): void {
   ipcMain.handle('tracklist:get-running-entries',  () => outputWriter?.getRunningEntries() ?? []);
   ipcMain.handle('tracklist:get-file',             () => outputWriter?.sessionFile ?? null);
 
-  // ── Phase 3: full status snapshot (consumed by Phase 4 REST API) ──────────
+  // ── Phase 3: full status snapshot ─────────────────────────────────────────
   ipcMain.handle('trackr:get-status', () => {
     const config = getConfig();
     return {
-      isRunning:         _isRunning,
-      deviceCount:       getDeviceCount(),
-      devices:           getDeviceSummaries(),
-      lastPublishedLine: _lastPublishedLine,
-      sessionFile:       outputWriter?.sessionFile ?? null,
-      playCount:         db?.getPlayCount() ?? 0,
-      outputRoot:        config.outputRoot || null,
-      apiEnabled:        config.apiEnabled,
-      apiAccessMode:     config.apiAccessMode,
+      isRunning:            _isRunning,
+      deviceCount:          getDeviceCount(),
+      devices:              getDeviceSummaries(),
+      lastPublishedLine:    _lastPublishedLine,
+      sessionFile:          outputWriter?.sessionFile ?? null,
+      playCount:            db?.getPlayCount() ?? 0,
+      outputRoot:           config.outputRoot || null,
+      apiEnabled:           config.apiEnabled,
+      apiAccessMode:        config.apiAccessMode,
       apiEffectiveBindHost: getEffectiveBindHost(config),
-      apiPort:           config.apiPort,
+      apiPort:              config.apiPort,
     };
   });
 }
@@ -176,13 +230,9 @@ app.whenReady().then(() => {
   createWindow();
   registerIpc();
 
-  // Wire prolink → main-process publish handler
   setPublishCallback(handlePublish);
-
-  // Sync publish delay from persisted config
   setPublishDelay(getConfig().delaySeconds * 1000);
 
-  // Auto-initialize file modules if output root is already resolved
   const resolution = resolveOutputRoot();
   if (resolution.state === 'resolved' && resolution.outputRoot) {
     try {
@@ -191,15 +241,12 @@ app.whenReady().then(() => {
       console.error('[main] initModules failed:', err);
     }
   } else if (resolution.state === 'needs_user_choice') {
-    // Renderer will prompt user on first load
     emit('trackr:needs-output-root-choice', {
       legacyRoot: resolution.legacyRoot,
       trackrRoot: resolution.trackrRoot,
     });
   }
 
-  // Phase 2: auto-start prolink.
-  // Phase 7D will make this conditional on an auto_start setting.
   startProlink(emit).catch(err => {
     console.error('[main] prolink auto-start failed:', err);
   });
@@ -214,7 +261,7 @@ app.on('second-instance', () => {
 
 app.on('window-all-closed', () => {
   void stopProlink().catch(() => {}).finally(() => {
-    stopOverlayServer();
+    stopApiServer();
     db?.close();
     app.quit();
   });
