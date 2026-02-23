@@ -96,11 +96,13 @@ function initModules(outputRoot: string): void {
   outputWriter  = new OutputWriter(outputRoot, config.timestampsEnabled, config.delaySeconds);
   templateStore = new TemplateStore(outputRoot, db);
 
-  // Start REST API + static overlay server (replaces overlay-server.ts)
-  startApiServer(buildApiDeps(), config.apiPort, getEffectiveBindHost(config));
+  // Session + overlay must be ready before the API can serve /nowplaying
   outputWriter.ensureOverlayNowplayingExists();
   templateStore.ensureTemplateFile();
   outputWriter.startNewSession();
+
+  // Start REST API + static overlay server (replaces overlay-server.ts)
+  startApiServer(buildApiDeps(), config.apiPort, getEffectiveBindHost(config));
 
   _isRunning = true;
   emit('trackr:state', { state: 'running', outputRoot });

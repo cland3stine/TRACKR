@@ -116,14 +116,15 @@ function buildApp(deps: ApiDeps): Express {
   const app = express();
   app.use(express.json());
 
-  // CORS — matches Python server behaviour
+  // CORS + OPTIONS preflight — single middleware, no wildcard route needed
+  // (Express 5 no longer supports un-named '*' wildcards in route methods)
   app.use((_req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin',  '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    if (_req.method === 'OPTIONS') { res.sendStatus(204); return; }
     next();
   });
-  app.options('*', (_req, res) => res.sendStatus(204));
 
   // ── GET /health ────────────────────────────────────────────────────────────
   app.get('/health', (_req: Request, res: Response) => {
