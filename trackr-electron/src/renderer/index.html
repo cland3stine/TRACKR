@@ -2,29 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy"
-    content="default-src 'self'; style-src 'self' 'unsafe-inline';" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TRACKR</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      background: #0a0a0a;
-      color: #e0e0e0;
-      font-family: 'JetBrains Mono', 'Consolas', monospace;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      flex-direction: column;
-      gap: 12px;
-    }
-    h1 { font-size: 2rem; letter-spacing: 0.3em; color: #2ecc40; }
-    p  { font-size: 0.85rem; color: #555; letter-spacing: 0.1em; }
-  </style>
 </head>
 <body>
-  <h1>TRACKR</h1>
-  <p>Phase 1 scaffold — renderer coming in Phase 6</p>
+  <div id="root"></div>
+  <script type="module" src="./main.tsx"></script>
 </body>
 </html>

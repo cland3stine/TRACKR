@@ -6,7 +6,9 @@
   "scripts": {
     "compile": "tsc -p tsconfig.main.json",
     "start": "npm run compile && electron .",
-    "build": "npm run compile && electron-builder",
+    "dev:renderer": "vite --config vite.config.ts",
+    "build:renderer": "vite build --config vite.config.ts",
+    "build": "npm run build:renderer && npm run compile && electron-builder",
     "postinstall": "electron-rebuild -f -w better-sqlite3"
   },
   "build": {
@@ -36,7 +38,9 @@
   "dependencies": {
     "electron-store": "^8.2.0",
     "express": "^5.2.1",
-    "prolink-connect": "^0.11.0"
+    "prolink-connect": "^0.11.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
   },
   "overrides": {
     "better-sqlite3": "^12.6.2"
@@ -45,8 +49,12 @@
     "@electron/rebuild": "^4.0.3",
     "@types/express": "^5.0.6",
     "@types/node": "^22.0.0",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.6.0",
     "electron": "^34.0.0",
     "electron-builder": "^25.0.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vite": "^7.0.4"
   }
 }

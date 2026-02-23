@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import path from 'path';
 
 import {
@@ -145,7 +145,12 @@ function createWindow(): void {
     },
   });
 
-  mainWindow.loadFile(path.join(__dirname, '../../src/renderer/index.html'));
+  const devUrl = process.env['ELECTRON_DEV_VITE_URL'];
+  if (devUrl) {
+    void mainWindow.loadURL(devUrl);
+  } else {
+    void mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+  }
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
@@ -201,6 +206,16 @@ function registerIpc(): void {
   ipcMain.handle('template:get',   () => templateStore?.getTemplate() ?? DEFAULT_TEMPLATE);
   ipcMain.handle('template:set',   (_event, html: string)  => templateStore?.setTemplate(html));
   ipcMain.handle('template:reset', () => templateStore?.resetTemplate());
+
+  // ── Phase 6: native dialog ────────────────────────────────────────────────
+  ipcMain.handle('dialog:open-directory', async () => {
+    if (!mainWindow) return null;
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openDirectory'],
+      title: 'Select TRACKR output folder',
+    });
+    return result.canceled ? null : result.filePaths[0] ?? null;
+  });
 
   // ── Phase 3: stats / tracklist ────────────────────────────────────────────
   ipcMain.handle('db:get-play-count',              () => db?.getPlayCount() ?? 0);
