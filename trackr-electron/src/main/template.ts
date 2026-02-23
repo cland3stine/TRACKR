@@ -20,21 +20,17 @@ export const DEFAULT_TEMPLATE = `<!DOCTYPE html>
   <meta http-equiv="Expires" content="0" />
   <style>
     body { margin: 0; background: transparent; font-family: "Segoe UI", sans-serif; }
-    #current  { color: #ffffff; font-size: 36px; text-shadow: 0 2px 6px rgba(0,0,0,0.8); }
-    #previous { color: #b8b8b8; font-size: 24px; margin-top: 8px; }
+    #current { color: #ffffff; font-size: 36px; text-shadow: 0 2px 6px rgba(0,0,0,0.8); }
   </style>
 </head>
 <body>
   <div id="current">\u2014</div>
-  <div id="previous">\u2014</div>
   <script>
     async function poll() {
       try {
         const r = await fetch("http://127.0.0.1:8755/trackr-2-line.txt?t=" + Date.now(), { cache: "no-store" });
         const t = await r.text();
-        const lines = t.split(/\\r?\\n/);
-        document.getElementById("current").textContent  = (lines[0] || "\u2014").trim() || "\u2014";
-        document.getElementById("previous").textContent = (lines[1] || "\u2014").trim() || "\u2014";
+        document.getElementById("current").textContent = (t.split(/\\r?\\n/)[0] || "\u2014").trim() || "\u2014";
       } catch (_) {}
       setTimeout(poll, 750);
     }
