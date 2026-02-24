@@ -173,6 +173,12 @@ function handleStatus(status: CDJStatus.State): void {
   if (!stateChanged(status)) return;
   saveState(status);
 
+  const onAir = status.isOnAir;
+  const playing = isPlaying(status.playState);
+  const trackId = status.trackId;
+
+  console.log(`[prolink] status #${status.deviceId}: onAir=${onAir} playing=${playing} trackId=${trackId} playState=${status.playState}`);
+
   // Forward raw status to renderer for device display
   _emit?.('trackr:cdj-status', {
     deviceId:  status.deviceId,
@@ -182,21 +188,35 @@ function handleStatus(status: CDJStatus.State): void {
   });
 
   // Gate 1: must be on-air, playing, and have a loaded track
-  if (!status.isOnAir || !isPlaying(status.playState) || status.trackId === 0) {
-    if (_pendingKey?.startsWith(`${status.deviceId}|`)) {
-      console.log(`[prolink] Gate 1 dropped for device #${status.deviceId} — cancelling pending`);
+  if (!onAir || !playing || trackId === 0) {
+    // Only cancel a pending publish if the mixer fader went down (off-air).
+    // Momentary play-state blips (cue, brief pause) shouldn't kill a valid publish.
+    if (!onAir && _pendingKey?.startsWith(`${status.deviceId}|`)) {
+      console.log(`[prolink] device #${status.deviceId} went OFF-AIR — cancelling pending`);
       cancelPending();
     }
     return;
   }
 
+  console.log(`[prolink] Gate 1 PASSED #${status.deviceId} — resolving metadata...`);
+
   // Gate 2: metadata (async with retries)
   const { deviceId } = status;
+  const snapshotTrackId = trackId;  // capture for stale check
   resolveMetadata(status).then(line => {
     if (!line) {
-      console.log(`[prolink] Gate 2 — no metadata for device #${deviceId} trackId=${status.trackId}`);
+      console.log(`[prolink] Gate 2 — no metadata for device #${deviceId} trackId=${snapshotTrackId}`);
       return;
     }
+
+    // Re-check Gate 1 after async resolution — device state may have changed
+    const current = _lastState.get(deviceId);
+    if (!current || !current.isOnAir || !isPlaying(current.playState) || current.trackId !== snapshotTrackId) {
+      console.log(`[prolink] Gate 1 stale for #${deviceId} — skipping (onAir=${current?.isOnAir} playing=${current ? isPlaying(current.playState) : '?'} trackId=${current?.trackId} vs ${snapshotTrackId})`);
+      return;
+    }
+
+    console.log(`[prolink] Gate 2 PASSED #${deviceId} — scheduling publish: "${line}"`);
     schedulePending(`${deviceId}|${line}`, line, deviceId);
   }).catch(err => console.error('[prolink] resolveMetadata error:', err));
 }

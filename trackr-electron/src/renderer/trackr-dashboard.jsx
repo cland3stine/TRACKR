@@ -210,7 +210,7 @@ const DEFAULT_TEMPLATE = `<!DOCTYPE html>
       padding: 16px;
       font-family: 'Segoe UI', sans-serif;
     }
-    #nowplaying {
+    #trackr {
       color: #ffffff;
       font-size: 18px;
       text-shadow: 0 1px 4px rgba(0,0,0,0.8);
@@ -223,7 +223,7 @@ const DEFAULT_TEMPLATE = `<!DOCTYPE html>
   </style>
 </head>
 <body>
-  <div id="nowplaying">Loading...</div>
+  <div id="trackr">Loading...</div>
   <div class="previous"></div>
   <script>
     async function poll() {
@@ -231,7 +231,7 @@ const DEFAULT_TEMPLATE = `<!DOCTYPE html>
         const r = await fetch('trackr-2-line.txt?_=' + Date.now());
         const t = await r.text();
         const lines = t.trim().split('\\n');
-        document.getElementById('nowplaying')
+        document.getElementById('trackr')
           .textContent = lines[0] || '—';
         document.querySelector('.previous')
           .textContent = lines[1] || '';

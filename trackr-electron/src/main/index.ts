@@ -98,7 +98,7 @@ function buildApiDeps(): ApiDeps {
     playCount:         () => db?.getPlayCount() ?? 0,
     sharePlayCount:    () => getConfig().sharePlayCountViaApi,
     sessionFileName:   () => outputWriter?.sessionFile ?? null,
-    overlayTxtPath:    () => outputWriter?.overlayNowplayingPath ?? null,
+    overlayTxtPath:    () => outputWriter?.overlayTxtPath ?? null,
     overlayDir:        () => {
       const root = getConfig().outputRoot;
       return root ? path.join(root, 'overlay') : null;
@@ -153,8 +153,8 @@ function initModules(outputRoot: string): void {
   outputWriter  = new OutputWriter(outputRoot, config.timestampsEnabled, config.delaySeconds);
   templateStore = new TemplateStore(outputRoot, db);
 
-  // Session + overlay must be ready before the API can serve /nowplaying
-  outputWriter.ensureOverlayNowplayingExists();
+  // Session + overlay must be ready before the API can serve /trackr
+  outputWriter.ensureOverlayExists();
   templateStore.ensureTemplateFile();
   outputWriter.startNewSession();
 
@@ -174,7 +174,7 @@ function handlePublish(line: string, deviceId: number, publishedAt: number): voi
     return;
   }
 
-  outputWriter.writeOverlayNowplaying(line);
+  outputWriter.writeOverlay(line);
   const entry     = outputWriter.appendTrack(line, publishedAt);
   const playCount = db.incrementPlayCount();
   _lastPublishedLine = line;

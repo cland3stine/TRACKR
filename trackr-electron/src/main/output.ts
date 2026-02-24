@@ -12,18 +12,18 @@ import { SessionEntry, SessionTracker } from './session';
 
 export class OutputWriter {
   private _overlayDir:             string;
-  private _overlayNowplayingPath:  string;
+  private _overlayTxtPath:         string;
   private _sessionTracker:         SessionTracker;
   private _previousOverlayLine:    string = EM_DASH;
   private _runningEntries:         SessionEntry[] = [];
 
   constructor(outputRoot: string, timestampsEnabled: boolean, delaySeconds: number) {
     this._overlayDir            = join(outputRoot, 'overlay');
-    this._overlayNowplayingPath = join(this._overlayDir, 'trackr-2-line.txt');
+    this._overlayTxtPath        = join(this._overlayDir, 'trackr-2-line.txt');
     this._sessionTracker        = new SessionTracker(outputRoot, timestampsEnabled, delaySeconds);
   }
 
-  get overlayNowplayingPath(): string   { return this._overlayNowplayingPath; }
+  get overlayTxtPath(): string   { return this._overlayTxtPath; }
   get sessionFile():           string | null { return this._sessionTracker.sessionFile; }
 
   startNewSession(sessionDate?: Date): string {
@@ -32,15 +32,15 @@ export class OutputWriter {
     return this._sessionTracker.startNewSession(sessionDate);
   }
 
-  ensureOverlayNowplayingExists(): void {
+  ensureOverlayExists(): void {
     mkdirSync(this._overlayDir, { recursive: true });
-    if (!existsSync(this._overlayNowplayingPath)) {
+    if (!existsSync(this._overlayTxtPath)) {
       this._writeOverlayText(EM_DASH, EM_DASH);
       this._previousOverlayLine = EM_DASH;
     }
   }
 
-  writeOverlayNowplaying(line: string): void {
+  writeOverlay(line: string): void {
     mkdirSync(this._overlayDir, { recursive: true });
     const current  = cleanTrackLine(line) || EM_DASH;
     const previous = this._previousOverlayLine || EM_DASH;
@@ -61,6 +61,6 @@ export class OutputWriter {
   private _writeOverlayText(current: string, previous: string): void {
     // Contract: UTF-8, CRLF line endings, trailing newline.
     const payload = `${current}\r\n${previous}\r\n`;
-    writeFileSync(this._overlayNowplayingPath, Buffer.from(payload, 'utf8'));
+    writeFileSync(this._overlayTxtPath, Buffer.from(payload, 'utf8'));
   }
 }

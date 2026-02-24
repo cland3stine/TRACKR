@@ -6,7 +6,7 @@
  * Also serves the overlay/ directory as static files (replaces overlay-server.ts).
  *
  * Consumers:
- *   - Roonie-AI:       GET /health, GET /nowplaying
+ *   - Roonie-AI:       GET /health, GET /trackr
  *   - React frontend:  all endpoints via TrackrHttpCore (Phase 6)
  *   - OBS browser src: static GET / → trackr-obs.html
  */
@@ -135,8 +135,8 @@ function buildApp(deps: ApiDeps): Express {
     res.json({ ok: true, is_running: deps.isRunning() });
   });
 
-  // ── GET /nowplaying ────────────────────────────────────────────────────────
-  app.get('/nowplaying', (_req: Request, res: Response) => {
+  // ── GET /trackr ──────────────────────────────────────────────────────────
+  app.get('/trackr', (_req: Request, res: Response) => {
     const [current, previous] = readOverlayLines(deps.overlayTxtPath());
     const payload: Record<string, unknown> = {
       current,

@@ -429,7 +429,7 @@ class TrackrHttpCore {
       this.applyStatus(asObject(statusResponse.data));
     }
 
-    const nowPlayingResponse = await fetchJson(this.apiBaseUrl, "/nowplaying", { method: "GET" });
+    const nowPlayingResponse = await fetchJson(this.apiBaseUrl, "/trackr", { method: "GET" });
     if (nowPlayingResponse.ok) {
       const payload = asObject(nowPlayingResponse.data);
       this.currentLine = asString(payload.current, EM_DASH);
