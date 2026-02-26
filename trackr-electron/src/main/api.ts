@@ -25,12 +25,14 @@ import { TrackrConfig, OutputRootResolution } from './store';
 export interface ApiDeps {
   // state
   isRunning:         () => boolean;
+  isPlaybackActive:  () => boolean;
   lastPublishedLine: () => string | null;
   deviceCount:       () => number;
   deviceSummaries:   () => Array<{ name: string; count: number }>;
   playCount:         () => number;
   sharePlayCount:    () => boolean;
   sessionFileName:   () => string | null;
+  sessionVersion:    () => number;
   overlayTxtPath:    () => string | null;
   overlayDir:        () => string | null;
 
@@ -155,10 +157,12 @@ function buildApp(deps: ApiDeps): Express {
     res.json({
       app_state:                deps.isRunning() ? 'running' : 'stopped',
       status_text:              deps.isRunning() ? 'running' : 'stopped',
+      is_playback_active:       deps.isPlaybackActive(),
       device_count:             deps.deviceCount(),
       devices:                  deps.deviceSummaries(),
       last_published_line:      deps.lastPublishedLine(),
       session_file_name:        deps.sessionFileName(),
+      session_version:          deps.sessionVersion(),
       api_effective_bind_host:  cfg.apiEnabled ? (cfg.apiAccessMode === 'localhost' ? '127.0.0.1' : '0.0.0.0') : null,
       lan_ip:                   detectLanIp(),
       api_port:                 cfg.apiEnabled ? cfg.apiPort : null,

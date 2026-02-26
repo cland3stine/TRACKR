@@ -29,6 +29,8 @@ export class OutputWriter {
   startNewSession(sessionDate?: Date): string {
     this._previousOverlayLine = EM_DASH;
     this._runningEntries      = [];
+    // Clear overlay so /trackr returns em-dash (no stale track from previous session)
+    this._writeOverlayText(EM_DASH, EM_DASH);
     return this._sessionTracker.startNewSession(sessionDate);
   }
 

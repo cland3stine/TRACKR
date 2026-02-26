@@ -3,7 +3,8 @@ import path from 'path';
 
 import {
   startProlink, stopProlink, getDeviceCount, getDeviceSummaries,
-  setPublishCallback, setPublishDelay,
+  setPublishCallback, setPublishDelay, isPlaybackActive, setOnSetEnded,
+  resetLastPublished,
 } from './prolink';
 import { OutputWriter }      from './output';
 import { TrackrDatabase }    from './database';
@@ -27,6 +28,7 @@ let outputWriter:  OutputWriter   | null = null;
 let templateStore: TemplateStore  | null = null;
 let _isRunning = false;
 let _lastPublishedLine: string | null = null;
+let _sessionVersion = 0;       // increments on every new session
 let _forceQuit = false;  // set by tray "Quit" to allow real exit
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -64,6 +66,8 @@ function buildTrayCallbacks(): TrayCallbacks {
       if (!outputWriter) return;
       const sessionFile = outputWriter.startNewSession();
       _lastPublishedLine = null;
+      resetLastPublished();
+      _sessionVersion++;
       emit('trackr:session-started', { sessionFile });
     },
     onStartStop: () => {
@@ -92,12 +96,14 @@ function buildTrayCallbacks(): TrayCallbacks {
 function buildApiDeps(): ApiDeps {
   return {
     isRunning:         () => _isRunning,
+    isPlaybackActive:  () => isPlaybackActive(),
     lastPublishedLine: () => _lastPublishedLine,
     deviceCount:       () => getDeviceCount(),
     deviceSummaries:   () => getDeviceSummaries(),
     playCount:         () => db?.getPlayCount() ?? 0,
     sharePlayCount:    () => getConfig().sharePlayCountViaApi,
     sessionFileName:   () => outputWriter?.sessionFile ?? null,
+    sessionVersion:    () => _sessionVersion,
     overlayTxtPath:    () => outputWriter?.overlayTxtPath ?? null,
     overlayDir:        () => {
       const root = getConfig().outputRoot;
@@ -127,6 +133,8 @@ function buildApiDeps(): ApiDeps {
       if (!outputWriter) return { ok: false };
       const sessionFile = outputWriter.startNewSession();
       _lastPublishedLine = null;
+      resetLastPublished();
+      _sessionVersion++;
       emit('trackr:session-started', { sessionFile });
       return { ok: true, sessionFile };
     },
@@ -157,6 +165,8 @@ function initModules(outputRoot: string): void {
   outputWriter.ensureOverlayExists();
   templateStore.ensureTemplateFile();
   outputWriter.startNewSession();
+  resetLastPublished();
+  _sessionVersion++;
 
   // Start REST API + static overlay server (replaces overlay-server.ts)
   startApiServer(buildApiDeps(), config.apiPort, getEffectiveBindHost(config));
@@ -274,6 +284,8 @@ function registerIpc(): void {
     if (!outputWriter) return { ok: false, error: 'not initialized' };
     const sessionFile = outputWriter.startNewSession();
     _lastPublishedLine = null;
+    resetLastPublished();
+    _sessionVersion++;
     emit('trackr:session-started', { sessionFile });
     return { ok: true, sessionFile };
   });
@@ -325,6 +337,21 @@ app.whenReady().then(() => {
 
   setPublishCallback(handlePublish);
   setPublishDelay(getConfig().delaySeconds * 1000);
+
+  // Auto new session when a set ends (30s silence gap detected).
+  // The next track that publishes will start at 00:00 in a clean session.
+  // Guard: only reset if we've published at least one track (avoids
+  // resetting if setEnded fires before any tracks were published).
+  setOnSetEnded(() => {
+    if (!outputWriter || _lastPublishedLine === null) return;
+    const sessionFile = outputWriter.startNewSession();
+    _lastPublishedLine = null;
+    resetLastPublished();
+    _sessionVersion++;
+    emit('trackr:session-started', { sessionFile });
+    refreshTray(buildTrayCallbacks());
+    console.log('[main] Auto new session — set ended (30s silence)');
+  });
 
   // System tray
   _tray = createTray(buildTrayCallbacks());

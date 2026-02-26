@@ -312,6 +312,7 @@ export default function TRACKR() {
   const [lanIp, setLanIp] = useState("127.0.0.1");
   const [toasts, setToasts] = useState([]);
   const [publishedAgo, setPublishedAgo] = useState(0);
+  const [playbackActive, setPlaybackActive] = useState(false);
   const [tracks, setTracks] = useState([]);
   const [sessionLabel, setSessionLabel] = useState(EM_DASH);
   const [deviceCount, setDeviceCount] = useState(0);
@@ -334,15 +335,15 @@ export default function TRACKR() {
     : `${deviceCount} Device${deviceCount !== 1 ? "s" : ""}`;
   const templateDirty = template !== savedTemplate;
 
-  // Auto-increment "published ago"
+  // Auto-increment "published ago" — only ticks while playback is active
   useEffect(() => {
-    if (isRunning) {
+    if (isRunning && playbackActive) {
       timerRef.current = setInterval(() => setPublishedAgo((p) => p + 1), 1000);
       return () => clearInterval(timerRef.current);
     }
     if (timerRef.current) clearInterval(timerRef.current);
     return undefined;
-  }, [isRunning]);
+  }, [isRunning, playbackActive]);
 
   const addToast = useCallback((msg, severity = "info") => {
     const id = Date.now();
@@ -370,6 +371,7 @@ export default function TRACKR() {
     if (status.app_state) setAppState(status.app_state);
     if (Number.isFinite(status.device_count)) setDeviceCount(status.device_count);
     if (Array.isArray(status.devices)) setDevices(status.devices);
+    if (typeof status.is_playback_active === "boolean") setPlaybackActive(status.is_playback_active);
     if (status.api_access_mode) setApiAccessMode(status.api_access_mode);
     if (typeof status.api_enabled === "boolean") setApiEnabled(status.api_enabled);
     if (typeof status.strip_mix_labels === "boolean") setStripMixLabels(status.strip_mix_labels);
@@ -457,6 +459,17 @@ export default function TRACKR() {
           return;
         }
 
+        if (event.event_type === "session_reset") {
+          setTracks([]);
+          setPublishedAgo(0);
+          return;
+        }
+
+        if (event.event_type === "playback_changed") {
+          setPlaybackActive(!!payload.is_playback_active);
+          return;
+        }
+
         if (event.event_type === "api_rebound") {
           if (typeof payload.enabled === "boolean") setApiEnabled(payload.enabled);
           if (payload.bind_host) setApiBindHost(payload.bind_host);
@@ -474,10 +487,17 @@ export default function TRACKR() {
 
     bind();
 
+    // Direct IPC listener for auto session reset (bypasses HTTP polling)
+    window.electronAPI.on("trackr:session-started", () => {
+      setTracks([]);
+      setPublishedAgo(0);
+    });
+
     return () => {
       mounted = false;
       if (statusPollRef.current) clearInterval(statusPollRef.current);
       if (typeof unsubscribeRef.current === "function") unsubscribeRef.current();
+      window.electronAPI.removeAllListeners("trackr:session-started");
     };
   }, [applyOutputRootResolution, callCore, refreshFromCore, reloadTemplate, reloadTracklist]);
 
@@ -842,8 +862,8 @@ export default function TRACKR() {
           {isRunning && currentTrack && (
             <>
               <div style={{ width: 1, height: 16, background: C.borderRack, flexShrink: 0 }} />
-              <span style={{ ...font(9, 400), color: C.textMuted, flexShrink: 0 }}>
-                Deck B · {formatAgo(publishedAgo)}
+              <span style={{ ...font(9, 400), color: playbackActive ? C.textMuted : C.textDim, flexShrink: 0 }}>
+                {formatAgo(publishedAgo)}{!playbackActive && " · stopped"}
               </span>
             </>
           )}

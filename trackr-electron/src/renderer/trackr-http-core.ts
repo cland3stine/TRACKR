@@ -157,7 +157,9 @@ class TrackrHttpCore {
 
   private backendConnected = false;
   private backendRunning = false;
+  private isPlaybackActive = false;
   private sessionFileName: string | null = null;
+  private sessionVersion = 0;
   private deviceCount = 0;
   private currentLine = EM_DASH;
   private previousLine = EM_DASH;
@@ -373,9 +375,10 @@ class TrackrHttpCore {
 
   private applyStatus(status: AnyObj): void {
     const previousState = this.appState;
-    const previousSessionFileName = this.sessionFileName;
+    const previousPlaybackActive = this.isPlaybackActive;
     this.appState = asString(status.app_state, this.appState || "stopped");
     this.statusText = asString(status.status_text, this.statusText);
+    this.isPlaybackActive = asBool(status.is_playback_active, this.isPlaybackActive);
     this.deviceCount = asNumber(status.device_count, this.deviceCount);
     const reportedLastPublished = asString(status.last_published_line, "");
     if (reportedLastPublished) {
@@ -390,15 +393,19 @@ class TrackrHttpCore {
     this.outputRoot = asString(status.output_root, this.outputRoot);
     this.migrationPromptSeen = asBool(status.migration_prompt_seen, this.migrationPromptSeen);
     this.backendRunning = this.appState === "running";
-    const sessionChanged =
-      !!previousSessionFileName &&
-      !!this.sessionFileName &&
-      previousSessionFileName !== this.sessionFileName;
-    if (sessionChanged) {
+
+    // Session version counter — robust reset detection (no string comparison races)
+    const newVersion = asNumber(status.session_version, this.sessionVersion);
+    if (newVersion !== this.sessionVersion) {
+      this.sessionVersion = newVersion;
       this.runningTracklist = [];
       this.lastAppendedTrackLine = null;
+      this.lastPublishedLine = null;  // prevents appendTrackIfNew re-adding stale track
+      this.playCount = 0;
       this.sessionStartedAtMs = Date.now();
+      this.emit("session_reset", {});
     }
+
     if (this.appState === "stopped" || this.appState === "error") {
       this.runningTracklist = [];
       this.lastPublishedLine = null;
@@ -411,6 +418,9 @@ class TrackrHttpCore {
 
     if (previousState !== this.appState) {
       this.emit("state_changed", { app_state: this.appState });
+    }
+    if (previousPlaybackActive !== this.isPlaybackActive) {
+      this.emit("playback_changed", { is_playback_active: this.isPlaybackActive });
     }
   }
 
@@ -434,7 +444,7 @@ class TrackrHttpCore {
       const payload = asObject(nowPlayingResponse.data);
       this.currentLine = asString(payload.current, EM_DASH);
       this.previousLine = asString(payload.previous, EM_DASH);
-      this.sessionFileName = asString(payload.session_file, "") || this.sessionFileName;
+      // sessionFileName is authoritative from /status (applyStatus handles change detection)
       this.deviceCount = asNumber(payload.device_count, this.deviceCount);
       this.playCount = asNumber(payload.play_count, this.playCount);
       this.appendTrackIfNew(this.currentLine);
@@ -467,6 +477,7 @@ class TrackrHttpCore {
   private snapshotStatus(): AnyObj {
     return {
       app_state: this.appState,
+      is_playback_active: this.isPlaybackActive,
       status_text: this.backendConnected ? this.statusText : "Backend Offline",
       device_count: this.deviceCount,
       last_published_line: this.lastPublishedLine,
