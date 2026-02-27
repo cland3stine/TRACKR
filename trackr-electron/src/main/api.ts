@@ -90,15 +90,17 @@ function configToApi(cfg: TrackrConfig): Record<string, unknown> {
 /** Maps snake_case API POST /config body keys → camelCase store keys. */
 function apiBodyToConfigPartial(raw: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  if ('delay_seconds'            in raw) out.delaySeconds          = raw.delay_seconds;
-  if ('timestamps_enabled'       in raw) out.timestampsEnabled     = raw.timestamps_enabled;
-  if ('strip_mix_labels'         in raw) out.stripMixLabels        = raw.strip_mix_labels;
-  if ('api_enabled'              in raw) out.apiEnabled            = raw.api_enabled;
-  if ('api_access_mode'          in raw) out.apiAccessMode         = raw.api_access_mode;
-  if ('share_play_count_via_api' in raw) out.sharePlayCountViaApi  = raw.share_play_count_via_api;
-  if ('api_port'                 in raw) out.apiPort               = raw.api_port;
-  if ('start_with_windows'       in raw) out.startWithWindows      = raw.start_with_windows;
-  if ('start_in_tray'            in raw) out.startInTray           = raw.start_in_tray;
+  if ('output_root'              in raw) out.outputRoot             = raw.output_root;
+  if ('migration_prompt_seen'    in raw) out.migrationPromptSeen    = raw.migration_prompt_seen;
+  if ('delay_seconds'            in raw) out.delaySeconds           = raw.delay_seconds;
+  if ('timestamps_enabled'       in raw) out.timestampsEnabled      = raw.timestamps_enabled;
+  if ('strip_mix_labels'         in raw) out.stripMixLabels         = raw.strip_mix_labels;
+  if ('api_enabled'              in raw) out.apiEnabled             = raw.api_enabled;
+  if ('api_access_mode'          in raw) out.apiAccessMode          = raw.api_access_mode;
+  if ('share_play_count_via_api' in raw) out.sharePlayCountViaApi   = raw.share_play_count_via_api;
+  if ('api_port'                 in raw) out.apiPort                = raw.api_port;
+  if ('start_with_windows'       in raw) out.startWithWindows       = raw.start_with_windows;
+  if ('start_in_tray'            in raw) out.startInTray            = raw.start_in_tray;
   return out;
 }
 

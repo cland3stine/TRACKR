@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, Tray } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, Menu, Tray } from 'electron';
 import path from 'path';
 
 // ─── global safety net ──────────────────────────────────────────────────────
@@ -173,6 +173,13 @@ function buildApiDeps(): ApiDeps {
   };
 }
 
+/** Start the API server unconditionally so the renderer health-check passes.
+ *  Call once from app.whenReady(), before initModules. */
+function ensureApiServer(): void {
+  const config = getConfig();
+  startApiServer(buildApiDeps(), config.apiPort, getEffectiveBindHost(config));
+}
+
 /** Initialize file-based modules for a resolved output root. */
 function initModules(outputRoot: string): void {
   const config = getConfig();
@@ -188,9 +195,6 @@ function initModules(outputRoot: string): void {
   outputWriter.startNewSession();
   resetLastPublished();
   _sessionVersion++;
-
-  // Start REST API + static overlay server (replaces overlay-server.ts)
-  startApiServer(buildApiDeps(), config.apiPort, getEffectiveBindHost(config));
 
   _isRunning = true;
   emit('trackr:state', { state: 'running', outputRoot });
@@ -354,7 +358,13 @@ function registerIpc(): void {
 
 app.whenReady().then(() => {
   createWindow();
+  Menu.setApplicationMenu(null);   // Remove default Electron menu bar
   registerIpc();
+
+  // Start the REST API immediately so the renderer health-check passes.
+  // initModules fills in DB/output state later; until then, endpoints
+  // return safe defaults (null session, zero play count, etc.).
+  ensureApiServer();
 
   setPublishCallback(handlePublish);
   setPublishDelay(getConfig().delaySeconds * 1000);
@@ -386,6 +396,9 @@ app.whenReady().then(() => {
       initModules(resolution.outputRoot);
     } catch (err) {
       console.error('[main] initModules failed:', err);
+      dialog.showErrorBox('TRACKR — Startup Error',
+        `Failed to initialize: ${err instanceof Error ? err.message : String(err)}\n\n` +
+        'The app will start in offline mode. Check that the output folder is accessible.');
     }
   } else if (resolution.state === 'needs_user_choice') {
     emit('trackr:needs-output-root-choice', {
