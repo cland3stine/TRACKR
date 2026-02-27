@@ -55,3 +55,7 @@ trackr_config.json
 # Keep Electron app assets tracked (icon.ico etc)
 !trackr-electron/assets/
 !trackr-electron/assets/**
+
+# Keep Electron NSIS installer scripts tracked
+!trackr-electron/build/
+!trackr-electron/build/**

@@ -1,6 +1,27 @@
 import { app, BrowserWindow, ipcMain, dialog, Tray } from 'electron';
 import path from 'path';
 
+// ─── global safety net ──────────────────────────────────────────────────────
+// prolink-connect's internal UDP socket handler throws on malformed packets
+// (e.g. "Announce packet does not start with expected header"). These bubble
+// up as uncaught exceptions that crash the app. Catch and log them instead.
+process.on('uncaughtException', (err) => {
+  const msg = err?.message ?? String(err);
+  // Known prolink-connect UDP parsing errors — log and continue
+  if (msg.includes('does not start with expected header') ||
+      msg.includes('Announce packet') ||
+      msg.includes('Status packet')) {
+    console.warn('[main] prolink-connect packet parse error (ignored):', msg);
+    return;
+  }
+  // Unknown exception — log it but don't crash during a live set
+  console.error('[main] Uncaught exception:', err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[main] Unhandled rejection:', reason);
+});
+
 import {
   startProlink, stopProlink, getDeviceCount, getDeviceSummaries,
   setPublishCallback, setPublishDelay, isPlaybackActive, setOnSetEnded,
