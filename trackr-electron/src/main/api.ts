@@ -8,7 +8,7 @@
  * Consumers:
  *   - Roonie-AI:       GET /health, GET /trackr
  *   - React frontend:  all endpoints via TrackrHttpCore (Phase 6)
- *   - OBS browser src: static GET / → trackr-obs.html
+ *   - OBS browser src: static GET / → trackr-current.html
  */
 
 import express, { Express, Request, Response } from 'express';
@@ -18,7 +18,7 @@ import { networkInterfaces } from 'os';
 import { Server } from 'http';
 
 import { EM_DASH } from './cleaner';
-import { TrackrConfig, OutputRootResolution } from './store';
+import { TrackrConfig, OverlayStyle, OutputRootResolution, DEFAULT_OVERLAY_STYLE } from './store';
 
 // ─── types ───────────────────────────────────────────────────────────────────
 
@@ -45,10 +45,9 @@ export interface ApiDeps {
   controlStop:       () => void;
   controlRefresh:    () => { ok: boolean; sessionFile?: string | null };
 
-  // template
-  getTemplate:       () => string;
-  setTemplate:       (html: string) => void;
-  resetTemplate:     () => string;
+  // style
+  getOverlayStyle:   () => OverlayStyle;
+  setOverlayStyle:   (partial: Partial<OverlayStyle>) => OverlayStyle;
 
   // output root
   resolveOutputRoot: () => OutputRootResolution;
@@ -101,6 +100,40 @@ function apiBodyToConfigPartial(raw: Record<string, unknown>): Record<string, un
   if ('api_port'                 in raw) out.apiPort                = raw.api_port;
   if ('start_with_windows'       in raw) out.startWithWindows       = raw.start_with_windows;
   if ('start_in_tray'            in raw) out.startInTray            = raw.start_in_tray;
+  return out;
+}
+
+/** Converts the camelCase OverlayStyle to the snake_case shape the API exposes. */
+function styleToApi(s: OverlayStyle): Record<string, unknown> {
+  return {
+    font_family:        s.fontFamily,
+    text_transform:     s.textTransform,
+    letter_spacing:     s.letterSpacing,
+    font_size:          s.fontSize,
+    font_color:         s.fontColor,
+    drop_shadow_on:     s.dropShadowOn,
+    drop_shadow_x:      s.dropShadowX,
+    drop_shadow_y:      s.dropShadowY,
+    drop_shadow_blur:   s.dropShadowBlur,
+    drop_shadow_color:  s.dropShadowColor,
+    line_gap:           s.lineGap,
+  };
+}
+
+/** Maps snake_case API POST /style body keys → camelCase OverlayStyle keys. */
+function apiBodyToStylePartial(raw: Record<string, unknown>): Partial<OverlayStyle> {
+  const out: Partial<OverlayStyle> = {};
+  if ('font_family'       in raw) out.fontFamily      = String(raw.font_family);
+  if ('text_transform'    in raw) out.textTransform    = raw.text_transform === 'none' ? 'none' : 'uppercase';
+  if ('letter_spacing'    in raw) out.letterSpacing    = Number(raw.letter_spacing);
+  if ('font_size'         in raw) out.fontSize         = Number(raw.font_size);
+  if ('font_color'        in raw) out.fontColor        = String(raw.font_color);
+  if ('drop_shadow_on'    in raw) out.dropShadowOn     = Boolean(raw.drop_shadow_on);
+  if ('drop_shadow_x'     in raw) out.dropShadowX      = Number(raw.drop_shadow_x);
+  if ('drop_shadow_y'     in raw) out.dropShadowY      = Number(raw.drop_shadow_y);
+  if ('drop_shadow_blur'  in raw) out.dropShadowBlur   = Number(raw.drop_shadow_blur);
+  if ('drop_shadow_color' in raw) out.dropShadowColor  = String(raw.drop_shadow_color);
+  if ('line_gap'          in raw) out.lineGap           = Number(raw.line_gap);
   return out;
 }
 
@@ -229,41 +262,24 @@ function buildApp(deps: ApiDeps): Express {
     }
   });
 
-  // ── GET /template ──────────────────────────────────────────────────────────
-  app.get('/template', (_req: Request, res: Response) => {
-    if (deps.resolveOutputRoot().state === 'needs_user_choice') {
-      res.status(409).json({ ok: false, error: { code: 'needs_user_choice', message: 'output root choice required before template operations' }, needs_user_choice: true });
-      return;
-    }
-    res.json({ template: deps.getTemplate() });
+  // ── GET /style ───────────────────────────────────────────────────────────
+  app.get('/style', (_req: Request, res: Response) => {
+    res.json(styleToApi(deps.getOverlayStyle()));
   });
 
-  // ── POST /template ─────────────────────────────────────────────────────────
-  app.post('/template', (req: Request, res: Response) => {
-    if (deps.resolveOutputRoot().state === 'needs_user_choice') {
-      res.status(409).json({ ok: false, error: { code: 'needs_user_choice', message: 'output root choice required before template operations' }, needs_user_choice: true });
-      return;
-    }
-    const html = req.body?.template;
-    if (typeof html !== 'string') {
-      res.status(400).json({ ok: false, error: { code: 'invalid_template', message: 'template must be a string' } });
+  // ── POST /style ──────────────────────────────────────────────────────────
+  app.post('/style', (req: Request, res: Response) => {
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+      res.status(400).json({ ok: false, error: { code: 'invalid_request', message: 'request body must be a JSON object' } });
       return;
     }
     try {
-      deps.setTemplate(html);
-      res.json({ template: html });
+      const partial = apiBodyToStylePartial(req.body as Record<string, unknown>);
+      const updated = deps.setOverlayStyle(partial);
+      res.json(styleToApi(updated));
     } catch (err) {
-      res.status(400).json({ ok: false, error: { code: 'invalid_template', message: String(err) } });
+      res.status(400).json({ ok: false, error: { code: 'set_style_failed', message: String(err) } });
     }
-  });
-
-  // ── POST /template/reset ───────────────────────────────────────────────────
-  app.post('/template/reset', (_req: Request, res: Response) => {
-    if (deps.resolveOutputRoot().state === 'needs_user_choice') {
-      res.status(409).json({ ok: false, error: { code: 'needs_user_choice', message: 'output root choice required before template operations' }, needs_user_choice: true });
-      return;
-    }
-    res.json({ template: deps.resetTemplate() });
   });
 
   // ── GET /output-root/resolve ───────────────────────────────────────────────
@@ -297,7 +313,7 @@ function buildApp(deps: ApiDeps): Express {
     if (!dir) { res.sendStatus(404); return; }
 
     const url    = (req.url ?? '/').split('?')[0];
-    const file   = (url === '/' ? 'trackr-obs.html' : url).replace(/^\/+/, '');
+    const file   = (url === '/' ? 'trackr-current.html' : url).replace(/^\/+/, '');
     const fpath  = resolvePath(join(dir, file));
     const absDir = resolvePath(dir);
 

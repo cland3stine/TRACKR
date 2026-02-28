@@ -11,14 +11,19 @@ type EventCallback = (event: AnyObj) => void;
 const EM_DASH = "\u2014";
 const DEFAULT_OUTPUT_ROOT = "%USERPROFILE%\\TRACKR";
 
-const DEFAULT_TEMPLATE = `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8" /></head>
-<body style="margin:0;background:transparent;font-family:Segoe UI,sans-serif;">
-  <div id="current">\u2014</div>
-  <div id="previous">\u2014</div>
-</body>
-</html>`;
+const DEFAULT_STYLE: AnyObj = {
+  font_family: "Good Times",
+  text_transform: "uppercase",
+  letter_spacing: 0.15,
+  font_size: 36,
+  font_color: "#ffffff",
+  drop_shadow_on: true,
+  drop_shadow_x: 6,
+  drop_shadow_y: 6,
+  drop_shadow_blur: 6,
+  drop_shadow_color: "#000000",
+  line_gap: 14,
+};
 
 const DEFAULT_CONFIG: AnyObj = {
   output_root: DEFAULT_OUTPUT_ROOT,
@@ -153,7 +158,7 @@ class TrackrHttpCore {
   private pollTimer: ReturnType<typeof setInterval> | null = null;
 
   private config: AnyObj = { ...DEFAULT_CONFIG };
-  private template = DEFAULT_TEMPLATE;
+  private overlayStyle: AnyObj = { ...DEFAULT_STYLE };
 
   private backendConnected = false;
   private backendRunning = false;
@@ -272,38 +277,25 @@ class TrackrHttpCore {
     return result;
   }
 
-  async get_template(): Promise<CoreResult> {
-    const response = await fetchJson(this.apiBaseUrl, "/template", { method: "GET" });
+  async get_style(): Promise<CoreResult> {
+    const response = await fetchJson(this.apiBaseUrl, "/style", { method: "GET" });
     const result = responseToCoreResult(response, false);
-    if (result.ok) {
-      this.template = asString(result.data?.template, this.template);
-      return ok({ template: this.template });
+    if (result.ok && result.data) {
+      this.overlayStyle = { ...this.overlayStyle, ...result.data };
+      return ok(this.overlayStyle);
     }
     return result;
   }
 
-  async set_template(templateHtml: string): Promise<CoreResult> {
-    const next = asString(templateHtml);
-    if (!next) return err("invalid_template", "template_html must be non-empty");
-
-    const response = await fetchJson(this.apiBaseUrl, "/template", {
+  async set_style(partial: AnyObj): Promise<CoreResult> {
+    const response = await fetchJson(this.apiBaseUrl, "/style", {
       method: "POST",
-      body: JSON.stringify({ template: next }),
+      body: JSON.stringify(partial),
     });
     const result = responseToCoreResult(response, false);
-    if (result.ok) {
-      this.template = asString(result.data?.template, next);
-      return ok({ template: this.template });
-    }
-    return result;
-  }
-
-  async reset_template(): Promise<CoreResult> {
-    const response = await fetchJson(this.apiBaseUrl, "/template/reset", { method: "POST" });
-    const result = responseToCoreResult(response, false);
-    if (result.ok) {
-      this.template = asString(result.data?.template, DEFAULT_TEMPLATE);
-      return ok({ template: this.template });
+    if (result.ok && result.data) {
+      this.overlayStyle = { ...this.overlayStyle, ...result.data };
+      return ok(this.overlayStyle);
     }
     return result;
   }

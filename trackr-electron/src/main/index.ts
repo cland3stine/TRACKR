@@ -29,9 +29,9 @@ import {
 } from './prolink';
 import { OutputWriter }      from './output';
 import { TrackrDatabase }    from './database';
-import { TemplateStore, DEFAULT_TEMPLATE } from './template';
 import {
   getConfig, setConfig, resolveOutputRoot, persistOutputRootChoice, getEffectiveBindHost,
+  DEFAULT_OVERLAY_STYLE, OverlayStyle,
 } from './store';
 import { startApiServer, stopApiServer, ApiDeps } from './api';
 import { createTray, refreshTray, destroyTray, TrayCallbacks } from './tray';
@@ -46,7 +46,6 @@ let mainWindow:    BrowserWindow  | null = null;
 let _tray:         Tray           | null = null;
 let db:            TrackrDatabase | null = null;
 let outputWriter:  OutputWriter   | null = null;
-let templateStore: TemplateStore  | null = null;
 let _isRunning = false;
 let _lastPublishedLine: string | null = null;
 let _sessionVersion = 0;       // increments on every new session
@@ -160,9 +159,13 @@ function buildApiDeps(): ApiDeps {
       return { ok: true, sessionFile };
     },
 
-    getTemplate:   () => templateStore?.getTemplate() ?? DEFAULT_TEMPLATE,
-    setTemplate:   (html) => { templateStore?.setTemplate(html); },
-    resetTemplate: () => templateStore?.resetTemplate() ?? DEFAULT_TEMPLATE,
+    getOverlayStyle: () => getConfig().overlayStyle ?? DEFAULT_OVERLAY_STYLE,
+    setOverlayStyle: (partial: Partial<OverlayStyle>) => {
+      const current = getConfig().overlayStyle ?? DEFAULT_OVERLAY_STYLE;
+      const merged = { ...current, ...partial };
+      setConfig({ overlayStyle: merged });
+      return merged;
+    },
 
     resolveOutputRoot,
     chooseOutputRoot: (choice) => {
@@ -187,11 +190,9 @@ function initModules(outputRoot: string): void {
   db?.close();
   db            = new TrackrDatabase(path.join(outputRoot, 'trackr.db'));
   outputWriter  = new OutputWriter(outputRoot, config.timestampsEnabled, config.delaySeconds);
-  templateStore = new TemplateStore(outputRoot, db);
 
   // Session + overlay must be ready before the API can serve /trackr
   outputWriter.ensureOverlayExists();
-  templateStore.ensureTemplateFile();
   outputWriter.startNewSession();
   resetLastPublished();
   _sessionVersion++;
@@ -314,11 +315,6 @@ function registerIpc(): void {
     emit('trackr:session-started', { sessionFile });
     return { ok: true, sessionFile };
   });
-
-  // ── Phase 3: template ─────────────────────────────────────────────────────
-  ipcMain.handle('template:get',   () => templateStore?.getTemplate() ?? DEFAULT_TEMPLATE);
-  ipcMain.handle('template:set',   (_event, html: string)  => templateStore?.setTemplate(html));
-  ipcMain.handle('template:reset', () => templateStore?.resetTemplate());
 
   // ── Phase 6: native dialog ────────────────────────────────────────────────
   ipcMain.handle('dialog:open-directory', async () => {

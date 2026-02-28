@@ -199,49 +199,55 @@ const StateBadge = ({ state }) => {
 // ─── MOCK DATA ───────────────────────────────────────────────────────────────
 const EM_DASH = "—";
 
-const DEFAULT_TEMPLATE = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <style>
-    body {
-      background: transparent;
-      margin: 0;
-      padding: 16px;
-      font-family: 'Segoe UI', sans-serif;
-    }
-    #trackr {
-      color: #ffffff;
-      font-size: 18px;
-      text-shadow: 0 1px 4px rgba(0,0,0,0.8);
-    }
-    .previous {
-      color: #999999;
-      font-size: 14px;
-      margin-top: 4px;
-    }
-  </style>
-</head>
-<body>
-  <div id="trackr">Loading...</div>
-  <div class="previous"></div>
-  <script>
-    async function poll() {
-      try {
-        const r = await fetch('trackr-2-line.txt?_=' + Date.now());
-        const t = await r.text();
-        const lines = t.trim().split('\\n');
-        document.getElementById('trackr')
-          .textContent = lines[0] || '—';
-        document.querySelector('.previous')
-          .textContent = lines[1] || '';
-      } catch(e) {}
-      setTimeout(poll, 2000);
-    }
-    poll();
-  </script>
-</body>
-</html>`;
+const FONT_OPTIONS = [
+  "Good Times",
+  "Orbitron",
+  "Rajdhani",
+  "Exo 2",
+  "Oxanium",
+  "Michroma",
+  "Share Tech",
+  "Audiowide",
+  "Bruno Ace",
+  "Chakra Petch",
+];
+
+// Google Fonts that need to be loaded via <link> (Good Times is local-install only)
+const GFONTS_SET = new Set(FONT_OPTIONS.filter((f) => f !== "Good Times"));
+
+const DEFAULT_STYLE = {
+  font_family: "Good Times",
+  text_transform: "uppercase",
+  letter_spacing: 0.15,
+  font_size: 36,
+  font_color: "#ffffff",
+  drop_shadow_on: true,
+  drop_shadow_x: 6,
+  drop_shadow_y: 6,
+  drop_shadow_blur: 6,
+  drop_shadow_color: "#000000",
+  line_gap: 14,
+};
+
+// ─── SLIDER CONTROL ─────────────────────────────────────────────────────────
+const SliderControl = ({ label, value, min, max, step, unit, onChange, disabled = false }) => (
+  <div style={{ display: "flex", alignItems: "center", padding: "6px 0", gap: 10 }}>
+    <span style={{ ...font(11, 500), color: C.textDim, minWidth: 120 }}>{label}</span>
+    <input
+      type="range"
+      min={min}
+      max={max}
+      step={step}
+      value={value}
+      disabled={disabled}
+      onChange={(e) => onChange(parseFloat(e.target.value))}
+      style={{ flex: 1, accentColor: C.cyan, cursor: disabled ? "not-allowed" : "pointer" }}
+    />
+    <span style={{ ...font(10, 500), color: C.textPrimary, minWidth: 50, textAlign: "right" }}>
+      {typeof value === "number" ? (step < 1 ? value.toFixed(2) : value) : value}{unit || ""}
+    </span>
+  </div>
+);
 
 // ─── MAIN APP ────────────────────────────────────────────────────────────────
 export default function TRACKR() {
@@ -297,8 +303,7 @@ export default function TRACKR() {
   const [stripMixLabels, setStripMixLabels] = useState(true);
   const [sharePlayCount, setSharePlayCount] = useState(false);
   const [delay, setDelay] = useState(3);
-  const [template, setTemplate] = useState(DEFAULT_TEMPLATE);
-  const [savedTemplate, setSavedTemplate] = useState(DEFAULT_TEMPLATE);
+  const [overlayStyle, setOverlayStyle] = useState({ ...DEFAULT_STYLE });
   const [startInTray, setStartInTray] = useState(false);
   const [startWithWindows, setStartWithWindows] = useState(false);
   const [outputDir, setOutputDir] = useState("");
@@ -333,7 +338,8 @@ export default function TRACKR() {
   const deviceLabel = devices.length > 0
     ? devices.map((d) => `${d.count} ${d.name}`).join(" · ")
     : `${deviceCount} Device${deviceCount !== 1 ? "s" : ""}`;
-  const templateDirty = template !== savedTemplate;
+  // Style debounce ref
+  const styleDebounceRef = useRef(null);
 
   // Auto-increment "published ago" — only ticks while playback is active
   useEffect(() => {
@@ -413,12 +419,10 @@ export default function TRACKR() {
     setTracks(items.map((item) => toUiTrack(item)));
   }, [callCore]);
 
-  const reloadTemplate = useCallback(async () => {
-    const res = await callCore("get_template");
+  const reloadStyle = useCallback(async () => {
+    const res = await callCore("get_style");
     if (!res?.ok) return;
-    const next = res.data?.template || DEFAULT_TEMPLATE;
-    setTemplate(next);
-    setSavedTemplate(next);
+    setOverlayStyle((prev) => ({ ...prev, ...res.data }));
   }, [callCore]);
 
   const refreshFromCore = useCallback(async () => {
@@ -436,7 +440,7 @@ export default function TRACKR() {
         applyOutputRootResolution(outputRootRes.data);
       }
       await refreshFromCore();
-      await reloadTemplate();
+      await reloadStyle();
 
       const subRes = await callCore("subscribe_events", (event) => {
         if (!mounted || !event) return;
@@ -593,28 +597,25 @@ export default function TRACKR() {
     }
   }, [confirmDialog, performStop, performRefresh]);
 
-  const handleSaveTemplate = useCallback(async () => {
-    const res = await callCore("set_template", template);
-    if (!res?.ok) {
-      addToast(`Template save failed: ${res?.error?.message || "Unknown error"}`, "error");
-      return;
-    }
-    const next = res.data?.template || template;
-    setTemplate(next);
-    setSavedTemplate(next);
-    addToast("Template saved & applied", "success");
-  }, [template, callCore, addToast]);
+  const handleStyleChange = useCallback((key, value) => {
+    setOverlayStyle((prev) => ({ ...prev, [key]: value }));
+    if (styleDebounceRef.current) clearTimeout(styleDebounceRef.current);
+    styleDebounceRef.current = setTimeout(async () => {
+      const res = await callCore("set_style", { [key]: value });
+      if (!res?.ok) {
+        addToast(`Style update failed: ${res?.error?.message || "Unknown error"}`, "error");
+      }
+    }, 200);
+  }, [callCore, addToast]);
 
-  const handleRestoreTemplate = useCallback(async () => {
-    const res = await callCore("reset_template");
+  const handleResetStyle = useCallback(async () => {
+    const res = await callCore("set_style", { ...DEFAULT_STYLE });
     if (!res?.ok) {
-      addToast(`Template reset failed: ${res?.error?.message || "Unknown error"}`, "error");
+      addToast(`Style reset failed: ${res?.error?.message || "Unknown error"}`, "error");
       return;
     }
-    const next = res.data?.template || DEFAULT_TEMPLATE;
-    setTemplate(next);
-    setSavedTemplate(next);
-    addToast("Default template restored", "info");
+    setOverlayStyle({ ...DEFAULT_STYLE });
+    addToast("Overlay style reset to defaults", "info");
   }, [callCore, addToast]);
 
   const handleOutputRootChoice = useCallback(
@@ -691,7 +692,7 @@ export default function TRACKR() {
   // ─── TABS ─────────────────────────────────────────────────────────────────
   const tabs = [
     { id: "live", label: "LIVE" },
-    { id: "template", label: templateDirty ? "TEMPLATE •" : "TEMPLATE" },
+    { id: "style", label: "STYLE" },
     { id: "settings", label: "SETTINGS" },
   ];
 
@@ -1216,66 +1217,191 @@ export default function TRACKR() {
               </RackPanel>
             )}
 
-            {/* ─── TEMPLATE TAB ─── */}
-            {activeTab === "template" && (
-              <RackPanel
-                label="OVERLAY TEMPLATE"
-                style={{ height: "100%", display: "flex", flexDirection: "column" }}
-              >
-                {/* Editor */}
-                <div
-                  style={{
-                    flex: 1,
-                    position: "relative",
-                    marginBottom: 14,
-                    borderRadius: 4,
-                    overflow: "hidden",
-                    border: `1px solid ${C.borderRack}`,
-                  }}
-                >
-                  <textarea
-                    value={template}
-                    onChange={(e) => setTemplate(e.target.value)}
-                    spellCheck={false}
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      background: C.bgInset,
-                      color: C.textPrimary,
-                      ...font(11, 400),
-                      border: "none",
-                      outline: "none",
-                      resize: "none",
-                      padding: "14px 16px",
-                      lineHeight: 1.7,
-                      tabSize: 2,
-                    }}
-                  />
-                </div>
+            {/* ─── STYLE TAB ─── */}
+            {activeTab === "style" && (() => {
+              const s = overlayStyle;
+              const gfontHref = GFONTS_SET.has(s.font_family)
+                ? `https://fonts.googleapis.com/css2?family=${encodeURIComponent(s.font_family)}:wght@400;700&display=swap`
+                : "";
+              const previewArtist = currentTrack?.artist || "Artist Name";
+              const previewTitle = currentTrack?.title || "Track Title";
+              const shadowCss = s.drop_shadow_on
+                ? `drop-shadow(${s.drop_shadow_x}px ${s.drop_shadow_y}px ${s.drop_shadow_blur}px ${s.drop_shadow_color})`
+                : "none";
 
-                {/* Actions */}
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <Btn
-                    color={C.green}
-                    onClick={handleSaveTemplate}
-                    style={templateDirty ? { boxShadow: `0 0 8px ${C.green}30` } : {}}
-                  >
-                    ✓ SAVE
-                  </Btn>
-                  <Btn color={C.amber} onClick={handleRestoreTemplate}>
-                    ↩ RESTORE DEFAULT
-                  </Btn>
-                  <div style={{ flex: 1 }} />
-                  <span style={{ ...font(9, 400), color: C.textMuted }}>
-                    {templateDirty ? (
-                      <span style={{ color: C.amber }}>● Unsaved changes</span>
-                    ) : (
-                      "Template: OK"
+              return (
+                <div style={{ display: "flex", gap: 16, height: "100%" }}>
+                  {/* Google Fonts link for preview */}
+                  {gfontHref && <link rel="stylesheet" href={gfontHref} />}
+
+                  {/* Controls Panel */}
+                  <RackPanel label="OVERLAY STYLE" style={{ width: 340, flexShrink: 0, overflowY: "auto" }}>
+                    {/* Font Family */}
+                    <div style={{ display: "flex", alignItems: "center", padding: "6px 0", gap: 10 }}>
+                      <span style={{ ...font(11, 500), color: C.textDim, minWidth: 120 }}>Font</span>
+                      <select
+                        value={s.font_family}
+                        onChange={(e) => handleStyleChange("font_family", e.target.value)}
+                        style={{
+                          flex: 1,
+                          background: C.bgInset,
+                          color: C.textPrimary,
+                          border: `1px solid ${C.borderRack}`,
+                          borderRadius: 4,
+                          padding: "6px 8px",
+                          ...font(11, 400),
+                          cursor: "pointer",
+                          outline: "none",
+                        }}
+                      >
+                        {FONT_OPTIONS.map((f) => (
+                          <option key={f} value={f}>{f}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Uppercase */}
+                    <Toggle
+                      label="Uppercase"
+                      on={s.text_transform === "uppercase"}
+                      onChange={(on) => handleStyleChange("text_transform", on ? "uppercase" : "none")}
+                    />
+
+                    {/* Font Size */}
+                    <SliderControl
+                      label="Font Size"
+                      value={s.font_size}
+                      min={24} max={72} step={1} unit="px"
+                      onChange={(v) => handleStyleChange("font_size", v)}
+                    />
+
+                    {/* Letter Spacing */}
+                    <SliderControl
+                      label="Letter Spacing"
+                      value={s.letter_spacing}
+                      min={0} max={0.3} step={0.01} unit="em"
+                      onChange={(v) => handleStyleChange("letter_spacing", v)}
+                    />
+
+                    {/* Font Color */}
+                    <div style={{ display: "flex", alignItems: "center", padding: "6px 0", gap: 10 }}>
+                      <span style={{ ...font(11, 500), color: C.textDim, minWidth: 120 }}>Font Color</span>
+                      <input
+                        type="color"
+                        value={s.font_color}
+                        onChange={(e) => handleStyleChange("font_color", e.target.value)}
+                        style={{ width: 36, height: 28, border: `1px solid ${C.borderRack}`, borderRadius: 4, background: "transparent", cursor: "pointer", padding: 0 }}
+                      />
+                      <span style={{ ...font(10, 500), color: C.textPrimary }}>{s.font_color}</span>
+                    </div>
+
+                    {/* Line Gap */}
+                    <SliderControl
+                      label="Line Gap"
+                      value={s.line_gap}
+                      min={0} max={30} step={1} unit="px"
+                      onChange={(v) => handleStyleChange("line_gap", v)}
+                    />
+
+                    {/* Drop Shadow section header */}
+                    <div style={{ marginTop: 12, marginBottom: 4, borderTop: `1px solid ${C.borderRack}`, paddingTop: 10 }}>
+                      <Toggle
+                        label="Drop Shadow"
+                        on={s.drop_shadow_on}
+                        onChange={(on) => handleStyleChange("drop_shadow_on", on)}
+                      />
+                    </div>
+                    {s.drop_shadow_on && (
+                      <div style={{ paddingLeft: 12 }}>
+                        <SliderControl label="X Offset" value={s.drop_shadow_x} min={0} max={20} step={1} unit="px" onChange={(v) => handleStyleChange("drop_shadow_x", v)} />
+                        <SliderControl label="Y Offset" value={s.drop_shadow_y} min={0} max={20} step={1} unit="px" onChange={(v) => handleStyleChange("drop_shadow_y", v)} />
+                        <SliderControl label="Blur" value={s.drop_shadow_blur} min={0} max={20} step={1} unit="px" onChange={(v) => handleStyleChange("drop_shadow_blur", v)} />
+                        <div style={{ display: "flex", alignItems: "center", padding: "6px 0", gap: 10 }}>
+                          <span style={{ ...font(11, 500), color: C.textDim, minWidth: 120 }}>Shadow Color</span>
+                          <input
+                            type="color"
+                            value={s.drop_shadow_color}
+                            onChange={(e) => handleStyleChange("drop_shadow_color", e.target.value)}
+                            style={{ width: 36, height: 28, border: `1px solid ${C.borderRack}`, borderRadius: 4, background: "transparent", cursor: "pointer", padding: 0 }}
+                          />
+                          <span style={{ ...font(10, 500), color: C.textPrimary }}>{s.drop_shadow_color}</span>
+                        </div>
+                      </div>
                     )}
-                  </span>
+
+                    {/* Reset */}
+                    <div style={{ marginTop: 16, borderTop: `1px solid ${C.borderRack}`, paddingTop: 12 }}>
+                      <Btn color={C.amber} onClick={handleResetStyle}>RESET DEFAULTS</Btn>
+                    </div>
+                  </RackPanel>
+
+                  {/* Live Preview Panel */}
+                  <RackPanel label="PREVIEW" labelRight="OBS OVERLAY" style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+                    <div
+                      style={{
+                        flex: 1,
+                        background: "#000000",
+                        borderRadius: 4,
+                        padding: 20,
+                        overflow: "hidden",
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "center",
+                        position: "relative",
+                      }}
+                    >
+                      <div style={{ display: "inline-block", maxWidth: "100%", overflow: "hidden" }} ref={(wrap) => {
+                        if (!wrap) return;
+                        const els = wrap.querySelectorAll(".preview-text");
+                        els.forEach((el) => {
+                          el.style.transform = "scaleX(1)";
+                          const cw = wrap.offsetWidth;
+                          const sw = el.scrollWidth;
+                          if (sw > cw && cw > 0) {
+                            el.style.transform = `scaleX(${Math.max(0.5, cw / sw)})`;
+                          }
+                        });
+                      }}>
+                        <div
+                          className="preview-text"
+                          style={{
+                            fontFamily: `"${s.font_family}", Arial, sans-serif`,
+                            fontSize: s.font_size,
+                            color: s.font_color,
+                            textTransform: s.text_transform,
+                            letterSpacing: `${s.letter_spacing}em`,
+                            filter: shadowCss,
+                            whiteSpace: "nowrap",
+                            transformOrigin: "left center",
+                          }}
+                        >
+                          {previewArtist}
+                        </div>
+                        <div
+                          className="preview-text"
+                          style={{
+                            fontFamily: `"${s.font_family}", Arial, sans-serif`,
+                            fontSize: s.font_size,
+                            color: s.font_color,
+                            textTransform: s.text_transform,
+                            letterSpacing: `${s.letter_spacing}em`,
+                            filter: shadowCss,
+                            whiteSpace: "nowrap",
+                            transformOrigin: "left center",
+                            marginTop: s.line_gap,
+                          }}
+                        >
+                          {previewTitle}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ marginTop: 10, ...font(9, 400), color: C.textMuted }}>
+                      Long text auto-shrinks to fit. Changes reflect in OBS within 2 seconds.
+                    </div>
+                  </RackPanel>
                 </div>
-              </RackPanel>
-            )}
+              );
+            })()}
 
             {/* ─── SETTINGS TAB ─── */}
             {activeTab === "settings" && (

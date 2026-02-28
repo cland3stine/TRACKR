@@ -11,40 +11,99 @@ import { EM_DASH, cleanTrackLine } from './cleaner';
 import { SessionEntry, SessionTracker } from './session';
 
 // ─── current-track overlay HTML ─────────────────────────────────────────────
-// Self-contained HTML that polls /trackr and shows only the current track.
-// OBS Browser Source: http://127.0.0.1:8755/trackr-current.html
+// Self-contained HTML that polls /trackr for track data and /style for visual
+// preferences. OBS Browser Source: http://127.0.0.1:8755/trackr-current.html
 const CURRENT_OVERLAY_HTML = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <link id="gfonts" rel="stylesheet" href="" />
   <style>
-    body { margin: 0; background: transparent; overflow: hidden; }
-    .artist, .title {
-      font-family: "Good Times Regular", "Good Times", Arial, sans-serif;
-      color: #ffffff;
-      font-size: 36px;
-      text-transform: uppercase;
-      letter-spacing: 0.15em;
-      filter: drop-shadow(6px 6px 6px #000000);
-      white-space: nowrap;
+    :root {
+      --ff: "Good Times", Arial, sans-serif;
+      --fs: 36px;
+      --tt: uppercase;
+      --ls: 0.15em;
+      --fc: #ffffff;
+      --lg: 14px;
+      --shadow: drop-shadow(6px 6px 6px #000000);
     }
-    .title { margin-top: 14px; }
+    body { margin: 0; background: transparent; overflow: hidden; }
+    .wrap { display: inline-block; max-width: 100vw; }
+    .artist, .title {
+      font-family: var(--ff);
+      color: var(--fc);
+      font-size: var(--fs);
+      text-transform: var(--tt);
+      letter-spacing: var(--ls);
+      filter: var(--shadow);
+      white-space: nowrap;
+      transform-origin: left center;
+    }
+    .title { margin-top: var(--lg); }
   </style>
 </head>
 <body>
-  <div class="artist"></div>
-  <div class="title"></div>
+  <div class="wrap">
+    <div class="artist"></div>
+    <div class="title"></div>
+  </div>
   <script>
     const EM = "\\u2014";
+    const root = document.documentElement;
     const elArtist = document.querySelector(".artist");
     const elTitle  = document.querySelector(".title");
-    async function poll() {
+    const elWrap   = document.querySelector(".wrap");
+    const elGfonts = document.getElementById("gfonts");
+
+    // Google Fonts that are NOT local-only
+    const GFONTS = ["Orbitron","Rajdhani","Exo 2","Oxanium","Michroma","Share Tech","Audiowide","Bruno Ace","Chakra Petch"];
+    let lastFontHref = "";
+
+    function fitText() {
+      [elArtist, elTitle].forEach(function(el) {
+        el.style.transform = "scaleX(1)";
+        var cw = elWrap.offsetWidth || window.innerWidth;
+        var sw = el.scrollWidth;
+        if (sw > cw && cw > 0) {
+          var ratio = Math.max(0.5, cw / sw);
+          el.style.transform = "scaleX(" + ratio + ")";
+        }
+      });
+    }
+
+    function applyStyle(s) {
+      if (!s) return;
+      var ff = s.font_family || "Good Times";
+      root.style.setProperty("--ff", '"' + ff + '", Arial, sans-serif');
+      root.style.setProperty("--fs", (s.font_size || 36) + "px");
+      root.style.setProperty("--tt", s.text_transform || "uppercase");
+      root.style.setProperty("--ls", (s.letter_spacing != null ? s.letter_spacing : 0.15) + "em");
+      root.style.setProperty("--fc", s.font_color || "#ffffff");
+      root.style.setProperty("--lg", (s.line_gap != null ? s.line_gap : 14) + "px");
+      if (s.drop_shadow_on !== false) {
+        var sx = s.drop_shadow_x != null ? s.drop_shadow_x : 6;
+        var sy = s.drop_shadow_y != null ? s.drop_shadow_y : 6;
+        var sb = s.drop_shadow_blur != null ? s.drop_shadow_blur : 6;
+        var sc = s.drop_shadow_color || "#000000";
+        root.style.setProperty("--shadow", "drop-shadow(" + sx + "px " + sy + "px " + sb + "px " + sc + ")");
+      } else {
+        root.style.setProperty("--shadow", "none");
+      }
+      // Dynamic Google Fonts link
+      var matched = GFONTS.find(function(g) { return g === ff; });
+      var href = matched ? "https://fonts.googleapis.com/css2?family=" + encodeURIComponent(matched) + ":wght@400;700&display=swap" : "";
+      if (href !== lastFontHref) { elGfonts.href = href; lastFontHref = href; }
+      fitText();
+    }
+
+    async function pollTrack() {
       try {
-        const r = await fetch("/trackr?t=" + Date.now(), { cache: "no-store" });
-        const d = await r.json();
-        const line = d.current || EM;
-        const sep = line.indexOf(" - ");
+        var r = await fetch("/trackr?t=" + Date.now(), { cache: "no-store" });
+        var d = await r.json();
+        var line = d.current || EM;
+        var sep = line.indexOf(" - ");
         if (sep !== -1) {
           elArtist.textContent = line.substring(0, sep);
           elTitle.textContent  = line.substring(sep + 3);
@@ -52,10 +111,22 @@ const CURRENT_OVERLAY_HTML = `<!DOCTYPE html>
           elArtist.textContent = line;
           elTitle.textContent  = "";
         }
+        fitText();
       } catch (_) {}
-      setTimeout(poll, 750);
+      setTimeout(pollTrack, 750);
     }
-    poll();
+
+    async function pollStyle() {
+      try {
+        var r = await fetch("/style?t=" + Date.now(), { cache: "no-store" });
+        var s = await r.json();
+        applyStyle(s);
+      } catch (_) {}
+      setTimeout(pollStyle, 2000);
+    }
+
+    pollTrack();
+    pollStyle();
   </script>
 </body>
 </html>

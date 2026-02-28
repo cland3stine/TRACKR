@@ -13,6 +13,34 @@ import { homedir } from 'os';
 
 // ─── types ───────────────────────────────────────────────────────────────────
 
+export interface OverlayStyle {
+  fontFamily:       string;
+  textTransform:    'uppercase' | 'none';
+  letterSpacing:    number;   // em
+  fontSize:         number;   // px
+  fontColor:        string;   // hex
+  dropShadowOn:     boolean;
+  dropShadowX:      number;   // px
+  dropShadowY:      number;   // px
+  dropShadowBlur:   number;   // px
+  dropShadowColor:  string;   // hex
+  lineGap:          number;   // px
+}
+
+export const DEFAULT_OVERLAY_STYLE: OverlayStyle = {
+  fontFamily:       'Good Times',
+  textTransform:    'uppercase',
+  letterSpacing:    0.15,
+  fontSize:         36,
+  fontColor:        '#ffffff',
+  dropShadowOn:     true,
+  dropShadowX:      6,
+  dropShadowY:      6,
+  dropShadowBlur:   6,
+  dropShadowColor:  '#000000',
+  lineGap:          14,
+};
+
 export interface TrackrConfig {
   outputRoot:            string;  // '' = not set
   migrationPromptSeen:   boolean;
@@ -25,6 +53,7 @@ export interface TrackrConfig {
   apiPort:               number;
   startWithWindows:      boolean;
   startInTray:           boolean;
+  overlayStyle:          OverlayStyle;
 }
 
 export interface OutputRootResolution {
@@ -49,6 +78,7 @@ interface StoreType {
   apiPort:                  number;
   startWithWindows:         boolean;
   startInTray:              boolean;
+  overlayStyle:             OverlayStyle;
   _migrationFromPythonDone: boolean;
 }
 
@@ -64,6 +94,7 @@ const DEFAULTS: StoreType = {
   apiPort:                  8755,
   startWithWindows:         false,
   startInTray:              false,
+  overlayStyle:             { ...DEFAULT_OVERLAY_STYLE },
   _migrationFromPythonDone: false,
 };
 
@@ -136,6 +167,7 @@ function _rawToConfig(raw: StoreType): TrackrConfig {
     apiPort:              raw.apiPort,
     startWithWindows:     raw.startWithWindows,
     startInTray:          raw.startInTray,
+    overlayStyle:         { ...DEFAULT_OVERLAY_STYLE, ...raw.overlayStyle },
   };
 }
 
@@ -155,6 +187,15 @@ export function setConfig(partial: Partial<TrackrConfig>): void {
   }
   if (partial.apiAccessMode != null && !['localhost', 'lan'].includes(partial.apiAccessMode)) {
     throw new Error("apiAccessMode must be 'localhost' or 'lan'");
+  }
+  if (partial.overlayStyle != null) {
+    const s = partial.overlayStyle;
+    if (s.fontSize     != null && (s.fontSize < 24 || s.fontSize > 72))       throw new Error('fontSize must be 24–72');
+    if (s.letterSpacing != null && (s.letterSpacing < 0 || s.letterSpacing > 0.3)) throw new Error('letterSpacing must be 0–0.3');
+    if (s.lineGap      != null && (s.lineGap < 0 || s.lineGap > 30))         throw new Error('lineGap must be 0–30');
+    if (s.dropShadowX  != null && (s.dropShadowX < 0 || s.dropShadowX > 20)) throw new Error('dropShadowX must be 0–20');
+    if (s.dropShadowY  != null && (s.dropShadowY < 0 || s.dropShadowY > 20)) throw new Error('dropShadowY must be 0–20');
+    if (s.dropShadowBlur != null && (s.dropShadowBlur < 0 || s.dropShadowBlur > 20)) throw new Error('dropShadowBlur must be 0–20');
   }
   getStore().set(partial as Partial<StoreType>);
 }
