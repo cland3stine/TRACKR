@@ -65,6 +65,7 @@ let _lastPublished: string | null = null;
 const _dbWarmedDevices = new Set<string>();  // "deviceId|trackId" keys already warming
 const _devicePlayStates = new Map<number, CDJStatus.PlayState>();  // latest play state per CDJ
 let _nowPlayingDeviceId: number | null = null;  // device confirmed as "main" by MixstatusProcessor
+let _fastFirstTrack = true;   // after session reset, first track publishes fast (16 beats vs 128)
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -128,6 +129,13 @@ function schedulePending(key: string, line: string, deviceId: number): void {
     console.log(`${ts()} [prolink] PUBLISH device=#${deviceId}: "${line}"`);
     _onPublish?.(line, deviceId, publishedAt);
     _emit?.('trackr:publish', { line, deviceId, publishedAt });
+
+    // After first track in a session, restore normal SmartTiming threshold
+    if (_fastFirstTrack && _network?.mixstatus) {
+      _network.mixstatus.configure({ beatsUntilReported: 128 });
+      _fastFirstTrack = false;
+      console.log(`${ts()} [prolink] First track published — restored beatsUntilReported to 128`);
+    }
   }, _publishDelayMs);
 }
 
@@ -225,6 +233,15 @@ function handleNowPlaying(status: CDJStatus.State): void {
 /** Clear dedupe state so the next track publishes even if it matches the previous session's last track. */
 export function resetLastPublished(): void {
   _lastPublished = null;
+}
+
+/** Drop beatsUntilReported to 16 so the first track after a session reset publishes fast. */
+export function enableFastFirstTrack(): void {
+  _fastFirstTrack = true;
+  if (_network?.mixstatus) {
+    _network.mixstatus.configure({ beatsUntilReported: 16 });
+    console.log(`${ts()} [prolink] Fast first-track enabled (beatsUntilReported → 16)`);
+  }
 }
 
 /** Update the publish delay (called from index.ts when config changes). */

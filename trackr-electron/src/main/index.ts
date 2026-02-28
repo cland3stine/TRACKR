@@ -25,7 +25,7 @@ process.on('unhandledRejection', (reason) => {
 import {
   startProlink, stopProlink, getDeviceCount, getDeviceSummaries,
   setPublishCallback, setPublishDelay, isPlaybackActive, setOnSetEnded,
-  resetLastPublished,
+  resetLastPublished, enableFastFirstTrack,
 } from './prolink';
 import { OutputWriter }      from './output';
 import { TrackrDatabase }    from './database';
@@ -87,6 +87,7 @@ function buildTrayCallbacks(): TrayCallbacks {
       const sessionFile = outputWriter.startNewSession();
       _lastPublishedLine = null;
       resetLastPublished();
+      enableFastFirstTrack();
       _sessionVersion++;
       emit('trackr:session-started', { sessionFile });
     },
@@ -154,6 +155,7 @@ function buildApiDeps(): ApiDeps {
       const sessionFile = outputWriter.startNewSession();
       _lastPublishedLine = null;
       resetLastPublished();
+      enableFastFirstTrack();
       _sessionVersion++;
       emit('trackr:session-started', { sessionFile });
       return { ok: true, sessionFile };
@@ -195,6 +197,7 @@ function initModules(outputRoot: string): void {
   outputWriter.ensureOverlayExists();
   outputWriter.startNewSession();
   resetLastPublished();
+  enableFastFirstTrack();
   _sessionVersion++;
 
   _isRunning = true;
@@ -311,6 +314,7 @@ function registerIpc(): void {
     const sessionFile = outputWriter.startNewSession();
     _lastPublishedLine = null;
     resetLastPublished();
+    enableFastFirstTrack();
     _sessionVersion++;
     emit('trackr:session-started', { sessionFile });
     return { ok: true, sessionFile };
@@ -374,6 +378,7 @@ app.whenReady().then(() => {
     const sessionFile = outputWriter.startNewSession();
     _lastPublishedLine = null;
     resetLastPublished();
+    enableFastFirstTrack();
     _sessionVersion++;
     emit('trackr:session-started', { sessionFile });
     refreshTray(buildTrayCallbacks());
