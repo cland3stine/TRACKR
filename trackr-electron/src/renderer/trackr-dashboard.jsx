@@ -1313,8 +1313,14 @@ export default function TRACKR() {
                     </div>
                     {s.drop_shadow_on && (
                       <div style={{ paddingLeft: 12 }}>
-                        <SliderControl label="X Offset" value={s.drop_shadow_x} min={0} max={20} step={1} unit="px" onChange={(v) => handleStyleChange("drop_shadow_x", v)} />
-                        <SliderControl label="Y Offset" value={s.drop_shadow_y} min={0} max={20} step={1} unit="px" onChange={(v) => handleStyleChange("drop_shadow_y", v)} />
+                        <SliderControl label="Distance" value={s.drop_shadow_x} min={0} max={20} step={1} unit="px" onChange={(v) => {
+                          setOverlayStyle((prev) => ({ ...prev, drop_shadow_x: v, drop_shadow_y: v }));
+                          if (styleDebounceRef.current) clearTimeout(styleDebounceRef.current);
+                          styleDebounceRef.current = setTimeout(async () => {
+                            const res = await callCore("set_style", { drop_shadow_x: v, drop_shadow_y: v });
+                            if (!res?.ok) addToast("Style update failed", "error");
+                          }, 200);
+                        }} />
                         <SliderControl label="Blur" value={s.drop_shadow_blur} min={0} max={20} step={1} unit="px" onChange={(v) => handleStyleChange("drop_shadow_blur", v)} />
                         <div style={{ display: "flex", alignItems: "center", padding: "6px 0", gap: 10 }}>
                           <span style={{ ...font(11, 500), color: C.textDim, minWidth: 120 }}>Shadow Color</span>
