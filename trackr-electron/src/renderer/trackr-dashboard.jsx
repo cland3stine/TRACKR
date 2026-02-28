@@ -503,7 +503,7 @@ export default function TRACKR() {
       if (typeof unsubscribeRef.current === "function") unsubscribeRef.current();
       window.electronAPI.removeAllListeners("trackr:session-started");
     };
-  }, [applyOutputRootResolution, callCore, refreshFromCore, reloadTemplate, reloadTracklist]);
+  }, [applyOutputRootResolution, callCore, refreshFromCore, reloadStyle, reloadTracklist]);
 
   const buildConfig = useCallback(
     () => ({
