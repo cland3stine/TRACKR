@@ -37,6 +37,34 @@ export class TrackrDatabase {
     return this.getPlayCount();
   }
 
+  /** Increment and return the per-track play count (persists across sessions). */
+  incrementTrackPlayCount(trackLine: string): number {
+    this._db
+      .prepare(
+        'INSERT INTO track_plays (track_line, play_count) VALUES (?, 1) ' +
+        'ON CONFLICT(track_line) DO UPDATE SET play_count = play_count + 1',
+      )
+      .run(trackLine);
+    const row = this._db
+      .prepare('SELECT play_count FROM track_plays WHERE track_line = ?')
+      .get(trackLine) as { play_count: number } | undefined;
+    return row?.play_count ?? 1;
+  }
+
+  /** Get the play count for a specific track (0 if never played). */
+  getTrackPlayCount(trackLine: string): number {
+    const row = this._db
+      .prepare('SELECT play_count FROM track_plays WHERE track_line = ?')
+      .get(trackLine) as { play_count: number } | undefined;
+    return row?.play_count ?? 0;
+  }
+
+  /** Delete all per-track play counts and reset the global session counter. */
+  resetAllPlayCounts(): void {
+    this._db.exec("DELETE FROM track_plays");
+    this._db.prepare("UPDATE counters SET value = 0 WHERE name = 'play_count'").run();
+  }
+
   getPref(key: string): string | null {
     const row = this._db
       .prepare('SELECT value FROM prefs WHERE key = ?')
@@ -62,6 +90,10 @@ export class TrackrDatabase {
       CREATE TABLE IF NOT EXISTS prefs (
         key   TEXT PRIMARY KEY,
         value TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS track_plays (
+        track_line  TEXT PRIMARY KEY,
+        play_count  INTEGER NOT NULL DEFAULT 0
       );
       INSERT OR IGNORE INTO counters (name, value) VALUES ('play_count', 0);
     `);

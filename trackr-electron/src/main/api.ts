@@ -49,6 +49,9 @@ export interface ApiDeps {
   getOverlayStyle:   () => OverlayStyle;
   setOverlayStyle:   (partial: Partial<OverlayStyle>) => OverlayStyle;
 
+  // data
+  resetPlayCounts:   () => void;
+
   // output root
   resolveOutputRoot: () => OutputRootResolution;
   chooseOutputRoot:  (choice: 'legacy' | 'trackr') => OutputRootResolution;
@@ -182,7 +185,7 @@ function buildApp(deps: ApiDeps): Express {
       is_running:    deps.isRunning(),
       device_count:  deps.deviceCount(),
     };
-    if (deps.sharePlayCount()) payload.play_count = deps.playCount();
+    payload.play_count = deps.playCount();
     res.json(payload);
   });
 
@@ -240,6 +243,12 @@ function buildApp(deps: ApiDeps): Express {
       return;
     }
     res.json({ ok: true, session_file: result.sessionFile });
+  });
+
+  // ── POST /control/reset-play-counts ───────────────────────────────────────
+  app.post('/control/reset-play-counts', (_req: Request, res: Response) => {
+    deps.resetPlayCounts();
+    res.json({ ok: true });
   });
 
   // ── GET /config ────────────────────────────────────────────────────────────

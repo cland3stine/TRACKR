@@ -300,6 +300,11 @@ class TrackrHttpCore {
     return result;
   }
 
+  async reset_play_counts(): Promise<CoreResult> {
+    const response = await fetchJson(this.apiBaseUrl, "/control/reset-play-counts", { method: "POST" });
+    return responseToCoreResult(response, false);
+  }
+
   async resolveOutputRoot(config?: AnyObj): Promise<CoreResult> {
     if (config && typeof config === "object") {
       this.config = { ...this.config, ...asObject(config) };
@@ -456,10 +461,7 @@ class TrackrHttpCore {
       this.runningTracklist.length === 0
         ? 0
         : Math.max(0, (Date.now() - this.sessionStartedAtMs) / 1000);
-    const nextPlayCount =
-      this.playCount > 0
-        ? this.playCount
-        : (this.runningTracklist[this.runningTracklist.length - 1]?.play_count || 0) + 1;
+    const nextPlayCount = this.playCount > 0 ? this.playCount : 1;
     const item = { time: formatElapsedMmSs(elapsedSeconds), line: cleaned, play_count: nextPlayCount };
     this.runningTracklist.push(item);
     this.emit("tracklist_appended", item);

@@ -48,6 +48,7 @@ let db:            TrackrDatabase | null = null;
 let outputWriter:  OutputWriter   | null = null;
 let _isRunning = false;
 let _lastPublishedLine: string | null = null;
+let _lastTrackPlayCount = 0;   // per-track lifetime play count for badge
 let _sessionVersion = 0;       // increments on every new session
 let _forceQuit = false;  // set by tray "Quit" to allow real exit
 
@@ -86,6 +87,7 @@ function buildTrayCallbacks(): TrayCallbacks {
       if (!outputWriter) return;
       const sessionFile = outputWriter.startNewSession();
       _lastPublishedLine = null;
+      _lastTrackPlayCount = 0;
       resetLastPublished();
       enableFastFirstTrack();
       _sessionVersion++;
@@ -121,7 +123,7 @@ function buildApiDeps(): ApiDeps {
     lastPublishedLine: () => _lastPublishedLine,
     deviceCount:       () => getDeviceCount(),
     deviceSummaries:   () => getDeviceSummaries(),
-    playCount:         () => db?.getPlayCount() ?? 0,
+    playCount:         () => _lastTrackPlayCount,
     sharePlayCount:    () => getConfig().sharePlayCountViaApi,
     sessionFileName:   () => outputWriter?.sessionFile ?? null,
     sessionVersion:    () => _sessionVersion,
@@ -154,6 +156,7 @@ function buildApiDeps(): ApiDeps {
       if (!outputWriter) return { ok: false };
       const sessionFile = outputWriter.startNewSession();
       _lastPublishedLine = null;
+      _lastTrackPlayCount = 0;
       resetLastPublished();
       enableFastFirstTrack();
       _sessionVersion++;
@@ -168,6 +171,8 @@ function buildApiDeps(): ApiDeps {
       setConfig({ overlayStyle: merged });
       return merged;
     },
+
+    resetPlayCounts: () => { db?.resetAllPlayCounts(); },
 
     resolveOutputRoot,
     chooseOutputRoot: (choice) => {
@@ -215,7 +220,9 @@ function handlePublish(line: string, deviceId: number, publishedAt: number): voi
 
   outputWriter.writeOverlay(line);
   const entry     = outputWriter.appendTrack(line, publishedAt);
-  const playCount = db.incrementPlayCount();
+  db.incrementPlayCount();                              // session counter
+  const playCount = db.incrementTrackPlayCount(line);   // per-track lifetime count (badge)
+  _lastTrackPlayCount = playCount;
   _lastPublishedLine = line;
 
   emit('trackr:track-published', {

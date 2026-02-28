@@ -594,8 +594,17 @@ export default function TRACKR() {
     }
     if (nextAction === "refresh") {
       await performRefresh();
+      return;
     }
-  }, [confirmDialog, performStop, performRefresh]);
+    if (nextAction === "reset-counts") {
+      const res = await callCore("reset_play_counts");
+      if (res?.ok) {
+        addToast("All play counts reset", "success");
+      } else {
+        addToast("Failed to reset play counts", "error");
+      }
+    }
+  }, [confirmDialog, performStop, performRefresh, callCore, addToast]);
 
   const handleStyleChange = useCallback((key, value) => {
     setOverlayStyle((prev) => ({ ...prev, [key]: value }));
@@ -1604,6 +1613,38 @@ export default function TRACKR() {
                   </div>
                 </div>
 
+                {/* Data */}
+                <div
+                  style={{ borderTop: `1px solid ${C.borderRack}`, paddingTop: 16, marginBottom: 20 }}
+                >
+                  <span
+                    style={{
+                      ...font(8, 700),
+                      color: C.textMuted,
+                      letterSpacing: 2.5,
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    DATA
+                  </span>
+                  <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10 }}>
+                    <Btn
+                      color={C.red}
+                      onClick={() =>
+                        setConfirmDialog({
+                          type: "reset-counts",
+                          message: "ARE YOU SURE YOU WANT TO RESET ALL PLAY COUNTS?",
+                        })
+                      }
+                    >
+                      RESET PLAY COUNTS
+                    </Btn>
+                    <span style={{ ...font(9, 400), color: C.textMuted }}>
+                      Deletes all per-track play count history
+                    </span>
+                  </div>
+                </div>
+
                 {/* About */}
                 <div style={{ borderTop: `1px solid ${C.borderRack}`, paddingTop: 16 }}>
                   <span
@@ -1684,11 +1725,13 @@ export default function TRACKR() {
             }}
           >
             <div style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 2.2, textTransform: "uppercase" }}>
-              SESSION CONFIRMATION
+              {confirmDialog.type === "reset-counts" ? "DATA RESET" : "SESSION CONFIRMATION"}
             </div>
             <div style={{ ...font(14, 600), color: C.textPrimary, marginTop: 8 }}>{confirmDialog.message}</div>
             <div style={{ ...font(11, 400), color: C.textDim, marginTop: 8 }}>
-              This action clears the running session tracklist view for the current session.
+              {confirmDialog.type === "reset-counts"
+                ? "This permanently deletes all per-track play counts. This cannot be undone."
+                : "This action clears the running session tracklist view for the current session."}
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
               <Btn color={C.amber} onClick={handleConfirmCancel}>
