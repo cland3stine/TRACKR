@@ -186,6 +186,10 @@ export class OutputWriter {
     return entry;
   }
 
+  deleteSessionFile(): boolean {
+    return this._sessionTracker.deleteSessionFile();
+  }
+
   getRunningEntries(): Array<{ time: string; line: string }> {
     return this._runningEntries.map(e => ({ time: e.time, line: e.line }));
   }

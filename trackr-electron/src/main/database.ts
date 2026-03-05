@@ -59,6 +59,16 @@ export class TrackrDatabase {
     return row?.play_count ?? 0;
   }
 
+  /** Decrement a track's lifetime play count by 1. Deletes the row if count reaches 0. */
+  decrementTrackPlayCount(trackLine: string): void {
+    this._db.prepare(
+      'UPDATE track_plays SET play_count = play_count - 1 WHERE track_line = ? AND play_count > 0'
+    ).run(trackLine);
+    this._db.prepare(
+      'DELETE FROM track_plays WHERE track_line = ? AND play_count <= 0'
+    ).run(trackLine);
+  }
+
   /** Delete all per-track play counts and reset the global session counter. */
   resetAllPlayCounts(): void {
     this._db.exec("DELETE FROM track_plays");

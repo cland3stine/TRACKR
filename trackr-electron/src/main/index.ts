@@ -54,6 +54,24 @@ let _forceQuit = false;  // set by tray "Quit" to allow real exit
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
+const SHORT_SESSION_THRESHOLD = 3;
+
+/** Purge sessions with fewer than 3 tracks — deletes the file and decrements play counts. */
+function maybePurgeShortSession(): void {
+  if (!outputWriter || !db) return;
+  const entries = outputWriter.getRunningEntries();
+  if (entries.length === 0 || entries.length >= SHORT_SESSION_THRESHOLD) return;
+
+  for (const entry of entries) {
+    db.decrementTrackPlayCount(entry.line);
+  }
+
+  const deleted = outputWriter.deleteSessionFile();
+  if (deleted) {
+    console.log(`[main] Purged short session (${entries.length} track${entries.length === 1 ? '' : 's'})`);
+  }
+}
+
 /** Forward an event to the renderer. */
 function emit(channel: string, ...args: unknown[]): void {
   mainWindow?.webContents.send(channel, ...args);
@@ -85,6 +103,7 @@ function buildTrayCallbacks(): TrayCallbacks {
     },
     onNewSession: () => {
       if (!outputWriter) return;
+      maybePurgeShortSession();
       const sessionFile = outputWriter.startNewSession();
       _lastPublishedLine = null;
       _lastTrackPlayCount = 0;
@@ -154,6 +173,7 @@ function buildApiDeps(): ApiDeps {
     },
     controlRefresh: () => {
       if (!outputWriter) return { ok: false };
+      maybePurgeShortSession();
       const sessionFile = outputWriter.startNewSession();
       _lastPublishedLine = null;
       _lastTrackPlayCount = 0;
@@ -318,6 +338,7 @@ function registerIpc(): void {
   });
   ipcMain.handle('control:refresh', () => {
     if (!outputWriter) return { ok: false, error: 'not initialized' };
+    maybePurgeShortSession();
     const sessionFile = outputWriter.startNewSession();
     _lastPublishedLine = null;
     resetLastPublished();
@@ -382,6 +403,7 @@ app.whenReady().then(() => {
   // resetting if setEnded fires before any tracks were published).
   setOnSetEnded(() => {
     if (!outputWriter || _lastPublishedLine === null) return;
+    maybePurgeShortSession();
     const sessionFile = outputWriter.startNewSession();
     _lastPublishedLine = null;
     resetLastPublished();

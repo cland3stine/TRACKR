@@ -5,7 +5,7 @@
  * Manages per-session tracklist files with deduplication and timestamps.
  */
 
-import { existsSync, mkdirSync, readFileSync, appendFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, appendFileSync, writeFileSync, unlinkSync } from 'fs';
 import { join, dirname } from 'path';
 import { cleanTrackLine, normalizeForDedupe } from './cleaner';
 
@@ -97,6 +97,12 @@ export class SessionTracker {
     this._seen.add(normalized);
 
     return { time: timestamp, line: cleanedLine, rendered };
+  }
+
+  deleteSessionFile(): boolean {
+    if (!this._sessionFile || !existsSync(this._sessionFile)) return false;
+    unlinkSync(this._sessionFile);
+    return true;
   }
 
   private _primeSeen(): void {
