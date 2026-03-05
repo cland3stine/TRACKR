@@ -48,7 +48,6 @@ export interface TrackrConfig {
   timestampsEnabled:     boolean;
   stripMixLabels:        boolean;
   apiEnabled:            boolean;
-  apiAccessMode:         'localhost' | 'lan';
   sharePlayCountViaApi:  boolean;
   apiPort:               number;
   startWithWindows:      boolean;
@@ -73,7 +72,6 @@ interface StoreType {
   timestampsEnabled:        boolean;
   stripMixLabels:           boolean;
   apiEnabled:               boolean;
-  apiAccessMode:            string;
   sharePlayCountViaApi:     boolean;
   apiPort:                  number;
   startWithWindows:         boolean;
@@ -89,7 +87,6 @@ const DEFAULTS: StoreType = {
   timestampsEnabled:        true,
   stripMixLabels:           true,
   apiEnabled:               true,
-  apiAccessMode:            'lan',
   sharePlayCountViaApi:     false,
   apiPort:                  8755,
   startWithWindows:         false,
@@ -135,8 +132,6 @@ function _migrateFromPythonConfig(store: Store<StoreType>): void {
       updates.stripMixLabels       = raw['strip_mix_labels'] as boolean;
     if (typeof raw['api_enabled']            === 'boolean')
       updates.apiEnabled           = raw['api_enabled'] as boolean;
-    if (typeof raw['api_access_mode']        === 'string')
-      updates.apiAccessMode        = raw['api_access_mode'] as string;
     if (typeof raw['share_play_count_via_api'] === 'boolean')
       updates.sharePlayCountViaApi = raw['share_play_count_via_api'] as boolean;
     if (typeof raw['api_port']               === 'number')
@@ -154,7 +149,6 @@ function _migrateFromPythonConfig(store: Store<StoreType>): void {
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 function _rawToConfig(raw: StoreType): TrackrConfig {
-  const mode = raw.apiAccessMode === 'localhost' ? 'localhost' : 'lan';
   return {
     outputRoot:           raw.outputRoot,
     migrationPromptSeen:  raw.migrationPromptSeen,
@@ -162,7 +156,6 @@ function _rawToConfig(raw: StoreType): TrackrConfig {
     timestampsEnabled:    raw.timestampsEnabled,
     stripMixLabels:       raw.stripMixLabels,
     apiEnabled:           raw.apiEnabled,
-    apiAccessMode:        mode,
     sharePlayCountViaApi: raw.sharePlayCountViaApi,
     apiPort:              raw.apiPort,
     startWithWindows:     raw.startWithWindows,
@@ -178,15 +171,11 @@ export function getConfig(): TrackrConfig {
 }
 
 export function setConfig(partial: Partial<TrackrConfig>): void {
-  // Validate delay_seconds and api_port before writing
   if (partial.delaySeconds != null && partial.delaySeconds < 0) {
     throw new Error('delaySeconds must be >= 0');
   }
   if (partial.apiPort != null && (partial.apiPort <= 0 || partial.apiPort > 65535)) {
     throw new Error('apiPort must be between 1 and 65535');
-  }
-  if (partial.apiAccessMode != null && !['localhost', 'lan'].includes(partial.apiAccessMode)) {
-    throw new Error("apiAccessMode must be 'localhost' or 'lan'");
   }
   if (partial.overlayStyle != null) {
     const s = partial.overlayStyle;
@@ -200,8 +189,8 @@ export function setConfig(partial: Partial<TrackrConfig>): void {
   getStore().set(partial as Partial<StoreType>);
 }
 
-export function getEffectiveBindHost(config: TrackrConfig): string {
-  return config.apiAccessMode === 'localhost' ? '127.0.0.1' : '0.0.0.0';
+export function getEffectiveBindHost(): string {
+  return '0.0.0.0';
 }
 
 /**

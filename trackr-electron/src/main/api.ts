@@ -64,12 +64,20 @@ let _server: Server | null = null;
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 function detectLanIp(): string {
+  let fallback: string | null = null;
   for (const iface of Object.values(networkInterfaces())) {
     for (const addr of iface ?? []) {
-      if (addr.family === 'IPv4' && !addr.internal) return addr.address;
+      if (addr.family !== 'IPv4' || addr.internal) continue;
+      const ip = addr.address;
+      // Prefer RFC-1918 private ranges (skip Tailscale 100.x CGNAT)
+      if (ip.startsWith('192.168.') || ip.startsWith('10.') ||
+          /^172\.(1[6-9]|2\d|3[01])\./.test(ip)) {
+        return ip;
+      }
+      if (!fallback) fallback = ip;
     }
   }
-  return '127.0.0.1';
+  return fallback ?? '127.0.0.1';
 }
 
 /** Converts the camelCase TrackrConfig to the snake_case shape the API exposes. */
@@ -81,7 +89,6 @@ function configToApi(cfg: TrackrConfig): Record<string, unknown> {
     timestamps_enabled:        cfg.timestampsEnabled,
     strip_mix_labels:          cfg.stripMixLabels,
     api_enabled:               cfg.apiEnabled,
-    api_access_mode:           cfg.apiAccessMode,
     share_play_count_via_api:  cfg.sharePlayCountViaApi,
     api_port:                  cfg.apiPort,
     start_with_windows:        cfg.startWithWindows,
@@ -98,7 +105,6 @@ function apiBodyToConfigPartial(raw: Record<string, unknown>): Record<string, un
   if ('timestamps_enabled'       in raw) out.timestampsEnabled      = raw.timestamps_enabled;
   if ('strip_mix_labels'         in raw) out.stripMixLabels         = raw.strip_mix_labels;
   if ('api_enabled'              in raw) out.apiEnabled             = raw.api_enabled;
-  if ('api_access_mode'          in raw) out.apiAccessMode          = raw.api_access_mode;
   if ('share_play_count_via_api' in raw) out.sharePlayCountViaApi   = raw.share_play_count_via_api;
   if ('api_port'                 in raw) out.apiPort                = raw.api_port;
   if ('start_with_windows'       in raw) out.startWithWindows       = raw.start_with_windows;
@@ -201,11 +207,9 @@ function buildApp(deps: ApiDeps): Express {
       last_published_line:      deps.lastPublishedLine(),
       session_file_name:        deps.sessionFileName(),
       session_version:          deps.sessionVersion(),
-      api_effective_bind_host:  cfg.apiEnabled ? (cfg.apiAccessMode === 'localhost' ? '127.0.0.1' : '0.0.0.0') : null,
       lan_ip:                   detectLanIp(),
       api_port:                 cfg.apiEnabled ? cfg.apiPort : null,
       api_enabled:              cfg.apiEnabled,
-      api_access_mode:          cfg.apiAccessMode,
       share_play_count_via_api: cfg.sharePlayCountViaApi,
       output_root:              cfg.outputRoot || null,
       migration_prompt_seen:    cfg.migrationPromptSeen,

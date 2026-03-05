@@ -311,8 +311,7 @@ export default function TRACKR() {
   const [outputRootChoice, setOutputRootChoice] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [apiEnabled, setApiEnabled] = useState(true);
-  const [apiAccessMode, setApiAccessMode] = useState("lan");
-  const [apiBindHost, setApiBindHost] = useState("0.0.0.0");
+  const [previewBg, setPreviewBg] = useState("#000000");
   const [apiPort] = useState(8755);
   const [lanIp, setLanIp] = useState("127.0.0.1");
   const [toasts, setToasts] = useState([]);
@@ -378,7 +377,6 @@ export default function TRACKR() {
     if (Number.isFinite(status.device_count)) setDeviceCount(status.device_count);
     if (Array.isArray(status.devices)) setDevices(status.devices);
     if (typeof status.is_playback_active === "boolean") setPlaybackActive(status.is_playback_active);
-    if (status.api_access_mode) setApiAccessMode(status.api_access_mode);
     if (typeof status.api_enabled === "boolean") setApiEnabled(status.api_enabled);
     if (typeof status.strip_mix_labels === "boolean") setStripMixLabels(status.strip_mix_labels);
     if (status.lan_ip) setLanIp(status.lan_ip);
@@ -386,7 +384,6 @@ export default function TRACKR() {
     if (typeof status.migration_prompt_seen === "boolean") setMigrationPromptSeen(status.migration_prompt_seen);
     if (typeof status.start_with_windows === "boolean") setStartWithWindows(status.start_with_windows);
     if (typeof status.start_in_tray === "boolean") setStartInTray(status.start_in_tray);
-    if (status.api_effective_bind_host) setApiBindHost(status.api_effective_bind_host);
     if (status.output_root) setOutputDir(status.output_root);
     if (status.session_file_name) {
       const parsed = parseSessionDisplay(status.session_file_name);
@@ -513,11 +510,10 @@ export default function TRACKR() {
       timestamps_enabled: timestamps,
       strip_mix_labels: stripMixLabels,
       api_enabled: apiEnabled,
-      api_access_mode: apiAccessMode,
       share_play_count_via_api: sharePlayCount,
       api_port: apiPort,
     }),
-    [outputDir, migrationPromptSeen, delay, timestamps, apiEnabled, apiAccessMode, sharePlayCount, apiPort]
+    [outputDir, migrationPromptSeen, delay, timestamps, apiEnabled, sharePlayCount, apiPort]
   );
 
   const performStop = useCallback(async () => {
@@ -687,15 +683,7 @@ export default function TRACKR() {
     [isRunning, addToast]
   );
 
-  const handleApiAccessModeChange = useCallback(
-    (mode) => {
-      setApiAccessMode(mode);
-      setApiBindHost(mode === "localhost" ? "127.0.0.1" : "0.0.0.0");
-      if (isRunning) addToast("API setting will apply on next refresh/start", "info");
-    },
-    [isRunning, addToast]
-  );
-
+  
   const formatAgo = (s) => (s < 60 ? `${s}s ago` : `${Math.floor(s / 60)}m ${s % 60}s ago`);
 
   // ─── TABS ─────────────────────────────────────────────────────────────────
@@ -1237,14 +1225,103 @@ export default function TRACKR() {
               const shadowCss = s.drop_shadow_on
                 ? `drop-shadow(${s.drop_shadow_x}px ${s.drop_shadow_y}px ${s.drop_shadow_blur}px ${s.drop_shadow_color})`
                 : "none";
+              const BG_CYCLE = ["#000000", "#ffffff", "#333333"];
+              const BG_LABELS = ["BLK", "WHT", "GRY"];
 
               return (
-                <div style={{ display: "flex", gap: 16, height: "100%" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 16, height: "100%" }}>
                   {/* Google Fonts link for preview */}
                   {gfontHref && <link rel="stylesheet" href={gfontHref} />}
 
+                  {/* Live Preview Panel */}
+                  <RackPanel label="PREVIEW" labelRight={
+                    <div style={{ display: "flex", gap: 4 }}>
+                      {BG_CYCLE.map((bg, i) => (
+                        <button
+                          key={bg}
+                          onClick={() => setPreviewBg(bg)}
+                          style={{
+                            ...font(8, previewBg === bg ? 700 : 500),
+                            letterSpacing: 1,
+                            padding: "2px 6px",
+                            border: `1px solid ${previewBg === bg ? C.cyan : C.borderRack}`,
+                            borderRadius: 3,
+                            background: previewBg === bg ? `${C.cyan}18` : "transparent",
+                            color: previewBg === bg ? C.cyan : C.textMuted,
+                            cursor: "pointer",
+                          }}
+                        >
+                          {BG_LABELS[i]}
+                        </button>
+                      ))}
+                    </div>
+                  } style={{ flexShrink: 0 }}>
+                    <div
+                      style={{
+                        height: 140,
+                        background: previewBg,
+                        transition: "background 0.2s ease",
+                        borderRadius: 4,
+                        padding: 20,
+                        overflow: "hidden",
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "center",
+                        position: "relative",
+                      }}
+                    >
+                      <div style={{ display: "inline-block", maxWidth: "100%", overflow: "hidden" }} ref={(wrap) => {
+                        if (!wrap) return;
+                        const els = wrap.querySelectorAll(".preview-text");
+                        els.forEach((el) => {
+                          el.style.transform = "scaleX(1)";
+                          const cw = wrap.offsetWidth;
+                          const sw = el.scrollWidth;
+                          if (sw > cw && cw > 0) {
+                            el.style.transform = `scaleX(${Math.max(0.5, cw / sw)})`;
+                          }
+                        });
+                      }}>
+                        <div
+                          className="preview-text"
+                          style={{
+                            fontFamily: `"${s.font_family}", Arial, sans-serif`,
+                            fontSize: s.font_size,
+                            color: s.font_color,
+                            textTransform: s.text_transform,
+                            letterSpacing: `${s.letter_spacing}em`,
+                            filter: shadowCss,
+                            whiteSpace: "nowrap",
+                            transformOrigin: "left center",
+                          }}
+                        >
+                          {previewArtist}
+                        </div>
+                        <div
+                          className="preview-text"
+                          style={{
+                            fontFamily: `"${s.font_family}", Arial, sans-serif`,
+                            fontSize: s.font_size,
+                            color: s.font_color,
+                            textTransform: s.text_transform,
+                            letterSpacing: `${s.letter_spacing}em`,
+                            filter: shadowCss,
+                            whiteSpace: "nowrap",
+                            transformOrigin: "left center",
+                            marginTop: s.line_gap,
+                          }}
+                        >
+                          {previewTitle}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ marginTop: 10, ...font(9, 400), color: C.textMuted }}>
+                      Long text auto-shrinks to fit. Changes reflect in OBS within 2 seconds.
+                    </div>
+                  </RackPanel>
+
                   {/* Controls Panel */}
-                  <RackPanel label="OVERLAY STYLE" style={{ width: 340, flexShrink: 0, overflowY: "auto" }}>
+                  <RackPanel label="OVERLAY STYLE" style={{ flex: 1, overflowY: "auto" }}>
                     {/* Font Family */}
                     <div style={{ display: "flex", alignItems: "center", padding: "6px 0", gap: 10 }}>
                       <span style={{ ...font(11, 500), color: C.textDim, minWidth: 120 }}>Font</span>
@@ -1349,71 +1426,6 @@ export default function TRACKR() {
                       <Btn color={C.amber} onClick={handleResetStyle}>RESET DEFAULTS</Btn>
                     </div>
                   </RackPanel>
-
-                  {/* Live Preview Panel */}
-                  <RackPanel label="PREVIEW" labelRight="OBS OVERLAY" style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-                    <div
-                      style={{
-                        flex: 1,
-                        background: "#000000",
-                        borderRadius: 4,
-                        padding: 20,
-                        overflow: "hidden",
-                        display: "flex",
-                        flexDirection: "column",
-                        justifyContent: "center",
-                        position: "relative",
-                      }}
-                    >
-                      <div style={{ display: "inline-block", maxWidth: "100%", overflow: "hidden" }} ref={(wrap) => {
-                        if (!wrap) return;
-                        const els = wrap.querySelectorAll(".preview-text");
-                        els.forEach((el) => {
-                          el.style.transform = "scaleX(1)";
-                          const cw = wrap.offsetWidth;
-                          const sw = el.scrollWidth;
-                          if (sw > cw && cw > 0) {
-                            el.style.transform = `scaleX(${Math.max(0.5, cw / sw)})`;
-                          }
-                        });
-                      }}>
-                        <div
-                          className="preview-text"
-                          style={{
-                            fontFamily: `"${s.font_family}", Arial, sans-serif`,
-                            fontSize: s.font_size,
-                            color: s.font_color,
-                            textTransform: s.text_transform,
-                            letterSpacing: `${s.letter_spacing}em`,
-                            filter: shadowCss,
-                            whiteSpace: "nowrap",
-                            transformOrigin: "left center",
-                          }}
-                        >
-                          {previewArtist}
-                        </div>
-                        <div
-                          className="preview-text"
-                          style={{
-                            fontFamily: `"${s.font_family}", Arial, sans-serif`,
-                            fontSize: s.font_size,
-                            color: s.font_color,
-                            textTransform: s.text_transform,
-                            letterSpacing: `${s.letter_spacing}em`,
-                            filter: shadowCss,
-                            whiteSpace: "nowrap",
-                            transformOrigin: "left center",
-                            marginTop: s.line_gap,
-                          }}
-                        >
-                          {previewTitle}
-                        </div>
-                      </div>
-                    </div>
-                    <div style={{ marginTop: 10, ...font(9, 400), color: C.textMuted }}>
-                      Long text auto-shrinks to fit. Changes reflect in OBS within 2 seconds.
-                    </div>
-                  </RackPanel>
                 </div>
               );
             })()}
@@ -1498,58 +1510,9 @@ export default function TRACKR() {
                       When disabled, TRACKR does not expose local endpoints.
                     </div>
 
-                    {/* API Access Mode */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                      <span style={{ ...font(11, 500), color: C.textDim, minWidth: 70 }}>API Access</span>
-                      <div
-                        style={{
-                          display: "flex",
-                          borderRadius: 4,
-                          overflow: "hidden",
-                          border: `1px solid ${C.borderRack}`,
-                          opacity: apiEnabled ? 1 : 0.35,
-                          pointerEvents: apiEnabled ? "auto" : "none",
-                        }}
-                      >
-                        {[
-                          { id: "localhost", label: "Localhost" },
-                          { id: "lan", label: "LAN" },
-                        ].map((opt) => {
-                          const active = apiAccessMode === opt.id;
-                          return (
-                            <button
-                              key={opt.id}
-                              onClick={() => {
-                                handleApiAccessModeChange(opt.id);
-                              }}
-                              style={{
-                                ...font(9, active ? 700 : 500),
-                                letterSpacing: 1.5,
-                                textTransform: "uppercase",
-                                padding: "5px 16px",
-                                border: "none",
-                                cursor: "pointer",
-                                transition: "all 0.15s ease",
-                                background: active ? `${C.cyan}18` : C.bgInset,
-                                color: active ? C.cyan : C.textMuted,
-                                borderRight: opt.id === "localhost" ? `1px solid ${C.borderRack}` : "none",
-                              }}
-                            >
-                              {opt.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    <div style={{ ...font(9, 400), color: C.textMuted, marginBottom: 14, paddingLeft: 78 }}>
-                      {apiAccessMode === "localhost"
-                        ? "Only this PC can access the API."
-                        : "Other PCs on the same network can access the API."}
-                    </div>
-
-                    {/* Local URL */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: apiAccessMode === "lan" ? 8 : 0 }}>
-                      <span style={{ ...font(11, 500), color: C.textDim, minWidth: 70 }}>Local URL</span>
+                    {/* OBS Overlay URL */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                      <span style={{ ...font(11, 500), color: C.textDim, minWidth: 80 }}>OBS Overlay</span>
                       <div
                         style={{
                           flex: 1,
@@ -1564,52 +1527,50 @@ export default function TRACKR() {
                           whiteSpace: "nowrap",
                         }}
                       >
-                        {`http://127.0.0.1:${apiPort}`}
+                        {`http://127.0.0.1:${apiPort}/trackr-current.html`}
                       </div>
                       <Btn
                         color={C.blue}
                         disabled={!apiEnabled}
                         onClick={() => {
-                          navigator.clipboard.writeText(`http://127.0.0.1:${apiPort}`);
-                          addToast("Local URL copied to clipboard", "success");
+                          navigator.clipboard.writeText(`http://127.0.0.1:${apiPort}/trackr-current.html`);
+                          addToast("OBS overlay URL copied to clipboard", "success");
                         }}
                       >
                         COPY
                       </Btn>
                     </div>
 
-                    {/* LAN URL (only when LAN mode) */}
-                    {apiAccessMode === "lan" && (
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ ...font(11, 500), color: C.textDim, minWidth: 70 }}>LAN URL</span>
-                        <div
-                          style={{
-                            flex: 1,
-                            ...font(10, 400),
-                            color: apiEnabled ? C.cyan : C.textMuted,
-                            background: C.bgInset,
-                            border: `1px solid ${C.cyanDim}40`,
-                            borderRadius: 3,
-                            padding: "7px 10px",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {`http://${lanIp}:${apiPort}`}
-                        </div>
-                        <Btn
-                          color={C.blue}
-                          disabled={!apiEnabled}
-                          onClick={() => {
-                            navigator.clipboard.writeText(`http://${lanIp}:${apiPort}`);
-                            addToast("LAN URL copied to clipboard", "success");
-                          }}
-                        >
-                          COPY
-                        </Btn>
+                    {/* API URL */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ ...font(11, 500), color: C.textDim, minWidth: 80 }}>API</span>
+                      <div
+                        style={{
+                          flex: 1,
+                          ...font(10, 400),
+                          color: apiEnabled ? C.cyan : C.textMuted,
+                          background: C.bgInset,
+                          border: `1px solid ${C.cyanDim}40`,
+                          borderRadius: 3,
+                          padding: "7px 10px",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {`http://${lanIp}:${apiPort}`}
                       </div>
-                    )}
+                      <Btn
+                        color={C.blue}
+                        disabled={!apiEnabled}
+                        onClick={() => {
+                          navigator.clipboard.writeText(`http://${lanIp}:${apiPort}`);
+                          addToast("API URL copied to clipboard", "success");
+                        }}
+                      >
+                        COPY
+                      </Btn>
+                    </div>
                   </div>
                 </div>
 

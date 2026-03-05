@@ -31,7 +31,6 @@ const DEFAULT_CONFIG: AnyObj = {
   delay_seconds: 3,
   timestamps_enabled: true,
   api_enabled: true,
-  api_access_mode: "lan",
   share_play_count_via_api: false,
   api_port: 8755,
 };
@@ -171,10 +170,9 @@ class TrackrHttpCore {
   private lastPublishedLine: string | null = null;
   private appState = "stopped";
   private statusText = "Backend Offline";
-  private apiBindHost = "127.0.0.1";
   private apiPort = 8755;
+  private lanIp = "127.0.0.1";
   private apiEnabled = true;
-  private apiAccessMode = "localhost";
   private sharePlayCount = false;
   private outputRoot = DEFAULT_OUTPUT_ROOT;
   private migrationPromptSeen = false;
@@ -382,10 +380,9 @@ class TrackrHttpCore {
       this.lastPublishedLine = reportedLastPublished;
     }
     this.sessionFileName = asString(status.session_file_name, "") || null;
-    this.apiBindHost = asString(status.api_effective_bind_host, this.apiBindHost);
     this.apiPort = asNumber(status.api_port, this.apiPort);
     this.apiEnabled = asBool(status.api_enabled, this.apiEnabled);
-    this.apiAccessMode = asString(status.api_access_mode, this.apiAccessMode);
+    this.lanIp = asString(status.lan_ip, this.lanIp);
     this.sharePlayCount = asBool(status.share_play_count_via_api, this.sharePlayCount);
     this.outputRoot = asString(status.output_root, this.outputRoot);
     this.migrationPromptSeen = asBool(status.migration_prompt_seen, this.migrationPromptSeen);
@@ -476,10 +473,9 @@ class TrackrHttpCore {
       device_count: this.deviceCount,
       last_published_line: this.lastPublishedLine,
       session_file_name: this.sessionFileName,
-      api_effective_bind_host: this.apiBindHost,
       api_port: this.apiPort,
       api_enabled: this.apiEnabled,
-      api_access_mode: this.apiAccessMode,
+      lan_ip: this.lanIp,
       share_play_count_via_api: this.sharePlayCount,
       output_root: this.outputRoot,
       migration_prompt_seen: this.migrationPromptSeen,

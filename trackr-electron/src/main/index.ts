@@ -207,7 +207,7 @@ function buildApiDeps(): ApiDeps {
  *  Call once from app.whenReady(), before initModules. */
 function ensureApiServer(): void {
   const config = getConfig();
-  startApiServer(buildApiDeps(), config.apiPort, getEffectiveBindHost(config));
+  startApiServer(buildApiDeps(), config.apiPort, getEffectiveBindHost());
 }
 
 /** Initialize file-based modules for a resolved output root. */
@@ -375,8 +375,6 @@ function registerIpc(): void {
       playCount:            db?.getPlayCount() ?? 0,
       outputRoot:           config.outputRoot || null,
       apiEnabled:           config.apiEnabled,
-      apiAccessMode:        config.apiAccessMode,
-      apiEffectiveBindHost: getEffectiveBindHost(config),
       apiPort:              config.apiPort,
     };
   });
