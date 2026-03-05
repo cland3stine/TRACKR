@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, Menu, Tray } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, Menu, Tray, nativeImage } from 'electron';
 import path from 'path';
 
 // ─── global safety net ──────────────────────────────────────────────────────
@@ -35,6 +35,7 @@ import {
 } from './store';
 import { startApiServer, stopApiServer, ApiDeps } from './api';
 import { createTray, refreshTray, destroyTray, TrayCallbacks } from './tray';
+import { autoUpdater } from 'electron-updater';
 
 // Enforce single instance — second launch focuses the existing window.
 const gotLock = app.requestSingleInstanceLock();
@@ -260,9 +261,14 @@ function handlePublish(line: string, deviceId: number, publishedAt: number): voi
 function createWindow(): void {
   const startHidden = process.argv.includes('--hidden') || getConfig().startInTray;
 
+  const iconPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'icon.ico')
+    : path.join(__dirname, '../../assets/icon.ico');
+
   mainWindow = new BrowserWindow({
     width: 1200, height: 900, minWidth: 1200, minHeight: 900,
     title: 'TRACKR',
+    icon: nativeImage.createFromPath(iconPath),
     backgroundColor: '#0a0a0a',
     show: false,  // Reveal via ready-to-show to avoid white flash
     webPreferences: {
@@ -377,6 +383,50 @@ function registerIpc(): void {
       apiEnabled:           config.apiEnabled,
       apiPort:              config.apiPort,
     };
+  });
+
+  // ── Updater ────────────────────────────────────────────────────────────────
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  ipcMain.handle('updater:check', async () => {
+    const send = (status: Record<string, unknown>) => {
+      mainWindow?.webContents.send('updater:status', status);
+    };
+
+    autoUpdater.removeAllListeners();
+
+    autoUpdater.on('update-available', (info) => {
+      send({ state: 'available', version: info.version });
+    });
+    autoUpdater.on('update-not-available', () => {
+      send({ state: 'up-to-date' });
+    });
+    autoUpdater.on('download-progress', (progress) => {
+      send({ state: 'downloading', progress: progress.percent / 100 });
+    });
+    autoUpdater.on('update-downloaded', () => {
+      send({ state: 'ready' });
+      // Install on next quit (already set via autoInstallOnAppQuit)
+    });
+    autoUpdater.on('error', (err) => {
+      send({ state: 'error', message: err?.message || String(err) });
+    });
+
+    try {
+      await autoUpdater.checkForUpdates();
+    } catch (err: unknown) {
+      // In dev mode, electron-updater silently skips — checkForUpdates returns null
+      // and no events fire. Catch and report.
+      const msg = err instanceof Error ? err.message : String(err);
+      send({ state: 'error', message: msg || 'Update check failed' });
+    }
+
+    // Dev mode: checkForUpdates skips silently without firing events.
+    // If no event fires within 10s, assume dev mode and report up-to-date.
+    if (!app.isPackaged) {
+      send({ state: 'up-to-date' });
+    }
   });
 }
 

@@ -16,7 +16,10 @@
     "productName": "TRACKR",
     "icon": "assets/icon.ico",
     "extraResources": [
-      { "from": "assets/icon.ico", "to": "icon.ico" }
+      {
+        "from": "assets/icon.ico",
+        "to": "icon.ico"
+      }
     ],
     "directories": {
       "output": "release"
@@ -38,10 +41,16 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "include": "build/installer.nsh"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "cland3stine",
+      "repo": "TRACKR"
     }
   },
   "dependencies": {
     "electron-store": "^8.2.0",
+    "electron-updater": "^6.8.3",
     "express": "^5.2.1",
     "prolink-connect": "^0.11.0",
     "react": "^19.1.0",
