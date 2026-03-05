@@ -81,6 +81,16 @@ function maybePurgeShortSession(): void {
   }
 }
 
+/** Build a tracklist suffix like " [Label, 2024]" from enrichment data. */
+function buildTracklistSuffix(result: EnrichmentResult): string {
+  const fmt = getConfig().tracklistFormat;
+  if (!fmt.includeYear && !fmt.includeLabel) return '';
+  const parts: string[] = [];
+  if (fmt.includeLabel && result.label) parts.push(result.label);
+  if (fmt.includeYear && result.year) parts.push(String(result.year));
+  return parts.length > 0 ? ` [${parts.join(', ')}]` : '';
+}
+
 /** Forward an event to the renderer. */
 function emit(channel: string, ...args: unknown[]): void {
   mainWindow?.webContents.send(channel, ...args);
@@ -287,6 +297,12 @@ function handlePublish(line: string, deviceId: number, publishedAt: number): voi
       if (artOverlay && artCache && result.artFilename) {
         artCache.copyToOverlay(artist, title);
       }
+      // Append year/label suffix to session tracklist file
+      const suffix = buildTracklistSuffix(result);
+      if (suffix && outputWriter) {
+        const cleanLine = `${artist} - ${title}`;
+        outputWriter.appendTrackSuffix(cleanLine, suffix);
+      }
     }).catch(err => console.warn('[main] enrichTrack error:', err));
   }
 
@@ -431,6 +447,14 @@ function registerIpc(): void {
       apiEnabled:           config.apiEnabled,
       apiPort:              config.apiPort,
     };
+  });
+
+  // ── History ──────────────────────────────────────────────────────────────────
+  ipcMain.handle('db:search-tracks', (_event, params: { query?: string; limit?: number; offset?: number }) => {
+    return db?.searchTracks(params?.query, params?.limit, params?.offset) ?? { rows: [], total: 0 };
+  });
+  ipcMain.handle('db:get-track', (_event, params: { artist: string; title: string }) => {
+    return db?.getTrack(params.artist, params.title) ?? null;
   });
 
   // ── Enrichment ─────────────────────────────────────────────────────────────

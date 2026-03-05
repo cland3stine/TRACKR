@@ -350,6 +350,15 @@ function buildApp(deps: ApiDeps): Express {
     res.sendFile(artPath);
   });
 
+  // ── GET /art/cache/:filename ──────────────────────────────────────────────
+  app.get('/art/cache/:filename', (req: Request, res: Response) => {
+    const filename = String(req.params['filename'] ?? '');
+    if (!filename || /[/\\]|\.\./.test(filename)) { res.sendStatus(400); return; }
+    const artPath = deps.getArtPath(filename);
+    if (!artPath) { res.sendStatus(404); return; }
+    res.sendFile(artPath);
+  });
+
   // ── GET /output-root/resolve ───────────────────────────────────────────────
   app.get('/output-root/resolve', (_req: Request, res: Response) => {
     const resolution  = deps.resolveOutputRoot();

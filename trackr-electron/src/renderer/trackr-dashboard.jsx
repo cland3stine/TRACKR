@@ -327,6 +327,15 @@ export default function TRACKR() {
   const [beatportPassword, setBeatportPassword] = useState("");
   const [beatportConnStatus, setBeatportConnStatus] = useState(null); // null | "testing" | {ok, message}
   const [artOverlayEnabled, setArtOverlayEnabled] = useState(false);
+  // Live enrichment (current track metadata + art)
+  const [liveEnrichment, setLiveEnrichment] = useState(null);
+  // History tab
+  const [historyQuery, setHistoryQuery] = useState("");
+  const [historyRows, setHistoryRows] = useState([]);
+  const [historyTotal, setHistoryTotal] = useState(0);
+  const [historyPage, setHistoryPage] = useState(0);
+  const [selectedTrack, setSelectedTrack] = useState(null);
+  const historyDebounceRef = useRef(null);
   const tracklistRef = useRef(null);
   const timerRef = useRef(null);
   const coreRef = useRef(null);
@@ -344,6 +353,16 @@ export default function TRACKR() {
     : `${deviceCount} Device${deviceCount !== 1 ? "s" : ""}`;
   // Style debounce ref
   const styleDebounceRef = useRef(null);
+
+  // Fetch enrichment for current track on initial load / track change
+  useEffect(() => {
+    if (!currentTrack?.artist || !currentTrack?.title) return;
+    window.electronAPI.invoke("db:get-track", { artist: currentTrack.artist, title: currentTrack.title })
+      .then((row) => {
+        if (row?.enrichment_status === "complete") setLiveEnrichment(row);
+      })
+      .catch(() => {});
+  }, [currentTrack?.artist, currentTrack?.title]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-increment "published ago" — only ticks while playback is active
   useEffect(() => {
@@ -504,10 +523,17 @@ export default function TRACKR() {
 
     bind();
 
-    // Direct IPC listener for auto session reset (bypasses HTTP polling)
+    // Direct IPC listeners
     window.electronAPI.on("trackr:session-started", () => {
       setTracks([]);
       setPublishedAgo(0);
+      setLiveEnrichment(null);
+    });
+    window.electronAPI.on("trackr:enrichment-update", (data) => {
+      setLiveEnrichment(data || null);
+    });
+    window.electronAPI.on("trackr:track-published", () => {
+      setLiveEnrichment(null); // clear until enrichment arrives
     });
 
     return () => {
@@ -515,6 +541,8 @@ export default function TRACKR() {
       if (statusPollRef.current) clearInterval(statusPollRef.current);
       if (typeof unsubscribeRef.current === "function") unsubscribeRef.current();
       window.electronAPI.removeAllListeners("trackr:session-started");
+      window.electronAPI.removeAllListeners("trackr:enrichment-update");
+      window.electronAPI.removeAllListeners("trackr:track-published");
     };
   }, [applyOutputRootResolution, callCore, refreshFromCore, reloadStyle, reloadTracklist]);
 
@@ -732,9 +760,61 @@ export default function TRACKR() {
 
   const formatAgo = (s) => (s < 60 ? `${s}s ago` : `${Math.floor(s / 60)}m ${s % 60}s ago`);
 
+  // ─── HISTORY ────────────────────────────────────────────────────────────────
+  const HISTORY_PAGE_SIZE = 50;
+
+  const loadHistory = useCallback(async (query, page) => {
+    try {
+      const result = await window.electronAPI.invoke("db:search-tracks", {
+        query: query || undefined,
+        limit: HISTORY_PAGE_SIZE,
+        offset: page * HISTORY_PAGE_SIZE,
+      });
+      setHistoryRows(result?.rows || []);
+      setHistoryTotal(result?.total || 0);
+    } catch {
+      // IPC error — leave empty
+    }
+  }, []);
+
+  // Reload history when tab becomes active or page changes
+  useEffect(() => {
+    if (activeTab === "history") loadHistory(historyQuery, historyPage);
+  }, [activeTab, historyPage, loadHistory]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-reload history when enrichment completes (new track data available)
+  useEffect(() => {
+    const handler = () => {
+      if (activeTab === "history") loadHistory(historyQuery, historyPage);
+    };
+    window.electronAPI.on("trackr:enrichment-update", handler);
+    window.electronAPI.on("trackr:track-published", handler);
+    return () => {
+      window.electronAPI.removeAllListeners("trackr:enrichment-update");
+      window.electronAPI.removeAllListeners("trackr:track-published");
+    };
+  }, [activeTab, historyQuery, historyPage, loadHistory]);
+
+  const handleHistorySearch = useCallback((value) => {
+    setHistoryQuery(value);
+    setHistoryPage(0);
+    setSelectedTrack(null);
+    clearTimeout(historyDebounceRef.current);
+    historyDebounceRef.current = setTimeout(() => loadHistory(value, 0), 250);
+  }, [loadHistory]);
+
+  const historyPageCount = Math.max(1, Math.ceil(historyTotal / HISTORY_PAGE_SIZE));
+
+  const formatDate = (iso) => {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+
   // ─── TABS ─────────────────────────────────────────────────────────────────
   const tabs = [
     { id: "live", label: "LIVE" },
+    { id: "history", label: "HISTORY" },
     { id: "style", label: "STYLE" },
     { id: "settings", label: "SETTINGS" },
   ];
@@ -952,162 +1032,147 @@ export default function TRACKR() {
             borderRight: `1px solid ${C.borderRack}`,
           }}
         >
-          {/* Status Panel */}
-          <RackPanel label="STATUS">
-            {/* State row */}
+          {/* ── Combined Status + Controls ── */}
+          <RackPanel label="CONTROLS" style={{ flex: 0 }}>
+            {/* Status row */}
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
               <Led color={isRunning ? C.green : appState === "error" ? C.red : C.textMuted} size={7} pulse={isRunning} />
-              <span
-                style={{
-                  ...font(11, 600),
-                  color: isRunning ? C.green : appState === "error" ? C.red : C.textDim,
-                  letterSpacing: 1,
-                }}
-              >
+              <span style={{ ...font(11, 600), color: isRunning ? C.green : appState === "error" ? C.red : C.textDim, letterSpacing: 1 }}>
                 {appState.toUpperCase()}
               </span>
-            </div>
-
-            {/* Devices row */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-              <Led color={deviceCount > 0 ? C.green : C.red} size={6} />
-              <span style={{ ...font(10, 400), color: C.textDim }}>
-                {deviceLabel} Online
+              <span style={{ ...font(9, 400), color: C.textMuted, marginLeft: "auto" }}>
+                {deviceLabel}
               </span>
             </div>
 
-            {/* Output */}
-            <div style={{ borderTop: `1px solid ${C.borderRack}`, paddingTop: 12 }}>
-              <span style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2.5, textTransform: "uppercase" }}>
-                OUTPUT
-              </span>
-              <div style={{ marginTop: 6 }}>
-                <div
-                  style={{
-                    ...font(9, 400),
-                    color: C.textDim,
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }}
-                >
-                  📁 {outputDir || "%USERPROFILE%\\TRACKR"}
-                </div>
-                <div style={{ ...font(9, 400), color: C.textMuted, marginTop: 2 }}>
-                  Session: {sessionLabel}
-                </div>
-              </div>
+            {/* Buttons side by side */}
+            <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+              <Btn
+                fullWidth
+                color={isRunning ? C.red : C.green}
+                onClick={handleStartStop}
+                disabled={isTransitioning}
+              >
+                {appState === "starting" ? "STARTING..." : appState === "stopping" ? "STOPPING..." : isRunning ? "■ STOP" : "▶ START"}
+              </Btn>
+              <Btn
+                fullWidth
+                color={C.amber}
+                onClick={handleRefresh}
+                disabled={!isRunning || isTransitioning}
+              >
+                ↻ REFRESH
+              </Btn>
             </div>
-          </RackPanel>
 
-          {/* Control Panel */}
-          <RackPanel label="CONTROLS" style={{ flex: 0 }}>
-            {/* Start/Stop */}
-            <Btn
-              fullWidth
-              color={isRunning ? C.red : C.green}
-              onClick={handleStartStop}
-              disabled={isTransitioning}
-              style={{ marginBottom: 8 }}
-            >
-              {appState === "starting"
-                ? "⏳ STARTING..."
-                : appState === "stopping"
-                ? "⏳ STOPPING..."
-                : isRunning
-                ? "■  STOP"
-                : "▶  START"}
-            </Btn>
-
-            {/* Refresh */}
-            <Btn
-              fullWidth
-              color={C.amber}
-              onClick={handleRefresh}
-              disabled={!isRunning || isTransitioning}
-              style={{ marginBottom: 16 }}
-            >
-              ↻  REFRESH
-            </Btn>
-
-            {/* Parameters */}
-            <div style={{ borderTop: `1px solid ${C.borderRack}`, paddingTop: 12 }}>
-              <span style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2.5, textTransform: "uppercase" }}>
-                PARAMETERS
-              </span>
-
-              {/* Delay */}
+            {/* Parameters — compact */}
+            <div style={{ borderTop: `1px solid ${C.borderRack}`, paddingTop: 8 }}>
               <div
                 style={{
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
-                  padding: "10px 0 6px",
+                  padding: "4px 0",
                   opacity: isRunning ? 0.35 : 1,
                 }}
               >
-                <span style={{ ...font(11, 500), color: C.textDim }}>Publish Delay</span>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ ...font(10, 500), color: C.textDim }}>Delay</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                   <button
                     onClick={() => !isRunning && setDelay(Math.max(1, delay - 1))}
                     disabled={isRunning}
-                    style={{
-                      ...font(11, 700),
-                      width: 22,
-                      height: 22,
-                      border: `1px solid ${C.borderRack}`,
-                      borderRadius: 3,
-                      background: C.bgInset,
-                      color: C.textDim,
-                      cursor: isRunning ? "not-allowed" : "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    −
-                  </button>
-                  <span
-                    style={{
-                      ...font(12, 600),
-                      color: C.textPrimary,
-                      minWidth: 28,
-                      textAlign: "center",
-                      background: C.bgInset,
-                      border: `1px solid ${C.borderRack}`,
-                      borderRadius: 3,
-                      padding: "2px 6px",
-                    }}
-                  >
+                    style={{ ...font(10, 700), width: 20, height: 20, border: `1px solid ${C.borderRack}`, borderRadius: 3, background: C.bgInset, color: C.textDim, cursor: isRunning ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                  >−</button>
+                  <span style={{ ...font(11, 600), color: C.textPrimary, minWidth: 24, textAlign: "center", background: C.bgInset, border: `1px solid ${C.borderRack}`, borderRadius: 3, padding: "1px 4px" }}>
                     {delay}
                   </span>
                   <button
                     onClick={() => !isRunning && setDelay(Math.min(30, delay + 1))}
                     disabled={isRunning}
-                    style={{
-                      ...font(11, 700),
-                      width: 22,
-                      height: 22,
-                      border: `1px solid ${C.borderRack}`,
-                      borderRadius: 3,
-                      background: C.bgInset,
-                      color: C.textDim,
-                      cursor: isRunning ? "not-allowed" : "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    +
-                  </button>
-                  <span style={{ ...font(9, 400), color: C.textMuted, marginLeft: 2 }}>sec</span>
+                    style={{ ...font(10, 700), width: 20, height: 20, border: `1px solid ${C.borderRack}`, borderRadius: 3, background: C.bgInset, color: C.textDim, cursor: isRunning ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                  >+</button>
+                  <span style={{ ...font(9, 400), color: C.textMuted }}>sec</span>
                 </div>
               </div>
-
               <Toggle label="Timestamps" on={timestamps} onChange={setTimestamps} disabled={isRunning} />
               <Toggle label="Strip Original/Extended" on={stripMixLabels} onChange={setStripMixLabels} disabled={isRunning} />
             </div>
           </RackPanel>
+
+          {/* ── Now Playing Enrichment ── */}
+          {currentTrack && (
+            <RackPanel label="NOW PLAYING" style={{ flex: 0 }}>
+              {liveEnrichment?.art_filename ? (
+                <img
+                  src={`http://127.0.0.1:${apiPort}/art/cache/${liveEnrichment.art_filename}`}
+                  alt=""
+                  style={{ width: "100%", aspectRatio: "1/1", objectFit: "cover", borderRadius: 4, marginBottom: 10, background: C.bgInset }}
+                  onError={(e) => { e.target.style.display = "none"; }}
+                />
+              ) : liveEnrichment?.artFilename ? (
+                <img
+                  src={`http://127.0.0.1:${apiPort}/art/cache/${liveEnrichment.artFilename}`}
+                  alt=""
+                  style={{ width: "100%", aspectRatio: "1/1", objectFit: "cover", borderRadius: 4, marginBottom: 10, background: C.bgInset }}
+                  onError={(e) => { e.target.style.display = "none"; }}
+                />
+              ) : null}
+
+              <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 10px" }}>
+                {(liveEnrichment?.label) && (
+                  <>
+                    <span style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Label</span>
+                    <span style={{ ...font(10, 400), color: C.textPrimary }}>{liveEnrichment.label}</span>
+                  </>
+                )}
+                {(liveEnrichment?.year) && (
+                  <>
+                    <span style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Year</span>
+                    <span style={{ ...font(10, 400), color: C.textPrimary }}>{liveEnrichment.year}</span>
+                  </>
+                )}
+                {(liveEnrichment?.genre) && (
+                  <>
+                    <span style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Genre</span>
+                    <span style={{ ...font(10, 400), color: C.textPrimary }}>{liveEnrichment.genre}</span>
+                  </>
+                )}
+                {(liveEnrichment?.bpm) && (
+                  <>
+                    <span style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>BPM</span>
+                    <span style={{ ...font(10, 400), color: C.textPrimary }}>{liveEnrichment.bpm}</span>
+                  </>
+                )}
+                {(liveEnrichment?.key_name || liveEnrichment?.key) && (
+                  <>
+                    <span style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Key</span>
+                    <span style={{ ...font(10, 400), color: C.textPrimary }}>{liveEnrichment.key_name || liveEnrichment.key}</span>
+                  </>
+                )}
+              </div>
+
+              {!liveEnrichment && enrichmentEnabled && (
+                <div style={{ ...font(9, 400), color: C.textMuted, textAlign: "center", padding: "8px 0" }}>
+                  Enriching...
+                </div>
+              )}
+              {!liveEnrichment && !enrichmentEnabled && (
+                <div style={{ ...font(9, 400), color: C.textMuted, textAlign: "center", padding: "4px 0" }}>
+                  Enrichment disabled
+                </div>
+              )}
+            </RackPanel>
+          )}
+
+          {/* ── Output info ── */}
+          <div style={{ ...font(9, 400), color: C.textMuted, padding: "4px 8px", marginTop: "auto" }}>
+            <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {outputDir || "%USERPROFILE%\\TRACKR"}
+            </div>
+            <div style={{ marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {sessionLabel}
+            </div>
+          </div>
         </div>
 
         {/* ─── RIGHT CONTENT ─── */}
@@ -1258,6 +1323,213 @@ export default function TRACKR() {
                   )}
                 </div>
               </RackPanel>
+            )}
+
+            {/* ─── HISTORY TAB ─── */}
+            {activeTab === "history" && (
+              <div style={{ display: "flex", gap: 16, height: "100%", minHeight: 0 }}>
+                {/* ── Table Panel ── */}
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+                  <RackPanel
+                    label="TRACK HISTORY"
+                    labelRight={`${historyTotal} track${historyTotal !== 1 ? "s" : ""}`}
+                    style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}
+                  >
+                    {/* Search */}
+                    <input
+                      type="text"
+                      value={historyQuery}
+                      onChange={(e) => handleHistorySearch(e.target.value)}
+                      placeholder="Search artist, title, label, genre…"
+                      style={{
+                        ...font(11, 400),
+                        color: C.textPrimary,
+                        background: C.bgInset,
+                        border: `1px solid ${C.borderRack}`,
+                        borderRadius: 3,
+                        padding: "8px 12px",
+                        outline: "none",
+                        marginBottom: 12,
+                        width: "100%",
+                        boxSizing: "border-box",
+                      }}
+                    />
+
+                    {/* Table header */}
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "2fr 2fr 1.5fr 50px 50px 60px",
+                        gap: 8,
+                        padding: "0 4px 8px",
+                        borderBottom: `1px solid ${C.borderRack}`,
+                      }}
+                    >
+                      {["ARTIST", "TITLE", "LABEL", "YEAR", "PLAYS", "LAST"].map((h) => (
+                        <span key={h} style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2, textTransform: "uppercase" }}>
+                          {h}
+                        </span>
+                      ))}
+                    </div>
+
+                    {/* Rows */}
+                    <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
+                      {historyRows.length === 0 && (
+                        <div style={{ ...font(11, 400), color: C.textMuted, padding: "24px 4px", textAlign: "center" }}>
+                          {historyQuery ? "No tracks match your search" : "No tracks in history yet"}
+                        </div>
+                      )}
+                      {historyRows.map((row) => {
+                        const isSelected = selectedTrack?.id === row.id;
+                        return (
+                          <div
+                            key={row.id}
+                            onClick={() => setSelectedTrack(isSelected ? null : row)}
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "2fr 2fr 1.5fr 50px 50px 60px",
+                              gap: 8,
+                              padding: "6px 4px",
+                              cursor: "pointer",
+                              background: isSelected ? `${C.cyan}12` : "transparent",
+                              borderLeft: isSelected ? `2px solid ${C.cyan}` : "2px solid transparent",
+                              borderBottom: `1px solid ${C.borderRack}30`,
+                              transition: "background 0.15s",
+                            }}
+                            onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = C.bgInsetHover; }}
+                            onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = "transparent"; }}
+                          >
+                            <span style={{ ...font(10, 500), color: C.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {row.artist}
+                            </span>
+                            <span style={{ ...font(10, 400), color: C.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {row.title}
+                            </span>
+                            <span style={{ ...font(10, 400), color: C.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {row.label || "—"}
+                            </span>
+                            <span style={{ ...font(10, 400), color: C.textDim }}>
+                              {row.year || "—"}
+                            </span>
+                            <span style={{ ...font(10, 600), color: row.play_count > 1 ? C.cyan : C.textDim }}>
+                              {row.play_count}
+                            </span>
+                            <span style={{ ...font(9, 400), color: C.textMuted }}>
+                              {formatDate(row.last_played)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Pagination */}
+                    {historyPageCount > 1 && (
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, paddingTop: 10, borderTop: `1px solid ${C.borderRack}` }}>
+                        <Btn color={C.textDim} disabled={historyPage === 0} onClick={() => setHistoryPage((p) => p - 1)}>
+                          ◀
+                        </Btn>
+                        <span style={{ ...font(10, 400), color: C.textDim }}>
+                          {historyPage + 1} / {historyPageCount}
+                        </span>
+                        <Btn color={C.textDim} disabled={historyPage >= historyPageCount - 1} onClick={() => setHistoryPage((p) => p + 1)}>
+                          ▶
+                        </Btn>
+                      </div>
+                    )}
+                  </RackPanel>
+                </div>
+
+                {/* ── Detail Panel ── */}
+                {selectedTrack && (
+                  <div style={{ width: 300, flexShrink: 0 }}>
+                    <RackPanel label="TRACK DETAIL" style={{ position: "sticky", top: 0 }}>
+                      {/* Album art */}
+                      {selectedTrack.art_filename && (
+                        <img
+                          src={`http://127.0.0.1:${apiPort}/art/cache/${selectedTrack.art_filename}`}
+                          alt="Album art"
+                          style={{
+                            width: "100%",
+                            aspectRatio: "1/1",
+                            objectFit: "cover",
+                            borderRadius: 4,
+                            marginBottom: 14,
+                            background: C.bgInset,
+                          }}
+                          onError={(e) => { e.target.style.display = "none"; }}
+                        />
+                      )}
+
+                      {/* Artist + Title */}
+                      <div style={{ ...font(13, 600), color: C.textPrimary, marginBottom: 2 }}>
+                        {selectedTrack.artist}
+                      </div>
+                      <div style={{ ...font(12, 400), color: C.textDim, marginBottom: 14 }}>
+                        {selectedTrack.title}
+                      </div>
+
+                      {/* Metadata grid */}
+                      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "6px 12px" }}>
+                        {selectedTrack.label && (
+                          <>
+                            <span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Label</span>
+                            <span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedTrack.label}</span>
+                          </>
+                        )}
+                        {selectedTrack.year && (
+                          <>
+                            <span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Year</span>
+                            <span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedTrack.year}</span>
+                          </>
+                        )}
+                        {selectedTrack.genre && (
+                          <>
+                            <span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Genre</span>
+                            <span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedTrack.genre}</span>
+                          </>
+                        )}
+                        {selectedTrack.bpm && (
+                          <>
+                            <span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>BPM</span>
+                            <span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedTrack.bpm}</span>
+                          </>
+                        )}
+                        {selectedTrack.key_name && (
+                          <>
+                            <span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Key</span>
+                            <span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedTrack.key_name}</span>
+                          </>
+                        )}
+                        <>
+                          <span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Plays</span>
+                          <span style={{ ...font(10, 600), color: C.cyan }}>{selectedTrack.play_count}</span>
+                        </>
+                        <>
+                          <span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>First</span>
+                          <span style={{ ...font(10, 400), color: C.textPrimary }}>{formatDate(selectedTrack.first_played)}</span>
+                        </>
+                        <>
+                          <span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Last</span>
+                          <span style={{ ...font(10, 400), color: C.textPrimary }}>{formatDate(selectedTrack.last_played)}</span>
+                        </>
+                      </div>
+
+                      {/* Enrichment status */}
+                      <div style={{ marginTop: 14, paddingTop: 10, borderTop: `1px solid ${C.borderRack}` }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <Led
+                            color={selectedTrack.enrichment_status === "complete" ? C.green : selectedTrack.enrichment_status === "failed" ? C.red : C.amber}
+                            size={6}
+                          />
+                          <span style={{ ...font(9, 400), color: C.textMuted }}>
+                            {selectedTrack.enrichment_status === "complete" ? "Enriched via Beatport" : selectedTrack.enrichment_status === "failed" ? "Enrichment failed" : "Pending enrichment"}
+                          </span>
+                        </div>
+                      </div>
+                    </RackPanel>
+                  </div>
+                )}
+              </div>
             )}
 
             {/* ─── STYLE TAB ─── */}

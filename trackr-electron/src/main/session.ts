@@ -99,6 +99,27 @@ export class SessionTracker {
     return { time: timestamp, line: cleanedLine, rendered };
   }
 
+  /**
+   * Append a suffix (e.g. " [Label, 2024]") to a previously written line.
+   * Finds the last line in the session file containing `cleanLine` and appends `suffix`.
+   */
+  appendSuffix(cleanLine: string, suffix: string): boolean {
+    if (!this._sessionFile || !existsSync(this._sessionFile)) return false;
+    const content = readFileSync(this._sessionFile, 'utf8');
+    const lines = content.split('\n');
+    let found = false;
+    for (let i = lines.length - 1; i >= 0; i--) {
+      if (lines[i].includes(cleanLine) && !lines[i].includes(suffix)) {
+        lines[i] = lines[i] + suffix;
+        found = true;
+        break;
+      }
+    }
+    if (!found) return false;
+    writeFileSync(this._sessionFile, lines.join('\n'), 'utf8');
+    return true;
+  }
+
   deleteSessionFile(): boolean {
     if (!this._sessionFile || !existsSync(this._sessionFile)) return false;
     unlinkSync(this._sessionFile);

@@ -152,6 +152,31 @@ export class TrackrDatabase {
     ).run(...values);
   }
 
+  // ─── history search ──────────────────────────────────────────────────────────
+
+  /** Search tracks with optional full-text filter across artist, title, label, genre. */
+  searchTracks(query?: string, limit = 50, offset = 0): { rows: TrackRow[]; total: number } {
+    let where = '';
+    const params: unknown[] = [];
+
+    if (query && query.trim()) {
+      const q = `%${query.trim()}%`;
+      where = 'WHERE artist LIKE ? OR title LIKE ? OR label LIKE ? OR genre LIKE ?';
+      params.push(q, q, q, q);
+    }
+
+    const countRow = this._db
+      .prepare(`SELECT COUNT(*) as cnt FROM tracks ${where}`)
+      .get(...params) as { cnt: number };
+    const total = countRow?.cnt ?? 0;
+
+    const rows = this._db
+      .prepare(`SELECT * FROM tracks ${where} ORDER BY last_played DESC LIMIT ? OFFSET ?`)
+      .all(...params, limit, offset) as TrackRow[];
+
+    return { rows, total };
+  }
+
   // ─── preferences ────────────────────────────────────────────────────────────
 
   getPref(key: string): string | null {

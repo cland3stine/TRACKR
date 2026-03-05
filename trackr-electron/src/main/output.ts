@@ -186,6 +186,10 @@ export class OutputWriter {
     return entry;
   }
 
+  appendTrackSuffix(cleanLine: string, suffix: string): boolean {
+    return this._sessionTracker.appendSuffix(cleanLine, suffix);
+  }
+
   deleteSessionFile(): boolean {
     return this._sessionTracker.deleteSessionFile();
   }
