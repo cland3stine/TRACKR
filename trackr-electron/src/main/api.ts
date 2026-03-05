@@ -19,6 +19,7 @@ import { Server } from 'http';
 
 import { EM_DASH } from './cleaner';
 import { TrackrConfig, OverlayStyle, OutputRootResolution, DEFAULT_OVERLAY_STYLE } from './store';
+import { EnrichmentResult } from './enrichment/types';
 
 // ─── types ───────────────────────────────────────────────────────────────────
 
@@ -51,6 +52,8 @@ export interface ApiDeps {
 
   // data
   resetPlayCounts:   () => void;
+  getEnrichment:     () => EnrichmentResult | null;
+  getArtPath:        (filename: string) => string | null;
 
   // output root
   resolveOutputRoot: () => OutputRootResolution;
@@ -93,6 +96,13 @@ function configToApi(cfg: TrackrConfig): Record<string, unknown> {
     api_port:                  cfg.apiPort,
     start_with_windows:        cfg.startWithWindows,
     start_in_tray:             cfg.startInTray,
+    enrichment_enabled:        cfg.enrichment.enabled,
+    enrichment_beatport_username: cfg.enrichment.beatportUsername,
+    api_enrichment_send_year:  cfg.apiEnrichment.sendYear,
+    api_enrichment_send_label: cfg.apiEnrichment.sendLabel,
+    api_enrichment_send_art:   cfg.apiEnrichment.sendArt,
+    tracklist_include_year:    cfg.tracklistFormat.includeYear,
+    tracklist_include_label:   cfg.tracklistFormat.includeLabel,
   };
 }
 
@@ -109,6 +119,27 @@ function apiBodyToConfigPartial(raw: Record<string, unknown>): Record<string, un
   if ('api_port'                 in raw) out.apiPort                = raw.api_port;
   if ('start_with_windows'       in raw) out.startWithWindows       = raw.start_with_windows;
   if ('start_in_tray'            in raw) out.startInTray            = raw.start_in_tray;
+
+  // Enrichment config — nested under store's `enrichment` key
+  const enrichmentUpdates: Record<string, unknown> = {};
+  if ('enrichment_enabled'           in raw) enrichmentUpdates.enabled          = raw.enrichment_enabled;
+  if ('enrichment_beatport_username' in raw) enrichmentUpdates.beatportUsername  = raw.enrichment_beatport_username;
+  if ('enrichment_beatport_password' in raw) enrichmentUpdates.beatportPassword  = raw.enrichment_beatport_password;
+  if (Object.keys(enrichmentUpdates).length > 0) out.enrichment = enrichmentUpdates;
+
+  // API enrichment send flags
+  const apiEnrichmentUpdates: Record<string, unknown> = {};
+  if ('api_enrichment_send_year'  in raw) apiEnrichmentUpdates.sendYear  = raw.api_enrichment_send_year;
+  if ('api_enrichment_send_label' in raw) apiEnrichmentUpdates.sendLabel = raw.api_enrichment_send_label;
+  if ('api_enrichment_send_art'   in raw) apiEnrichmentUpdates.sendArt   = raw.api_enrichment_send_art;
+  if (Object.keys(apiEnrichmentUpdates).length > 0) out.apiEnrichment = apiEnrichmentUpdates;
+
+  // Tracklist format
+  const tracklistUpdates: Record<string, unknown> = {};
+  if ('tracklist_include_year'  in raw) tracklistUpdates.includeYear  = raw.tracklist_include_year;
+  if ('tracklist_include_label' in raw) tracklistUpdates.includeLabel = raw.tracklist_include_label;
+  if (Object.keys(tracklistUpdates).length > 0) out.tracklistFormat = tracklistUpdates;
+
   return out;
 }
 
@@ -184,6 +215,7 @@ function buildApp(deps: ApiDeps): Express {
   // ── GET /trackr ──────────────────────────────────────────────────────────
   app.get('/trackr', (_req: Request, res: Response) => {
     const [current, previous] = readOverlayLines(deps.overlayTxtPath());
+    const cfg = deps.getConfig();
     const payload: Record<string, unknown> = {
       current,
       previous,
@@ -192,6 +224,20 @@ function buildApp(deps: ApiDeps): Express {
       device_count:  deps.deviceCount(),
     };
     payload.play_count = deps.playCount();
+
+    // Enrichment data — filtered by apiEnrichment send flags
+    const enrichment = deps.getEnrichment();
+    if (enrichment && enrichment.status === 'complete') {
+      const e: Record<string, unknown> = { source: enrichment.source, status: enrichment.status };
+      if (cfg.apiEnrichment.sendYear  && enrichment.year)   e.year  = enrichment.year;
+      if (cfg.apiEnrichment.sendLabel && enrichment.label)  e.label = enrichment.label;
+      if (cfg.apiEnrichment.sendArt   && enrichment.artFilename) e.art_url = '/art/current';
+      if (enrichment.genre) e.genre = enrichment.genre;
+      if (enrichment.bpm)   e.bpm   = enrichment.bpm;
+      if (enrichment.key)   e.key   = enrichment.key;
+      payload.enrichment = e;
+    }
+
     res.json(payload);
   });
 
@@ -293,6 +339,15 @@ function buildApp(deps: ApiDeps): Express {
     } catch (err) {
       res.status(400).json({ ok: false, error: { code: 'set_style_failed', message: String(err) } });
     }
+  });
+
+  // ── GET /art/current ──────────────────────────────────────────────────────
+  app.get('/art/current', (_req: Request, res: Response) => {
+    const enrichment = deps.getEnrichment();
+    if (!enrichment?.artFilename) { res.sendStatus(404); return; }
+    const artPath = deps.getArtPath(enrichment.artFilename);
+    if (!artPath) { res.sendStatus(404); return; }
+    res.sendFile(artPath);
   });
 
   // ── GET /output-root/resolve ───────────────────────────────────────────────

@@ -3,18 +3,6 @@ trackr-electron/node_modules/
 trackr-electron/dist/
 trackr-electron/release/
 
-# Keep Electron app source tracked
-!trackr-electron/src/
-!trackr-electron/src/**
-
-# Keep Electron app assets tracked (icon.ico etc)
-!trackr-electron/assets/
-!trackr-electron/assets/**
-
-# Keep Electron NSIS installer scripts tracked
-!trackr-electron/build/
-!trackr-electron/build/**
-
 # Phase 0 prolink-connect test project
 trackr-prolink-test/node_modules/
 
@@ -41,3 +29,15 @@ gradlew
 gradlew.bat
 settings.gradle
 SPEC_NOWPLAYINGLITE_CODEX.md
+
+# Re-include Electron app source (must come AFTER the generic src/ rule)
+!trackr-electron/src/
+!trackr-electron/src/**
+
+# Keep Electron app assets tracked (icon.ico etc)
+!trackr-electron/assets/
+!trackr-electron/assets/**
+
+# Keep Electron NSIS installer scripts tracked
+!trackr-electron/build/
+!trackr-electron/build/**

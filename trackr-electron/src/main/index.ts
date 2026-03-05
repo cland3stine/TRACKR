@@ -36,6 +36,12 @@ import {
 import { startApiServer, stopApiServer, ApiDeps } from './api';
 import { createTray, refreshTray, destroyTray, TrayCallbacks } from './tray';
 import { autoUpdater } from 'electron-updater';
+import {
+  splitTrackLine, enrichTrack, initEnrichment, resetEnrichmentSession,
+  testConnection, rowToResult,
+} from './enrichment/enricher';
+import { ArtCache } from './enrichment/art-cache';
+import { EnrichmentResult } from './enrichment/types';
 
 // Enforce single instance — second launch focuses the existing window.
 const gotLock = app.requestSingleInstanceLock();
@@ -47,6 +53,7 @@ let mainWindow:    BrowserWindow  | null = null;
 let _tray:         Tray           | null = null;
 let db:            TrackrDatabase | null = null;
 let outputWriter:  OutputWriter   | null = null;
+let artCache:      ArtCache       | null = null;
 let _isRunning = false;
 let _lastPublishedLine: string | null = null;
 let _lastTrackPlayCount = 0;   // per-track lifetime play count for badge
@@ -64,7 +71,8 @@ function maybePurgeShortSession(): void {
   if (entries.length === 0 || entries.length >= SHORT_SESSION_THRESHOLD) return;
 
   for (const entry of entries) {
-    db.decrementTrackPlayCount(entry.line);
+    const parts = splitTrackLine(entry.line);
+    if (parts) db.decrementTrackPlayCount(parts[0], parts[1]);
   }
 
   const deleted = outputWriter.deleteSessionFile();
@@ -110,6 +118,7 @@ function buildTrayCallbacks(): TrayCallbacks {
       _lastTrackPlayCount = 0;
       resetLastPublished();
       enableFastFirstTrack();
+      resetEnrichmentSession();
       _sessionVersion++;
       emit('trackr:session-started', { sessionFile });
     },
@@ -180,6 +189,7 @@ function buildApiDeps(): ApiDeps {
       _lastTrackPlayCount = 0;
       resetLastPublished();
       enableFastFirstTrack();
+      resetEnrichmentSession();
       _sessionVersion++;
       emit('trackr:session-started', { sessionFile });
       return { ok: true, sessionFile };
@@ -194,6 +204,17 @@ function buildApiDeps(): ApiDeps {
     },
 
     resetPlayCounts: () => { db?.resetAllPlayCounts(); },
+
+    getEnrichment: () => {
+      if (!db || !_lastPublishedLine) return null;
+      const parts = splitTrackLine(_lastPublishedLine);
+      if (!parts) return null;
+      const row = db.getTrack(parts[0], parts[1]);
+      if (!row || row.enrichment_status !== 'complete') return null;
+      return rowToResult(row);
+    },
+
+    getArtPath: (filename: string) => artCache?.getFullPath(filename) ?? null,
 
     resolveOutputRoot,
     chooseOutputRoot: (choice) => {
@@ -218,12 +239,15 @@ function initModules(outputRoot: string): void {
   db?.close();
   db            = new TrackrDatabase(path.join(outputRoot, 'trackr.db'));
   outputWriter  = new OutputWriter(outputRoot, config.timestampsEnabled, config.delaySeconds);
+  artCache      = new ArtCache(outputRoot);
 
   // Session + overlay must be ready before the API can serve /trackr
   outputWriter.ensureOverlayExists();
   outputWriter.startNewSession();
   resetLastPublished();
   enableFastFirstTrack();
+  resetEnrichmentSession();
+  if (getConfig().enrichment.artOverlayEnabled) artCache.clearOverlay();
   _sessionVersion++;
 
   _isRunning = true;
@@ -240,9 +264,32 @@ function handlePublish(line: string, deviceId: number, publishedAt: number): voi
   }
 
   outputWriter.writeOverlay(line);
-  const entry     = outputWriter.appendTrack(line, publishedAt);
-  db.incrementPlayCount();                              // session counter
-  const playCount = db.incrementTrackPlayCount(line);   // per-track lifetime count (badge)
+  const entry = outputWriter.appendTrack(line, publishedAt);
+  db.incrementPlayCount();                                          // session counter
+
+  // Split for per-track operations (artist, title)
+  const parts = splitTrackLine(line);
+  let playCount = 0;
+  if (parts) {
+    const [artist, title] = parts;
+    playCount = db.incrementTrackPlayCount(artist, title);     // per-track lifetime count (badge)
+
+    // Art overlay: try cached art immediately (for repeat plays)
+    const artOverlay = getConfig().enrichment.artOverlayEnabled;
+    if (artOverlay && artCache) {
+      if (!artCache.copyToOverlay(artist, title)) artCache.clearOverlay();
+    }
+
+    // Fire enrichment asynchronously — never blocks publishing
+    enrichTrack(db, line, artCache, (result) => {
+      emit('trackr:enrichment-update', { line, ...result });
+      // Art may have just been downloaded — copy to overlay
+      if (artOverlay && artCache && result.artFilename) {
+        artCache.copyToOverlay(artist, title);
+      }
+    }).catch(err => console.warn('[main] enrichTrack error:', err));
+  }
+
   _lastTrackPlayCount = playCount;
   _lastPublishedLine = line;
 
@@ -349,6 +396,7 @@ function registerIpc(): void {
     _lastPublishedLine = null;
     resetLastPublished();
     enableFastFirstTrack();
+    resetEnrichmentSession();
     _sessionVersion++;
     emit('trackr:session-started', { sessionFile });
     return { ok: true, sessionFile };
@@ -384,6 +432,9 @@ function registerIpc(): void {
       apiPort:              config.apiPort,
     };
   });
+
+  // ── Enrichment ─────────────────────────────────────────────────────────────
+  ipcMain.handle('enrichment:test-connection', () => testConnection());
 
   // ── Updater ────────────────────────────────────────────────────────────────
   autoUpdater.autoDownload = true;
@@ -442,6 +493,9 @@ app.whenReady().then(() => {
   // return safe defaults (null session, zero play count, etc.).
   ensureApiServer();
 
+  // Load stored Beatport token (if valid) so first enrichment call doesn't re-auth
+  initEnrichment();
+
   setPublishCallback(handlePublish);
   setPublishDelay(getConfig().delaySeconds * 1000);
 
@@ -456,6 +510,7 @@ app.whenReady().then(() => {
     _lastPublishedLine = null;
     resetLastPublished();
     enableFastFirstTrack();
+    resetEnrichmentSession();
     _sessionVersion++;
     emit('trackr:session-started', { sessionFile });
     refreshTray(buildTrayCallbacks());

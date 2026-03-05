@@ -1,13 +1,33 @@
 /**
- * TRACKR Phase 3E — SQLite Database
+ * TRACKR — SQLite Database
  *
- * Port of python/trackr/db.py.
- * Stores play count and key-value preferences using better-sqlite3 (synchronous).
+ * Stores play counts, enrichment data, and key-value preferences using better-sqlite3.
+ * The `tracks` table is the unified store for per-track play counts AND enrichment metadata.
  */
 
 import Database from 'better-sqlite3';
 import { mkdirSync } from 'fs';
 import { dirname } from 'path';
+
+export interface TrackRow {
+  id: number;
+  artist: string;
+  title: string;
+  year: number | null;
+  label: string | null;
+  genre: string | null;
+  bpm: number | null;
+  key_name: string | null;
+  art_filename: string | null;
+  art_url: string | null;
+  source: string | null;
+  enrichment_status: string;
+  first_played: string;
+  last_played: string;
+  play_count: number;
+  created_at: string;
+  updated_at: string;
+}
 
 export class TrackrDatabase {
   private _db: Database.Database;
@@ -23,6 +43,8 @@ export class TrackrDatabase {
     this._db.close();
   }
 
+  // ─── session counter ────────────────────────────────────────────────────────
+
   getPlayCount(): number {
     const row = this._db
       .prepare("SELECT value FROM counters WHERE name = 'play_count'")
@@ -37,43 +59,100 @@ export class TrackrDatabase {
     return this.getPlayCount();
   }
 
-  /** Increment and return the per-track play count (persists across sessions). */
-  incrementTrackPlayCount(trackLine: string): number {
-    this._db
-      .prepare(
-        'INSERT INTO track_plays (track_line, play_count) VALUES (?, 1) ' +
-        'ON CONFLICT(track_line) DO UPDATE SET play_count = play_count + 1',
-      )
-      .run(trackLine);
+  // ─── per-track play counts (via tracks table) ──────────────────────────────
+
+  /**
+   * Increment and return the per-track play count.
+   * Inserts a new row if the track doesn't exist yet (with pending enrichment).
+   * Returns the updated play count.
+   */
+  incrementTrackPlayCount(artist: string, title: string): number {
+    const now = new Date().toISOString();
+    this._db.prepare(`
+      INSERT INTO tracks (artist, title, first_played, last_played, play_count)
+      VALUES (?, ?, ?, ?, 1)
+      ON CONFLICT(artist, title) DO UPDATE SET
+        play_count = play_count + 1,
+        last_played = ?,
+        updated_at = ?
+    `).run(artist, title, now, now, now, now);
+
     const row = this._db
-      .prepare('SELECT play_count FROM track_plays WHERE track_line = ?')
-      .get(trackLine) as { play_count: number } | undefined;
+      .prepare('SELECT play_count FROM tracks WHERE artist = ? AND title = ?')
+      .get(artist, title) as { play_count: number } | undefined;
     return row?.play_count ?? 1;
   }
 
   /** Get the play count for a specific track (0 if never played). */
-  getTrackPlayCount(trackLine: string): number {
+  getTrackPlayCount(artist: string, title: string): number {
     const row = this._db
-      .prepare('SELECT play_count FROM track_plays WHERE track_line = ?')
-      .get(trackLine) as { play_count: number } | undefined;
+      .prepare('SELECT play_count FROM tracks WHERE artist = ? AND title = ?')
+      .get(artist, title) as { play_count: number } | undefined;
     return row?.play_count ?? 0;
   }
 
-  /** Decrement a track's lifetime play count by 1. Deletes the row if count reaches 0. */
-  decrementTrackPlayCount(trackLine: string): void {
+  /** Decrement a track's play count by 1. Deletes the row if count reaches 0. */
+  decrementTrackPlayCount(artist: string, title: string): void {
     this._db.prepare(
-      'UPDATE track_plays SET play_count = play_count - 1 WHERE track_line = ? AND play_count > 0'
-    ).run(trackLine);
+      'UPDATE tracks SET play_count = play_count - 1 WHERE artist = ? AND title = ? AND play_count > 0'
+    ).run(artist, title);
     this._db.prepare(
-      'DELETE FROM track_plays WHERE track_line = ? AND play_count <= 0'
-    ).run(trackLine);
+      'DELETE FROM tracks WHERE artist = ? AND title = ? AND play_count <= 0'
+    ).run(artist, title);
   }
 
-  /** Delete all per-track play counts and reset the global session counter. */
+  /** Delete all tracks and reset the global session counter. */
   resetAllPlayCounts(): void {
-    this._db.exec("DELETE FROM track_plays");
+    this._db.exec("DELETE FROM tracks");
     this._db.prepare("UPDATE counters SET value = 0 WHERE name = 'play_count'").run();
   }
+
+  // ─── enrichment ─────────────────────────────────────────────────────────────
+
+  /** Get a track row by artist + title. Returns null if not found. */
+  getTrack(artist: string, title: string): TrackRow | null {
+    return (this._db
+      .prepare('SELECT * FROM tracks WHERE artist = ? AND title = ?')
+      .get(artist, title) as TrackRow) ?? null;
+  }
+
+  /** Update enrichment fields for an existing track. */
+  updateEnrichment(
+    artist: string,
+    title: string,
+    fields: {
+      year?: number;
+      label?: string;
+      genre?: string;
+      bpm?: number;
+      key_name?: string;
+      art_filename?: string;
+      art_url?: string;
+      source?: string;
+      enrichment_status?: string;
+    },
+  ): void {
+    const sets: string[] = [];
+    const values: unknown[] = [];
+
+    for (const [key, val] of Object.entries(fields)) {
+      if (val !== undefined) {
+        sets.push(`${key} = ?`);
+        values.push(val);
+      }
+    }
+    if (sets.length === 0) return;
+
+    sets.push('updated_at = ?');
+    values.push(new Date().toISOString());
+    values.push(artist, title);
+
+    this._db.prepare(
+      `UPDATE tracks SET ${sets.join(', ')} WHERE artist = ? AND title = ?`
+    ).run(...values);
+  }
+
+  // ─── preferences ────────────────────────────────────────────────────────────
 
   getPref(key: string): string | null {
     const row = this._db
@@ -91,6 +170,8 @@ export class TrackrDatabase {
       .run(key, value);
   }
 
+  // ─── schema ─────────────────────────────────────────────────────────────────
+
   private _initSchema(): void {
     this._db.exec(`
       CREATE TABLE IF NOT EXISTS counters (
@@ -101,10 +182,30 @@ export class TrackrDatabase {
         key   TEXT PRIMARY KEY,
         value TEXT NOT NULL
       );
-      CREATE TABLE IF NOT EXISTS track_plays (
-        track_line  TEXT PRIMARY KEY,
-        play_count  INTEGER NOT NULL DEFAULT 0
+      CREATE TABLE IF NOT EXISTS tracks (
+        id                INTEGER PRIMARY KEY AUTOINCREMENT,
+        artist            TEXT NOT NULL,
+        title             TEXT NOT NULL,
+        year              INTEGER,
+        label             TEXT,
+        genre             TEXT,
+        bpm               REAL,
+        key_name          TEXT,
+        art_filename      TEXT,
+        art_url           TEXT,
+        source            TEXT DEFAULT 'beatport',
+        enrichment_status TEXT DEFAULT 'pending',
+        first_played      TIMESTAMP NOT NULL,
+        last_played       TIMESTAMP NOT NULL,
+        play_count        INTEGER DEFAULT 1,
+        created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(artist, title)
       );
+      CREATE INDEX IF NOT EXISTS idx_tracks_artist ON tracks(artist);
+      CREATE INDEX IF NOT EXISTS idx_tracks_label ON tracks(label);
+      CREATE INDEX IF NOT EXISTS idx_tracks_year ON tracks(year);
+      CREATE INDEX IF NOT EXISTS idx_tracks_genre ON tracks(genre);
       INSERT OR IGNORE INTO counters (name, value) VALUES ('play_count', 0);
     `);
   }

@@ -41,6 +41,52 @@ export const DEFAULT_OVERLAY_STYLE: OverlayStyle = {
   lineGap:          14,
 };
 
+export interface EnrichmentConfig {
+  enabled:               boolean;
+  beatportUsername:       string;
+  beatportPassword:       string;
+  beatportToken:         string;
+  beatportRefreshToken:  string;
+  beatportTokenExpiresAt: number;  // epoch ms
+  beatportClientId:      string;
+  artOverlayEnabled:     boolean;
+  timeoutMs:             number;
+}
+
+export interface TracklistFormatConfig {
+  includeYear:  boolean;
+  includeLabel: boolean;
+}
+
+export interface ApiEnrichmentConfig {
+  sendYear:  boolean;
+  sendLabel: boolean;
+  sendArt:   boolean;
+}
+
+export const DEFAULT_ENRICHMENT: EnrichmentConfig = {
+  enabled:               false,
+  beatportUsername:       '',
+  beatportPassword:      '',
+  beatportToken:         '',
+  beatportRefreshToken:  '',
+  beatportTokenExpiresAt: 0,
+  beatportClientId:      '',
+  artOverlayEnabled:     false,
+  timeoutMs:             5000,
+};
+
+export const DEFAULT_TRACKLIST_FORMAT: TracklistFormatConfig = {
+  includeYear:  false,
+  includeLabel: false,
+};
+
+export const DEFAULT_API_ENRICHMENT: ApiEnrichmentConfig = {
+  sendYear:  true,
+  sendLabel: true,
+  sendArt:   true,
+};
+
 export interface TrackrConfig {
   outputRoot:            string;  // '' = not set
   migrationPromptSeen:   boolean;
@@ -53,6 +99,9 @@ export interface TrackrConfig {
   startWithWindows:      boolean;
   startInTray:           boolean;
   overlayStyle:          OverlayStyle;
+  enrichment:            EnrichmentConfig;
+  tracklistFormat:       TracklistFormatConfig;
+  apiEnrichment:         ApiEnrichmentConfig;
 }
 
 export interface OutputRootResolution {
@@ -77,6 +126,9 @@ interface StoreType {
   startWithWindows:         boolean;
   startInTray:              boolean;
   overlayStyle:             OverlayStyle;
+  enrichment:               EnrichmentConfig;
+  tracklistFormat:          TracklistFormatConfig;
+  apiEnrichment:            ApiEnrichmentConfig;
   _migrationFromPythonDone: boolean;
 }
 
@@ -92,6 +144,9 @@ const DEFAULTS: StoreType = {
   startWithWindows:         false,
   startInTray:              false,
   overlayStyle:             { ...DEFAULT_OVERLAY_STYLE },
+  enrichment:               { ...DEFAULT_ENRICHMENT },
+  tracklistFormat:          { ...DEFAULT_TRACKLIST_FORMAT },
+  apiEnrichment:            { ...DEFAULT_API_ENRICHMENT },
   _migrationFromPythonDone: false,
 };
 
@@ -161,6 +216,9 @@ function _rawToConfig(raw: StoreType): TrackrConfig {
     startWithWindows:     raw.startWithWindows,
     startInTray:          raw.startInTray,
     overlayStyle:         { ...DEFAULT_OVERLAY_STYLE, ...raw.overlayStyle },
+    enrichment:           { ...DEFAULT_ENRICHMENT, ...raw.enrichment },
+    tracklistFormat:      { ...DEFAULT_TRACKLIST_FORMAT, ...raw.tracklistFormat },
+    apiEnrichment:        { ...DEFAULT_API_ENRICHMENT, ...raw.apiEnrichment },
   };
 }
 
@@ -186,7 +244,21 @@ export function setConfig(partial: Partial<TrackrConfig>): void {
     if (s.dropShadowY  != null && (s.dropShadowY < 0 || s.dropShadowY > 20)) throw new Error('dropShadowY must be 0–20');
     if (s.dropShadowBlur != null && (s.dropShadowBlur < 0 || s.dropShadowBlur > 20)) throw new Error('dropShadowBlur must be 0–20');
   }
-  getStore().set(partial as Partial<StoreType>);
+
+  // Deep-merge nested config objects so partial updates don't wipe stored values
+  // (e.g., updating enrichment.enabled must not erase the stored Beatport token)
+  const store = getStore();
+  if (partial.enrichment) {
+    partial.enrichment = { ...store.get('enrichment'), ...partial.enrichment } as EnrichmentConfig;
+  }
+  if (partial.apiEnrichment) {
+    partial.apiEnrichment = { ...store.get('apiEnrichment'), ...partial.apiEnrichment } as ApiEnrichmentConfig;
+  }
+  if (partial.tracklistFormat) {
+    partial.tracklistFormat = { ...store.get('tracklistFormat'), ...partial.tracklistFormat } as TracklistFormatConfig;
+  }
+
+  store.set(partial as Partial<StoreType>);
 }
 
 export function getEffectiveBindHost(): string {

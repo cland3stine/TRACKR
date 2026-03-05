@@ -322,6 +322,11 @@ export default function TRACKR() {
   const [deviceCount, setDeviceCount] = useState(0);
   const [devices, setDevices] = useState([]);
   const [updateStatus, setUpdateStatus] = useState({ state: "idle" });
+  const [enrichmentEnabled, setEnrichmentEnabled] = useState(false);
+  const [beatportUsername, setBeatportUsername] = useState("");
+  const [beatportPassword, setBeatportPassword] = useState("");
+  const [beatportConnStatus, setBeatportConnStatus] = useState(null); // null | "testing" | {ok, message}
+  const [artOverlayEnabled, setArtOverlayEnabled] = useState(false);
   const tracklistRef = useRef(null);
   const timerRef = useRef(null);
   const coreRef = useRef(null);
@@ -438,6 +443,17 @@ export default function TRACKR() {
       }
       await refreshFromCore();
       await reloadStyle();
+
+      // Load enrichment config via IPC (includes password, not exposed via HTTP)
+      try {
+        const cfg = await window.electronAPI.invoke("config:get");
+        if (cfg?.enrichment) {
+          setEnrichmentEnabled(cfg.enrichment.enabled || false);
+          setBeatportUsername(cfg.enrichment.beatportUsername || "");
+          setBeatportPassword(cfg.enrichment.beatportPassword || "");
+          setArtOverlayEnabled(cfg.enrichment.artOverlayEnabled || false);
+        }
+      } catch (_) { /* non-critical */ }
 
       const subRes = await callCore("subscribe_events", (event) => {
         if (!mounted || !event) return;
@@ -683,7 +699,37 @@ export default function TRACKR() {
     [isRunning, addToast]
   );
 
-  
+  const handleEnrichmentToggle = useCallback(async (next) => {
+    setEnrichmentEnabled(next);
+    await window.electronAPI.invoke("config:set", { enrichment: { enabled: next } });
+  }, []);
+
+  const handleBeatportCredentialsSave = useCallback(async () => {
+    await window.electronAPI.invoke("config:set", {
+      enrichment: { beatportUsername: beatportUsername, beatportPassword: beatportPassword },
+    });
+    addToast("Beatport credentials saved", "success");
+  }, [beatportUsername, beatportPassword, addToast]);
+
+  const handleTestBeatportConnection = useCallback(async () => {
+    setBeatportConnStatus("testing");
+    // Save credentials first so the test uses them
+    await window.electronAPI.invoke("config:set", {
+      enrichment: { beatportUsername: beatportUsername, beatportPassword: beatportPassword },
+    });
+    try {
+      const result = await window.electronAPI.invoke("enrichment:test-connection");
+      setBeatportConnStatus(result);
+    } catch (err) {
+      setBeatportConnStatus({ ok: false, message: err?.message || "Unknown error" });
+    }
+  }, [beatportUsername, beatportPassword]);
+
+  const handleArtOverlayToggle = useCallback(async (next) => {
+    setArtOverlayEnabled(next);
+    await window.electronAPI.invoke("config:set", { enrichment: { artOverlayEnabled: next } });
+  }, []);
+
   const formatAgo = (s) => (s < 60 ? `${s}s ago` : `${Math.floor(s / 60)}m ${s % 60}s ago`);
 
   // ─── TABS ─────────────────────────────────────────────────────────────────
@@ -1570,6 +1616,99 @@ export default function TRACKR() {
                       >
                         COPY
                       </Btn>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Beatport Enrichment */}
+                <div
+                  style={{ borderTop: `1px solid ${C.borderRack}`, paddingTop: 16, marginBottom: 20 }}
+                >
+                  <span
+                    style={{
+                      ...font(8, 700),
+                      color: C.textMuted,
+                      letterSpacing: 2.5,
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    BEATPORT ENRICHMENT
+                  </span>
+                  <div style={{ marginTop: 8 }}>
+                    <Toggle label="Enable metadata enrichment" on={enrichmentEnabled} onChange={handleEnrichmentToggle} />
+                    <div style={{ ...font(9, 400), color: C.textMuted, marginTop: 2, marginBottom: 14 }}>
+                      Fetches year, label, genre, BPM, key, and album art from Beatport for each published track.
+                    </div>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8, opacity: enrichmentEnabled ? 1 : 0.4 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ ...font(11, 500), color: C.textDim, minWidth: 80 }}>Username</span>
+                        <input
+                          type="text"
+                          value={beatportUsername}
+                          onChange={(e) => setBeatportUsername(e.target.value)}
+                          onBlur={handleBeatportCredentialsSave}
+                          disabled={!enrichmentEnabled}
+                          placeholder="Beatport email"
+                          style={{
+                            flex: 1,
+                            ...font(10, 400),
+                            color: C.textPrimary,
+                            background: C.bgInset,
+                            border: `1px solid ${C.borderRack}`,
+                            borderRadius: 3,
+                            padding: "7px 10px",
+                            outline: "none",
+                          }}
+                        />
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ ...font(11, 500), color: C.textDim, minWidth: 80 }}>Password</span>
+                        <input
+                          type="password"
+                          value={beatportPassword}
+                          onChange={(e) => setBeatportPassword(e.target.value)}
+                          onBlur={handleBeatportCredentialsSave}
+                          disabled={!enrichmentEnabled}
+                          placeholder="Beatport password"
+                          style={{
+                            flex: 1,
+                            ...font(10, 400),
+                            color: C.textPrimary,
+                            background: C.bgInset,
+                            border: `1px solid ${C.borderRack}`,
+                            borderRadius: 3,
+                            padding: "7px 10px",
+                            outline: "none",
+                          }}
+                        />
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4 }}>
+                        <Btn
+                          color={C.cyan}
+                          disabled={!enrichmentEnabled || !beatportUsername || !beatportPassword || beatportConnStatus === "testing"}
+                          onClick={handleTestBeatportConnection}
+                        >
+                          {beatportConnStatus === "testing" ? "TESTING..." : "TEST CONNECTION"}
+                        </Btn>
+                        {beatportConnStatus && beatportConnStatus !== "testing" && (
+                          <span style={{ ...font(9, 400), color: beatportConnStatus.ok ? C.green : C.red }}>
+                            {beatportConnStatus.message}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div style={{ marginTop: 14, borderTop: `1px solid ${C.borderRack}30`, paddingTop: 10 }}>
+                      <Toggle
+                        label="Album art overlay"
+                        on={artOverlayEnabled}
+                        onChange={handleArtOverlayToggle}
+                        disabled={!enrichmentEnabled}
+                      />
+                      <div style={{ ...font(9, 400), color: C.textMuted, marginTop: 2 }}>
+                        Writes album art to overlay/albumart.jpg for OBS. Off by default.
+                      </div>
                     </div>
                   </div>
                 </div>
