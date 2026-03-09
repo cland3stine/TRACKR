@@ -59,6 +59,7 @@ let _lastPublishedLine: string | null = null;
 let _lastTrackPlayCount = 0;   // per-track lifetime play count for badge
 let _sessionVersion = 0;       // increments on every new session
 let _forceQuit = false;  // set by tray "Quit" to allow real exit
+let _currentSessionId: number | null = null;  // active session in DB
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -75,10 +76,28 @@ function maybePurgeShortSession(): void {
     if (parts) db.decrementTrackPlayCount(parts[0], parts[1]);
   }
 
+  // Also purge the session from the DB
+  if (_currentSessionId !== null) {
+    db.deleteSession(_currentSessionId);
+    _currentSessionId = null;
+  }
+
   const deleted = outputWriter.deleteSessionFile();
   if (deleted) {
     console.log(`[main] Purged short session (${entries.length} track${entries.length === 1 ? '' : 's'})`);
   }
+}
+
+/** End the current DB session and start a new one. */
+function rotateDbSession(sessionFile: string | null): void {
+  if (!db) return;
+  if (_currentSessionId !== null) {
+    db.endSession(_currentSessionId);
+  }
+  _currentSessionId = db.createSession(sessionFile);
+  // Clean up any short sessions (< 3 tracks) left from previous runs, excluding current
+  const purged = db.purgeShortSessions(SHORT_SESSION_THRESHOLD, _currentSessionId);
+  if (purged > 0) console.log(`[main] Purged ${purged} short session(s) from DB`);
 }
 
 /** Build a tracklist suffix like " [Label, 2024]" from enrichment data. */
@@ -130,6 +149,7 @@ function buildTrayCallbacks(): TrayCallbacks {
       enableFastFirstTrack();
       resetEnrichmentSession();
       _sessionVersion++;
+      rotateDbSession(sessionFile);
       emit('trackr:session-started', { sessionFile });
     },
     onStartStop: () => {
@@ -201,6 +221,7 @@ function buildApiDeps(): ApiDeps {
       enableFastFirstTrack();
       resetEnrichmentSession();
       _sessionVersion++;
+      rotateDbSession(sessionFile);
       emit('trackr:session-started', { sessionFile });
       return { ok: true, sessionFile };
     },
@@ -253,12 +274,13 @@ function initModules(outputRoot: string): void {
 
   // Session + overlay must be ready before the API can serve /trackr
   outputWriter.ensureOverlayExists();
-  outputWriter.startNewSession();
+  const initSessionFile = outputWriter.startNewSession();
   resetLastPublished();
   enableFastFirstTrack();
   resetEnrichmentSession();
   if (getConfig().enrichment.artOverlayEnabled) artCache.clearOverlay();
   _sessionVersion++;
+  rotateDbSession(initSessionFile);
 
   _isRunning = true;
   emit('trackr:state', { state: 'running', outputRoot });
@@ -283,6 +305,11 @@ function handlePublish(line: string, deviceId: number, publishedAt: number): voi
   if (parts) {
     const [artist, title] = parts;
     playCount = db.incrementTrackPlayCount(artist, title);     // per-track lifetime count (badge)
+
+    // Record in session history
+    if (_currentSessionId !== null) {
+      db.addSessionTrack(_currentSessionId, artist, title, new Date(publishedAt * 1000).toISOString());
+    }
 
     // Art overlay: try cached art immediately (for repeat plays)
     const artOverlay = getConfig().enrichment.artOverlayEnabled;
@@ -414,6 +441,7 @@ function registerIpc(): void {
     enableFastFirstTrack();
     resetEnrichmentSession();
     _sessionVersion++;
+    rotateDbSession(sessionFile);
     emit('trackr:session-started', { sessionFile });
     return { ok: true, sessionFile };
   });
@@ -455,6 +483,14 @@ function registerIpc(): void {
   });
   ipcMain.handle('db:get-track', (_event, params: { artist: string; title: string }) => {
     return db?.getTrack(params.artist, params.title) ?? null;
+  });
+
+  // ── Session History ──────────────────────────────────────────────────────────
+  ipcMain.handle('db:search-sessions', (_event, params: { limit?: number; offset?: number }) => {
+    return db?.searchSessions(params?.limit, params?.offset) ?? { rows: [], total: 0 };
+  });
+  ipcMain.handle('db:get-session-tracks', (_event, params: { sessionId: number }) => {
+    return db?.getSessionTracks(params.sessionId) ?? [];
   });
 
   // ── Enrichment ─────────────────────────────────────────────────────────────
@@ -529,6 +565,14 @@ app.whenReady().then(() => {
   // resetting if setEnded fires before any tracks were published).
   setOnSetEnded(() => {
     if (!outputWriter || _lastPublishedLine === null) return;
+
+    // Real sessions (3+ tracks) are never auto-reset — manual refresh only
+    const trackCount = outputWriter.getRunningEntries().length;
+    if (trackCount >= SHORT_SESSION_THRESHOLD) {
+      console.log(`[main] Set ended (30s silence) — skipping auto-reset (${trackCount} tracks = real session)`);
+      return;
+    }
+
     maybePurgeShortSession();
     const sessionFile = outputWriter.startNewSession();
     _lastPublishedLine = null;
@@ -536,9 +580,10 @@ app.whenReady().then(() => {
     enableFastFirstTrack();
     resetEnrichmentSession();
     _sessionVersion++;
+    rotateDbSession(sessionFile);
     emit('trackr:session-started', { sessionFile });
     refreshTray(buildTrayCallbacks());
-    console.log('[main] Auto new session — set ended (30s silence)');
+    console.log(`[main] Auto new session — set ended (30s silence, ${trackCount} tracks purged)`);
   });
 
   // System tray

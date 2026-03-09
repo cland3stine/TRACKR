@@ -4,11 +4,13 @@ import { checkForUpdate } from "./updater";
 // ─── DESIGN TOKENS ───────────────────────────────────────────────────────────
 const C = {
   bgDeep: "#0a0a0a",
-  bgPanel: "#131315",
-  bgInset: "#18181b",
-  bgInsetHover: "#1e1e22",
-  borderRack: "#252528",
-  borderFocus: "#333338",
+  bgPanel: "rgba(18, 18, 22, 0.72)",
+  bgPanelSolid: "#131315",
+  bgInset: "rgba(24, 24, 28, 0.6)",
+  bgInsetHover: "rgba(34, 34, 40, 0.7)",
+  borderRack: "rgba(255, 255, 255, 0.06)",
+  borderLight: "rgba(255, 255, 255, 0.09)",
+  borderFocus: "rgba(255, 255, 255, 0.14)",
   textPrimary: "#d0d0d4",
   textDim: "#606068",
   textMuted: "#3a3a40",
@@ -21,6 +23,15 @@ const C = {
   blue: "#4a9eff",
   cyan: "#7fdbca",
   cyanDim: "#2a4a42",
+  // Glass effects
+  glass: "rgba(255, 255, 255, 0.03)",
+  glassHover: "rgba(255, 255, 255, 0.06)",
+  glassBorder: "rgba(255, 255, 255, 0.08)",
+  blur: "blur(20px)",
+  blurLight: "blur(12px)",
+  radius: 14,
+  radiusSm: 10,
+  radiusXs: 6,
 };
 
 const font = (size, weight = 400) => ({
@@ -52,10 +63,15 @@ const RackPanel = ({ label, labelRight, children, style = {} }) => (
   <div
     style={{
       background: C.bgPanel,
-      border: `1px solid ${C.borderRack}`,
-      borderRadius: 6,
+      backdropFilter: C.blur,
+      WebkitBackdropFilter: C.blur,
+      border: `1px solid ${C.glassBorder}`,
+      borderTop: `1px solid ${C.borderLight}`,
+      borderRadius: C.radius,
       padding: 16,
       position: "relative",
+      boxShadow: "0 4px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.04)",
+      transition: "box-shadow 0.3s ease, border-color 0.3s ease",
       ...style,
     }}
   >
@@ -107,27 +123,28 @@ const Toggle = ({ on, onChange, disabled = false, label }) => (
     <span style={{ ...font(11, 500), color: C.textDim }}>{label}</span>
     <div
       style={{
-        width: 36,
-        height: 18,
-        borderRadius: 9,
-        background: on ? `${C.green}30` : C.bgInset,
-        border: `1px solid ${on ? C.green + "60" : C.borderRack}`,
+        width: 38,
+        height: 20,
+        borderRadius: 10,
+        background: on ? `${C.green}25` : C.bgInset,
+        border: `1px solid ${on ? C.green + "50" : C.glassBorder}`,
         position: "relative",
-        transition: "all 0.2s ease",
+        transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
         flexShrink: 0,
+        boxShadow: on ? `0 0 12px ${C.green}15, inset 0 1px 2px rgba(0,0,0,0.2)` : "inset 0 1px 2px rgba(0,0,0,0.2)",
       }}
     >
       <div
         style={{
-          width: 12,
-          height: 12,
+          width: 14,
+          height: 14,
           borderRadius: "50%",
           background: on ? C.green : C.textMuted,
           position: "absolute",
           top: 2,
           left: on ? 20 : 2,
-          transition: "all 0.2s ease",
-          boxShadow: on ? `0 0 6px ${C.green}40` : "none",
+          transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+          boxShadow: on ? `0 0 8px ${C.green}50` : "0 1px 3px rgba(0,0,0,0.3)",
         }}
       />
     </div>
@@ -148,18 +165,21 @@ const Btn = ({ children, color, onClick, disabled, fullWidth, style = {} }) => {
         letterSpacing: 2,
         textTransform: "uppercase",
         color: disabled ? C.textMuted : color === C.red ? "#fff" : C.bgDeep,
-        background: disabled ? C.bgInset : hover ? color + "cc" : color,
-        border: `1px solid ${disabled ? C.borderRack : color}`,
-        borderRadius: 4,
+        background: disabled ? C.bgInset : hover ? color + "dd" : color,
+        border: `1px solid ${disabled ? C.glassBorder : color}`,
+        borderRadius: C.radiusSm,
         padding: "10px 20px",
         cursor: disabled ? "not-allowed" : "pointer",
         width: fullWidth ? "100%" : "auto",
-        transition: "all 0.15s ease",
+        transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         gap: 8,
         opacity: disabled ? 0.4 : 1,
+        boxShadow: disabled ? "none" : hover
+          ? `0 4px 16px ${color}30, 0 0 20px ${color}15`
+          : `0 2px 8px ${color}20`,
         ...style,
       }}
     >
@@ -171,11 +191,11 @@ const Btn = ({ children, color, onClick, disabled, fullWidth, style = {} }) => {
 // ─── STATE BADGE ─────────────────────────────────────────────────────────────
 const StateBadge = ({ state }) => {
   const configs = {
-    running: { bg: C.green + "20", border: C.green + "50", color: C.green, text: "RUNNING", pulse: true },
-    stopped: { bg: C.bgInset, border: C.borderRack, color: C.textMuted, text: "STOPPED", pulse: false },
-    starting: { bg: C.amber + "15", border: C.amber + "40", color: C.amber, text: "STARTING...", pulse: true },
-    stopping: { bg: C.amber + "15", border: C.amber + "40", color: C.amber, text: "STOPPING...", pulse: true },
-    error: { bg: C.red + "20", border: C.red + "50", color: C.red, text: "ERROR", pulse: false },
+    running: { bg: C.green + "18", border: C.green + "40", color: C.green, text: "RUNNING", pulse: true },
+    stopped: { bg: C.bgInset, border: C.glassBorder, color: C.textMuted, text: "STOPPED", pulse: false },
+    starting: { bg: C.amber + "12", border: C.amber + "35", color: C.amber, text: "STARTING...", pulse: true },
+    stopping: { bg: C.amber + "12", border: C.amber + "35", color: C.amber, text: "STOPPING...", pulse: true },
+    error: { bg: C.red + "18", border: C.red + "40", color: C.red, text: "ERROR", pulse: false },
   };
   const c = configs[state] || configs.stopped;
   return (
@@ -184,10 +204,14 @@ const StateBadge = ({ state }) => {
         display: "inline-flex",
         alignItems: "center",
         gap: 7,
-        padding: "4px 12px",
-        borderRadius: 4,
+        padding: "5px 14px",
+        borderRadius: 20,
         background: c.bg,
         border: `1px solid ${c.border}`,
+        backdropFilter: C.blurLight,
+        WebkitBackdropFilter: C.blurLight,
+        boxShadow: state === "running" ? `0 0 16px ${C.green}10` : "none",
+        transition: "all 0.3s ease",
       }}
     >
       <Led color={c.color} size={6} pulse={c.pulse} />
@@ -329,13 +353,21 @@ export default function TRACKR() {
   const [artOverlayEnabled, setArtOverlayEnabled] = useState(false);
   // Live enrichment (current track metadata + art)
   const [liveEnrichment, setLiveEnrichment] = useState(null);
-  // History tab
+  // History tab — Track History sub-tab
+  const [historySubTab, setHistorySubTab] = useState("tracks"); // "tracks" | "sessions"
   const [historyQuery, setHistoryQuery] = useState("");
   const [historyRows, setHistoryRows] = useState([]);
   const [historyTotal, setHistoryTotal] = useState(0);
   const [historyPage, setHistoryPage] = useState(0);
   const [selectedTrack, setSelectedTrack] = useState(null);
   const historyDebounceRef = useRef(null);
+  // History tab — Session History sub-tab
+  const [sessionRows, setSessionRows] = useState([]);
+  const [sessionTotal, setSessionTotal] = useState(0);
+  const [sessionPage, setSessionPage] = useState(0);
+  const [selectedSession, setSelectedSession] = useState(null);
+  const [selectedSessionTracks, setSelectedSessionTracks] = useState([]);
+  const [selectedSessionTrack, setSelectedSessionTrack] = useState(null);
   const tracklistRef = useRef(null);
   const timerRef = useRef(null);
   const coreRef = useRef(null);
@@ -805,10 +837,66 @@ export default function TRACKR() {
 
   const historyPageCount = Math.max(1, Math.ceil(historyTotal / HISTORY_PAGE_SIZE));
 
+  // ─── SESSION HISTORY ──────────────────────────────────────────────────────
+  const SESSION_PAGE_SIZE = 50;
+
+  const loadSessions = useCallback(async (page) => {
+    try {
+      const result = await window.electronAPI.invoke("db:search-sessions", {
+        limit: SESSION_PAGE_SIZE,
+        offset: page * SESSION_PAGE_SIZE,
+      });
+      setSessionRows(result?.rows || []);
+      setSessionTotal(result?.total || 0);
+    } catch {
+      // IPC error
+    }
+  }, []);
+
+  const loadSessionTracks = useCallback(async (sessionId) => {
+    try {
+      const tracks = await window.electronAPI.invoke("db:get-session-tracks", { sessionId });
+      setSelectedSessionTracks(tracks || []);
+    } catch {
+      setSelectedSessionTracks([]);
+    }
+  }, []);
+
+  // Reload sessions when sub-tab becomes active or page changes
+  useEffect(() => {
+    if (activeTab === "history" && historySubTab === "sessions") loadSessions(sessionPage);
+  }, [activeTab, historySubTab, sessionPage, loadSessions]);
+
+  // Load session tracks when a session is selected
+  useEffect(() => {
+    setSelectedSessionTrack(null);
+    if (selectedSession) loadSessionTracks(selectedSession.id);
+    else setSelectedSessionTracks([]);
+  }, [selectedSession, loadSessionTracks]);
+
+  const sessionPageCount = Math.max(1, Math.ceil(sessionTotal / SESSION_PAGE_SIZE));
+
   const formatDate = (iso) => {
-    if (!iso) return "—";
+    if (!iso) return "\u2014";
     const d = new Date(iso);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+
+  const formatDateTime = (iso) => {
+    if (!iso) return "\u2014";
+    const d = new Date(iso);
+    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const time = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    return `${date} ${time}`;
+  };
+
+  const formatDuration = (startIso, endIso) => {
+    if (!startIso || !endIso) return "\u2014";
+    const ms = new Date(endIso) - new Date(startIso);
+    const mins = Math.floor(ms / 60000);
+    const hrs = Math.floor(mins / 60);
+    const rem = mins % 60;
+    return hrs > 0 ? `${hrs}h ${rem}m` : `${mins}m`;
   };
 
   // ─── TABS ─────────────────────────────────────────────────────────────────
@@ -836,10 +924,22 @@ export default function TRACKR() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: ${C.bgInset}; }
-        ::-webkit-scrollbar-thumb { background: ${C.borderRack}; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: ${C.borderFocus}; }
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.14); }
+        input[type="text"], input[type="password"], input[type="number"] {
+          border-radius: ${C.radiusXs}px !important;
+          transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+        }
+        input[type="text"]:focus, input[type="password"]:focus {
+          border-color: ${C.cyan}40 !important;
+          box-shadow: 0 0 12px ${C.cyan}10 !important;
+        }
+        input[type="range"] {
+          height: 4px;
+          border-radius: 2px;
+        }
         @keyframes ledPulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.4; }
@@ -856,6 +956,10 @@ export default function TRACKR() {
           0% { border-left-color: ${C.cyan}; }
           100% { border-left-color: transparent; }
         }
+        @keyframes glassShimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
       `}</style>
 
       {/* ═══ TOP BAR ═══ */}
@@ -863,8 +967,10 @@ export default function TRACKR() {
         {/* Row 1: Status bar */}
         <div
           style={{
-            height: 44,
-            background: C.bgPanel,
+            height: 48,
+            background: "rgba(14, 14, 18, 0.85)",
+            backdropFilter: C.blur,
+            WebkitBackdropFilter: C.blur,
             borderBottom: `1px solid ${C.borderRack}`,
             display: "flex",
             alignItems: "center",
@@ -925,7 +1031,7 @@ export default function TRACKR() {
           <div style={{ width: 1, height: 20, background: C.borderRack }} />
 
           {/* Window controls (decorative) */}
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             {["─", "□", "✕"].map((icon, i) => (
               <span
                 key={i}
@@ -933,12 +1039,18 @@ export default function TRACKR() {
                   ...font(12, 400),
                   color: i === 2 ? C.textDim : C.textMuted,
                   cursor: "pointer",
-                  padding: "2px 4px",
-                  borderRadius: 2,
-                  transition: "color 0.15s",
+                  padding: "4px 6px",
+                  borderRadius: C.radiusXs,
+                  transition: "all 0.2s ease",
                 }}
-                onMouseEnter={(e) => (e.target.style.color = i === 2 ? C.red : C.textPrimary)}
-                onMouseLeave={(e) => (e.target.style.color = i === 2 ? C.textDim : C.textMuted)}
+                onMouseEnter={(e) => {
+                  e.target.style.color = i === 2 ? C.red : C.textPrimary;
+                  e.target.style.background = i === 2 ? `${C.red}15` : C.glass;
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.color = i === 2 ? C.textDim : C.textMuted;
+                  e.target.style.background = "transparent";
+                }}
               >
                 {icon}
               </span>
@@ -949,8 +1061,8 @@ export default function TRACKR() {
         {/* Row 2: Now Playing strip */}
         <div
           style={{
-            minHeight: 36,
-            background: C.bgDeep,
+            minHeight: 40,
+            background: "rgba(8, 8, 10, 0.9)",
             borderBottom: `1px solid ${C.borderRack}`,
             display: "flex",
             alignItems: "center",
@@ -1026,10 +1138,11 @@ export default function TRACKR() {
             flexShrink: 0,
             display: "flex",
             flexDirection: "column",
-            gap: 8,
-            padding: 8,
+            gap: 10,
+            padding: 10,
             overflowY: "auto",
             borderRight: `1px solid ${C.borderRack}`,
+            background: "rgba(8, 8, 10, 0.4)",
           }}
         >
           {/* ── Combined Status + Controls ── */}
@@ -1181,9 +1294,11 @@ export default function TRACKR() {
           <div
             style={{
               display: "flex",
-              gap: 0,
-              padding: "0 8px",
-              background: C.bgPanel,
+              gap: 4,
+              padding: "6px 10px",
+              background: "rgba(14, 14, 18, 0.6)",
+              backdropFilter: C.blurLight,
+              WebkitBackdropFilter: C.blurLight,
               borderBottom: `1px solid ${C.borderRack}`,
               flexShrink: 0,
             }}
@@ -1198,16 +1313,27 @@ export default function TRACKR() {
                     ...font(10, active ? 700 : 500),
                     letterSpacing: 2,
                     color: active ? C.cyan : C.textMuted,
-                    background: "transparent",
+                    background: active ? `${C.cyan}10` : "transparent",
                     border: "none",
-                    borderBottom: active ? `2px solid ${C.cyan}` : "2px solid transparent",
-                    padding: "12px 20px",
+                    borderRadius: C.radiusXs,
+                    padding: "8px 20px",
                     cursor: "pointer",
-                    transition: "all 0.15s",
+                    transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
                     textTransform: "uppercase",
+                    boxShadow: active ? `0 0 12px ${C.cyan}08` : "none",
                   }}
-                  onMouseEnter={(e) => !active && (e.target.style.color = C.textDim)}
-                  onMouseLeave={(e) => !active && (e.target.style.color = C.textMuted)}
+                  onMouseEnter={(e) => {
+                    if (!active) {
+                      e.target.style.color = C.textDim;
+                      e.target.style.background = C.glass;
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!active) {
+                      e.target.style.color = C.textMuted;
+                      e.target.style.background = "transparent";
+                    }
+                  }}
                 >
                   {tab.label}
                 </button>
@@ -1216,7 +1342,7 @@ export default function TRACKR() {
           </div>
 
           {/* Tab content */}
-          <div style={{ flex: 1, overflow: "hidden", padding: 8 }}>
+          <div style={{ flex: 1, overflow: "hidden", padding: 10 }}>
             {/* ─── LIVE TAB ─── */}
             {activeTab === "live" && (
               <RackPanel
@@ -1327,206 +1453,295 @@ export default function TRACKR() {
 
             {/* ─── HISTORY TAB ─── */}
             {activeTab === "history" && (
-              <div style={{ display: "flex", gap: 16, height: "100%", minHeight: 0 }}>
-                {/* ── Table Panel ── */}
-                <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-                  <RackPanel
-                    label="TRACK HISTORY"
-                    labelRight={`${historyTotal} track${historyTotal !== 1 ? "s" : ""}`}
-                    style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}
-                  >
-                    {/* Search */}
-                    <input
-                      type="text"
-                      value={historyQuery}
-                      onChange={(e) => handleHistorySearch(e.target.value)}
-                      placeholder="Search artist, title, label, genre…"
-                      style={{
-                        ...font(11, 400),
-                        color: C.textPrimary,
-                        background: C.bgInset,
-                        border: `1px solid ${C.borderRack}`,
-                        borderRadius: 3,
-                        padding: "8px 12px",
-                        outline: "none",
-                        marginBottom: 12,
-                        width: "100%",
-                        boxSizing: "border-box",
-                      }}
-                    />
-
-                    {/* Table header */}
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "2fr 2fr 1.5fr 50px 50px 60px",
-                        gap: 8,
-                        padding: "0 4px 8px",
-                        borderBottom: `1px solid ${C.borderRack}`,
-                      }}
-                    >
-                      {["ARTIST", "TITLE", "LABEL", "YEAR", "PLAYS", "LAST"].map((h) => (
-                        <span key={h} style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2, textTransform: "uppercase" }}>
-                          {h}
-                        </span>
-                      ))}
-                    </div>
-
-                    {/* Rows */}
-                    <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
-                      {historyRows.length === 0 && (
-                        <div style={{ ...font(11, 400), color: C.textMuted, padding: "24px 4px", textAlign: "center" }}>
-                          {historyQuery ? "No tracks match your search" : "No tracks in history yet"}
-                        </div>
-                      )}
-                      {historyRows.map((row) => {
-                        const isSelected = selectedTrack?.id === row.id;
-                        return (
-                          <div
-                            key={row.id}
-                            onClick={() => setSelectedTrack(isSelected ? null : row)}
-                            style={{
-                              display: "grid",
-                              gridTemplateColumns: "2fr 2fr 1.5fr 50px 50px 60px",
-                              gap: 8,
-                              padding: "6px 4px",
-                              cursor: "pointer",
-                              background: isSelected ? `${C.cyan}12` : "transparent",
-                              borderLeft: isSelected ? `2px solid ${C.cyan}` : "2px solid transparent",
-                              borderBottom: `1px solid ${C.borderRack}30`,
-                              transition: "background 0.15s",
-                            }}
-                            onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = C.bgInsetHover; }}
-                            onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = "transparent"; }}
-                          >
-                            <span style={{ ...font(10, 500), color: C.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {row.artist}
-                            </span>
-                            <span style={{ ...font(10, 400), color: C.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {row.title}
-                            </span>
-                            <span style={{ ...font(10, 400), color: C.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {row.label || "—"}
-                            </span>
-                            <span style={{ ...font(10, 400), color: C.textDim }}>
-                              {row.year || "—"}
-                            </span>
-                            <span style={{ ...font(10, 600), color: row.play_count > 1 ? C.cyan : C.textDim }}>
-                              {row.play_count}
-                            </span>
-                            <span style={{ ...font(9, 400), color: C.textMuted }}>
-                              {formatDate(row.last_played)}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Pagination */}
-                    {historyPageCount > 1 && (
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, paddingTop: 10, borderTop: `1px solid ${C.borderRack}` }}>
-                        <Btn color={C.textDim} disabled={historyPage === 0} onClick={() => setHistoryPage((p) => p - 1)}>
-                          ◀
-                        </Btn>
-                        <span style={{ ...font(10, 400), color: C.textDim }}>
-                          {historyPage + 1} / {historyPageCount}
-                        </span>
-                        <Btn color={C.textDim} disabled={historyPage >= historyPageCount - 1} onClick={() => setHistoryPage((p) => p + 1)}>
-                          ▶
-                        </Btn>
-                      </div>
-                    )}
-                  </RackPanel>
+              <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
+                {/* Sub-tab bar */}
+                <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+                  {[{ id: "tracks", label: "TRACKS" }, { id: "sessions", label: "SESSIONS" }].map((st) => {
+                    const active = historySubTab === st.id;
+                    return (
+                      <button
+                        key={st.id}
+                        onClick={() => { setHistorySubTab(st.id); setSelectedTrack(null); setSelectedSession(null); }}
+                        style={{
+                          ...font(9, 700),
+                          letterSpacing: 2,
+                          textTransform: "uppercase",
+                          color: active ? C.cyan : C.textMuted,
+                          background: active ? `${C.cyan}10` : "transparent",
+                          border: "none",
+                          borderRadius: C.radiusXs,
+                          padding: "8px 20px",
+                          cursor: "pointer",
+                          transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+                        }}
+                      >
+                        {st.label}
+                      </button>
+                    );
+                  })}
                 </div>
 
-                {/* ── Detail Panel ── */}
-                {selectedTrack && (
-                  <div style={{ width: 300, flexShrink: 0 }}>
-                    <RackPanel label="TRACK DETAIL" style={{ position: "sticky", top: 0 }}>
-                      {/* Album art */}
-                      {selectedTrack.art_filename && (
-                        <img
-                          src={`http://127.0.0.1:${apiPort}/art/cache/${selectedTrack.art_filename}`}
-                          alt="Album art"
+                {/* ─── TRACKS SUB-TAB ─── */}
+                {historySubTab === "tracks" && (
+                  <div style={{ display: "flex", gap: 16, flex: 1, minHeight: 0 }}>
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+                      <RackPanel
+                        label="TRACK HISTORY"
+                        labelRight={`${historyTotal} track${historyTotal !== 1 ? "s" : ""}`}
+                        style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}
+                      >
+                        <input
+                          type="text"
+                          value={historyQuery}
+                          onChange={(e) => handleHistorySearch(e.target.value)}
+                          placeholder="Search..."
                           style={{
-                            width: "100%",
-                            aspectRatio: "1/1",
-                            objectFit: "cover",
-                            borderRadius: 4,
-                            marginBottom: 14,
+                            ...font(11, 400),
+                            color: C.textPrimary,
                             background: C.bgInset,
+                            border: `1px solid ${C.borderRack}`,
+                            borderRadius: 3,
+                            padding: "8px 12px",
+                            outline: "none",
+                            marginBottom: 12,
+                            width: "100%",
+                            boxSizing: "border-box",
                           }}
-                          onError={(e) => { e.target.style.display = "none"; }}
                         />
-                      )}
-
-                      {/* Artist + Title */}
-                      <div style={{ ...font(13, 600), color: C.textPrimary, marginBottom: 2 }}>
-                        {selectedTrack.artist}
-                      </div>
-                      <div style={{ ...font(12, 400), color: C.textDim, marginBottom: 14 }}>
-                        {selectedTrack.title}
-                      </div>
-
-                      {/* Metadata grid */}
-                      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "6px 12px" }}>
-                        {selectedTrack.label && (
-                          <>
-                            <span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Label</span>
-                            <span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedTrack.label}</span>
-                          </>
-                        )}
-                        {selectedTrack.year && (
-                          <>
-                            <span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Year</span>
-                            <span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedTrack.year}</span>
-                          </>
-                        )}
-                        {selectedTrack.genre && (
-                          <>
-                            <span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Genre</span>
-                            <span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedTrack.genre}</span>
-                          </>
-                        )}
-                        {selectedTrack.bpm && (
-                          <>
-                            <span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>BPM</span>
-                            <span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedTrack.bpm}</span>
-                          </>
-                        )}
-                        {selectedTrack.key_name && (
-                          <>
-                            <span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Key</span>
-                            <span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedTrack.key_name}</span>
-                          </>
-                        )}
-                        <>
-                          <span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Plays</span>
-                          <span style={{ ...font(10, 600), color: C.cyan }}>{selectedTrack.play_count}</span>
-                        </>
-                        <>
-                          <span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>First</span>
-                          <span style={{ ...font(10, 400), color: C.textPrimary }}>{formatDate(selectedTrack.first_played)}</span>
-                        </>
-                        <>
-                          <span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Last</span>
-                          <span style={{ ...font(10, 400), color: C.textPrimary }}>{formatDate(selectedTrack.last_played)}</span>
-                        </>
-                      </div>
-
-                      {/* Enrichment status */}
-                      <div style={{ marginTop: 14, paddingTop: 10, borderTop: `1px solid ${C.borderRack}` }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <Led
-                            color={selectedTrack.enrichment_status === "complete" ? C.green : selectedTrack.enrichment_status === "failed" ? C.red : C.amber}
-                            size={6}
-                          />
-                          <span style={{ ...font(9, 400), color: C.textMuted }}>
-                            {selectedTrack.enrichment_status === "complete" ? "Enriched via Beatport" : selectedTrack.enrichment_status === "failed" ? "Enrichment failed" : "Pending enrichment"}
-                          </span>
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "2fr 2fr 1.5fr 50px 50px 60px",
+                            gap: 8,
+                            padding: "0 4px 8px",
+                            borderBottom: `1px solid ${C.borderRack}`,
+                          }}
+                        >
+                          {["ARTIST", "TITLE", "LABEL", "YEAR", "PLAYS", "LAST"].map((h) => (
+                            <span key={h} style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2, textTransform: "uppercase" }}>
+                              {h}
+                            </span>
+                          ))}
                         </div>
+                        <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
+                          {historyRows.length === 0 && (
+                            <div style={{ ...font(11, 400), color: C.textMuted, padding: "24px 4px", textAlign: "center" }}>
+                              {historyQuery ? "No tracks match your search" : "No tracks in history yet"}
+                            </div>
+                          )}
+                          {historyRows.map((row) => {
+                            const isSelected = selectedTrack?.id === row.id;
+                            return (
+                              <div
+                                key={row.id}
+                                onClick={() => setSelectedTrack(isSelected ? null : row)}
+                                style={{
+                                  display: "grid",
+                                  gridTemplateColumns: "2fr 2fr 1.5fr 50px 50px 60px",
+                                  gap: 8,
+                                  padding: "6px 4px",
+                                  cursor: "pointer",
+                                  background: isSelected ? `${C.cyan}12` : "transparent",
+                                  borderLeft: isSelected ? `2px solid ${C.cyan}` : "2px solid transparent",
+                                  borderBottom: `1px solid ${C.borderRack}30`,
+                                  transition: "background 0.15s",
+                                }}
+                                onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = C.bgInsetHover; }}
+                                onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = "transparent"; }}
+                              >
+                                <span style={{ ...font(10, 500), color: C.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.artist}</span>
+                                <span style={{ ...font(10, 400), color: C.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.title}</span>
+                                <span style={{ ...font(10, 400), color: C.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.label || "\u2014"}</span>
+                                <span style={{ ...font(10, 400), color: C.textDim }}>{row.year || "\u2014"}</span>
+                                <span style={{ ...font(10, 600), color: row.play_count > 1 ? C.cyan : C.textDim }}>{row.play_count}</span>
+                                <span style={{ ...font(9, 400), color: C.textMuted }}>{formatDate(row.last_played)}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {historyPageCount > 1 && (
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, paddingTop: 10, borderTop: `1px solid ${C.borderRack}` }}>
+                            <Btn color={C.textDim} disabled={historyPage === 0} onClick={() => setHistoryPage((p) => p - 1)}>&#9664;</Btn>
+                            <span style={{ ...font(10, 400), color: C.textDim }}>{historyPage + 1} / {historyPageCount}</span>
+                            <Btn color={C.textDim} disabled={historyPage >= historyPageCount - 1} onClick={() => setHistoryPage((p) => p + 1)}>&#9654;</Btn>
+                          </div>
+                        )}
+                      </RackPanel>
+                    </div>
+                    {selectedTrack && (
+                      <div style={{ width: 300, flexShrink: 0 }}>
+                        <RackPanel label="TRACK DETAIL" style={{ position: "sticky", top: 0 }}>
+                          {selectedTrack.art_filename && (
+                            <img
+                              src={`http://127.0.0.1:${apiPort}/art/cache/${selectedTrack.art_filename}`}
+                              alt="Album art"
+                              style={{ width: "100%", aspectRatio: "1/1", objectFit: "cover", borderRadius: 4, marginBottom: 14, background: C.bgInset }}
+                              onError={(e) => { e.target.style.display = "none"; }}
+                            />
+                          )}
+                          <div style={{ ...font(13, 600), color: C.textPrimary, marginBottom: 2 }}>{selectedTrack.artist}</div>
+                          <div style={{ ...font(12, 400), color: C.textDim, marginBottom: 14 }}>{selectedTrack.title}</div>
+                          <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "6px 12px" }}>
+                            {selectedTrack.label && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Label</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedTrack.label}</span></>)}
+                            {selectedTrack.year && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Year</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedTrack.year}</span></>)}
+                            {selectedTrack.genre && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Genre</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedTrack.genre}</span></>)}
+                            {selectedTrack.bpm && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>BPM</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedTrack.bpm}</span></>)}
+                            {selectedTrack.key_name && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Key</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedTrack.key_name}</span></>)}
+                            <span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Plays</span><span style={{ ...font(10, 600), color: C.cyan }}>{selectedTrack.play_count}</span>
+                            <span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>First</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{formatDate(selectedTrack.first_played)}</span>
+                            <span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Last</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{formatDate(selectedTrack.last_played)}</span>
+                          </div>
+                          <div style={{ marginTop: 14, paddingTop: 10, borderTop: `1px solid ${C.borderRack}` }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <Led color={selectedTrack.enrichment_status === "complete" ? C.green : selectedTrack.enrichment_status === "failed" ? C.red : C.amber} size={6} />
+                              <span style={{ ...font(9, 400), color: C.textMuted }}>
+                                {selectedTrack.enrichment_status === "complete" ? "Enriched via Beatport" : selectedTrack.enrichment_status === "failed" ? "Enrichment failed" : "Pending enrichment"}
+                              </span>
+                            </div>
+                          </div>
+                        </RackPanel>
                       </div>
-                    </RackPanel>
+                    )}
+                  </div>
+                )}
+
+                {/* ─── SESSIONS SUB-TAB ─── */}
+                {historySubTab === "sessions" && (
+                  <div style={{ display: "flex", gap: 16, flex: 1, minHeight: 0 }}>
+                    {/* ── Left: Session List ── */}
+                    <div style={{ width: 220, flexShrink: 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
+                      <RackPanel
+                        label="SESSIONS"
+                        labelRight={`${sessionTotal}`}
+                        style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}
+                      >
+                        <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
+                          {sessionRows.length === 0 && (
+                            <div style={{ ...font(11, 400), color: C.textMuted, padding: "24px 4px", textAlign: "center" }}>
+                              No sessions yet
+                            </div>
+                          )}
+                          {sessionRows.map((row) => {
+                            const isSelected = selectedSession?.id === row.id;
+                            return (
+                              <div
+                                key={row.id}
+                                onClick={() => { setSelectedSession(isSelected ? null : row); setSelectedSessionTrack(null); }}
+                                style={{
+                                  padding: "8px 8px",
+                                  cursor: "pointer",
+                                  background: isSelected ? `${C.cyan}12` : "transparent",
+                                  borderLeft: isSelected ? `2px solid ${C.cyan}` : "2px solid transparent",
+                                  borderBottom: `1px solid ${C.borderRack}30`,
+                                  transition: "background 0.15s",
+                                }}
+                                onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = C.bgInsetHover; }}
+                                onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = "transparent"; }}
+                              >
+                                <div style={{ ...font(10, 500), color: C.textPrimary }}>{formatDateTime(row.started_at)}</div>
+                                <div style={{ ...font(9, 400), color: C.textMuted, marginTop: 2 }}>
+                                  {row.track_count} track{row.track_count !== 1 ? "s" : ""} {row.ended_at ? `\u00B7 ${formatDuration(row.started_at, row.ended_at)}` : "\u00B7 in progress"}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {sessionPageCount > 1 && (
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, paddingTop: 10, borderTop: `1px solid ${C.borderRack}` }}>
+                            <Btn color={C.textDim} disabled={sessionPage === 0} onClick={() => setSessionPage((p) => p - 1)}>&#9664;</Btn>
+                            <span style={{ ...font(10, 400), color: C.textDim }}>{sessionPage + 1} / {sessionPageCount}</span>
+                            <Btn color={C.textDim} disabled={sessionPage >= sessionPageCount - 1} onClick={() => setSessionPage((p) => p + 1)}>&#9654;</Btn>
+                          </div>
+                        )}
+                      </RackPanel>
+                    </div>
+
+                    {/* ── Middle: Session Tracklist ── */}
+                    {selectedSession && (
+                      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
+                        <RackPanel
+                          label="TRACKLIST"
+                          labelRight={`${selectedSession.track_count} track${selectedSession.track_count !== 1 ? "s" : ""}`}
+                          style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}
+                        >
+                          <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
+                            {selectedSessionTracks.length === 0 && (
+                              <div style={{ ...font(10, 400), color: C.textMuted, padding: "12px 0", textAlign: "center" }}>No tracks</div>
+                            )}
+                            {selectedSessionTracks.map((t, i) => {
+                              const isTrackSelected = selectedSessionTrack?.id === t.id;
+                              return (
+                                <div
+                                  key={t.id}
+                                  onClick={() => setSelectedSessionTrack(isTrackSelected ? null : t)}
+                                  style={{
+                                    display: "flex",
+                                    gap: 8,
+                                    alignItems: "flex-start",
+                                    padding: "6px 4px",
+                                    cursor: "pointer",
+                                    background: isTrackSelected ? `${C.cyan}12` : "transparent",
+                                    borderLeft: isTrackSelected ? `2px solid ${C.cyan}` : "2px solid transparent",
+                                    borderBottom: `1px solid ${C.borderRack}30`,
+                                    transition: "background 0.15s",
+                                  }}
+                                  onMouseEnter={(e) => { if (!isTrackSelected) e.currentTarget.style.background = C.bgInsetHover; }}
+                                  onMouseLeave={(e) => { if (!isTrackSelected) e.currentTarget.style.background = "transparent"; }}
+                                >
+                                  <span style={{ ...font(9, 600), color: C.textMuted, width: 20, flexShrink: 0, textAlign: "right" }}>{i + 1}.</span>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ ...font(10, 500), color: C.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                      {t.artist} - {t.title}
+                                    </div>
+                                    {(t.label || t.year) && (
+                                      <div style={{ ...font(9, 400), color: C.textMuted, marginTop: 1 }}>
+                                        {[t.label, t.year].filter(Boolean).join(" \u00B7 ")}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </RackPanel>
+                      </div>
+                    )}
+
+                    {/* ── Right: Track Detail (appears on track click) ── */}
+                    {selectedSessionTrack && (
+                      <div style={{ width: 300, flexShrink: 0 }}>
+                        <RackPanel label="TRACK DETAIL" style={{ position: "sticky", top: 0 }}>
+                          {selectedSessionTrack.art_filename && (
+                            <img
+                              src={`http://127.0.0.1:${apiPort}/art/cache/${selectedSessionTrack.art_filename}`}
+                              alt="Album art"
+                              style={{ width: "100%", aspectRatio: "1/1", objectFit: "cover", borderRadius: 4, marginBottom: 14, background: C.bgInset }}
+                              onError={(e) => { e.target.style.display = "none"; }}
+                            />
+                          )}
+                          <div style={{ ...font(13, 600), color: C.textPrimary, marginBottom: 2 }}>{selectedSessionTrack.artist}</div>
+                          <div style={{ ...font(12, 400), color: C.textDim, marginBottom: 14 }}>{selectedSessionTrack.title}</div>
+                          <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "6px 12px" }}>
+                            {selectedSessionTrack.label && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Label</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedSessionTrack.label}</span></>)}
+                            {selectedSessionTrack.year && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Year</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedSessionTrack.year}</span></>)}
+                            {selectedSessionTrack.genre && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Genre</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedSessionTrack.genre}</span></>)}
+                            {selectedSessionTrack.bpm && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>BPM</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedSessionTrack.bpm}</span></>)}
+                            {selectedSessionTrack.key_name && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Key</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedSessionTrack.key_name}</span></>)}
+                            {selectedSessionTrack.play_count != null && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Plays</span><span style={{ ...font(10, 600), color: C.cyan }}>{selectedSessionTrack.play_count}</span></>)}
+                          </div>
+                          {selectedSessionTrack.enrichment_status && (
+                            <div style={{ marginTop: 14, paddingTop: 10, borderTop: `1px solid ${C.borderRack}` }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                <Led color={selectedSessionTrack.enrichment_status === "complete" ? C.green : selectedSessionTrack.enrichment_status === "failed" ? C.red : C.amber} size={6} />
+                                <span style={{ ...font(9, 400), color: C.textMuted }}>
+                                  {selectedSessionTrack.enrichment_status === "complete" ? "Enriched via Beatport" : selectedSessionTrack.enrichment_status === "failed" ? "Enrichment failed" : "Pending enrichment"}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </RackPanel>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

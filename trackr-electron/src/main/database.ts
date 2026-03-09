@@ -1,8 +1,10 @@
 /**
  * TRACKR — SQLite Database
  *
- * Stores play counts, enrichment data, and key-value preferences using better-sqlite3.
+ * Stores play counts, enrichment data, session history, and key-value preferences
+ * using better-sqlite3.
  * The `tracks` table is the unified store for per-track play counts AND enrichment metadata.
+ * The `sessions` + `session_tracks` tables store session history.
  */
 
 import Database from 'better-sqlite3';
@@ -29,6 +31,24 @@ export interface TrackRow {
   updated_at: string;
 }
 
+export interface SessionRow {
+  id: number;
+  started_at: string;
+  ended_at: string | null;
+  track_count: number;
+  session_file: string | null;
+  created_at: string;
+}
+
+export interface SessionTrackRow {
+  id: number;
+  session_id: number;
+  artist: string;
+  title: string;
+  position: number;
+  played_at: string;
+}
+
 export class TrackrDatabase {
   private _db: Database.Database;
 
@@ -37,6 +57,7 @@ export class TrackrDatabase {
     this._db = new Database(dbPath);
     this._db.pragma('foreign_keys = ON');
     this._initSchema();
+    this._migrateSessionTracking();
   }
 
   close(): void {
@@ -152,6 +173,99 @@ export class TrackrDatabase {
     ).run(...values);
   }
 
+  // ─── session history ─────────────────────────────────────────────────────────
+
+  /** Create a new session row. Returns the session ID. */
+  createSession(sessionFile: string | null): number {
+    const now = new Date().toISOString();
+    const result = this._db.prepare(
+      'INSERT INTO sessions (started_at, track_count, session_file) VALUES (?, 0, ?)'
+    ).run(now, sessionFile);
+    return Number(result.lastInsertRowid);
+  }
+
+  /** Mark a session as ended. */
+  endSession(sessionId: number): void {
+    const now = new Date().toISOString();
+    this._db.prepare('UPDATE sessions SET ended_at = ? WHERE id = ?').run(now, sessionId);
+  }
+
+  /** Add a track to a session and increment the session's track_count. */
+  addSessionTrack(sessionId: number, artist: string, title: string, playedAt: string): void {
+    const position = (this._db.prepare(
+      'SELECT COALESCE(MAX(position), 0) + 1 as next FROM session_tracks WHERE session_id = ?'
+    ).get(sessionId) as { next: number }).next;
+
+    this._db.prepare(
+      'INSERT INTO session_tracks (session_id, artist, title, position, played_at) VALUES (?, ?, ?, ?, ?)'
+    ).run(sessionId, artist, title, position, playedAt);
+
+    this._db.prepare(
+      'UPDATE sessions SET track_count = track_count + 1 WHERE id = ?'
+    ).run(sessionId);
+  }
+
+  /** Delete a session and its tracks (used by short-session purge). */
+  deleteSession(sessionId: number): void {
+    this._db.prepare('DELETE FROM session_tracks WHERE session_id = ?').run(sessionId);
+    this._db.prepare('DELETE FROM sessions WHERE id = ?').run(sessionId);
+  }
+
+  /** Purge all sessions with fewer than `threshold` tracks, excluding the given ID.
+   *  Also decrements per-track play counts for tracks in purged sessions. */
+  purgeShortSessions(threshold: number, excludeId?: number): number {
+    const rows = this._db.prepare(
+      'SELECT id FROM sessions WHERE track_count < ? AND (? IS NULL OR id != ?)'
+    ).all(threshold, excludeId ?? null, excludeId ?? null) as { id: number }[];
+    for (const row of rows) {
+      // Decrement play counts for tracks in this session before deleting
+      const tracks = this._db.prepare(
+        'SELECT artist, title FROM session_tracks WHERE session_id = ?'
+      ).all(row.id) as { artist: string; title: string }[];
+      for (const t of tracks) {
+        this.decrementTrackPlayCount(t.artist, t.title);
+      }
+      this.deleteSession(row.id);
+    }
+    return rows.length;
+  }
+
+  /** Search sessions with pagination. Returns rows ordered by most recent first.
+   *  Excludes empty sessions (0 tracks) so the current "in progress" placeholder doesn't show. */
+  searchSessions(limit = 50, offset = 0): { rows: SessionRow[]; total: number } {
+    const countRow = this._db
+      .prepare('SELECT COUNT(*) as cnt FROM sessions WHERE track_count > 0')
+      .get() as { cnt: number };
+    const total = countRow?.cnt ?? 0;
+
+    const rows = this._db
+      .prepare('SELECT * FROM sessions WHERE track_count > 0 ORDER BY started_at DESC LIMIT ? OFFSET ?')
+      .all(limit, offset) as SessionRow[];
+
+    return { rows, total };
+  }
+
+  /** Get all tracks for a session, ordered by position. Joins enrichment data from tracks table. */
+  getSessionTracks(sessionId: number): (SessionTrackRow & {
+    label?: string | null;
+    year?: number | null;
+    genre?: string | null;
+    bpm?: number | null;
+    key_name?: string | null;
+    art_filename?: string | null;
+    enrichment_status?: string;
+    play_count?: number;
+  })[] {
+    return this._db.prepare(`
+      SELECT st.*, t.label, t.year, t.genre, t.bpm, t.key_name, t.art_filename,
+             t.enrichment_status, t.play_count
+      FROM session_tracks st
+      LEFT JOIN tracks t ON st.artist = t.artist AND st.title = t.title
+      WHERE st.session_id = ?
+      ORDER BY st.position ASC
+    `).all(sessionId) as any[];
+  }
+
   // ─── history search ──────────────────────────────────────────────────────────
 
   /** Search tracks with optional full-text filter across artist, title, label, genre. */
@@ -195,6 +309,22 @@ export class TrackrDatabase {
       .run(key, value);
   }
 
+  // ─── migrations ─────────────────────────────────────────────────────────────
+
+  /** One-time cleanup: remove tracks with no session_tracks references (transition artifact). */
+  private _migrateSessionTracking(): void {
+    if (this.getPref('session_tracking_migrated')) return;
+    const result = this._db.prepare(`
+      DELETE FROM tracks WHERE NOT EXISTS (
+        SELECT 1 FROM session_tracks st WHERE st.artist = tracks.artist AND st.title = tracks.title
+      )
+    `).run();
+    if (result.changes > 0) {
+      console.log(`[db] Migration: cleaned up ${result.changes} orphaned track(s) from pre-session-tracking era`);
+    }
+    this.setPref('session_tracking_migrated', '1');
+  }
+
   // ─── schema ─────────────────────────────────────────────────────────────────
 
   private _initSchema(): void {
@@ -232,6 +362,24 @@ export class TrackrDatabase {
       CREATE INDEX IF NOT EXISTS idx_tracks_year ON tracks(year);
       CREATE INDEX IF NOT EXISTS idx_tracks_genre ON tracks(genre);
       INSERT OR IGNORE INTO counters (name, value) VALUES ('play_count', 0);
+
+      CREATE TABLE IF NOT EXISTS sessions (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        started_at  TIMESTAMP NOT NULL,
+        ended_at    TIMESTAMP,
+        track_count INTEGER DEFAULT 0,
+        session_file TEXT,
+        created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS session_tracks (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+        artist     TEXT NOT NULL,
+        title      TEXT NOT NULL,
+        position   INTEGER NOT NULL,
+        played_at  TIMESTAMP NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_session_tracks_session ON session_tracks(session_id);
     `);
   }
 }
