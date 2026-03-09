@@ -3,32 +3,35 @@ import { checkForUpdate } from "./updater";
 
 // ─── DESIGN TOKENS ───────────────────────────────────────────────────────────
 const C = {
-  bgDeep: "#0a0a0a",
-  bgPanel: "rgba(18, 18, 22, 0.72)",
-  bgPanelSolid: "#131315",
-  bgInset: "rgba(24, 24, 28, 0.6)",
-  bgInsetHover: "rgba(34, 34, 40, 0.7)",
-  borderRack: "rgba(255, 255, 255, 0.06)",
-  borderLight: "rgba(255, 255, 255, 0.09)",
+  bgDeep: "#06060a",
+  bgPanel: "rgba(16, 16, 22, 0.78)",
+  bgPanelSolid: "#0e0e14",
+  bgInset: "rgba(20, 20, 28, 0.65)",
+  bgInsetHover: "rgba(32, 32, 42, 0.7)",
+  borderRack: "rgba(255, 255, 255, 0.05)",
+  borderLight: "rgba(255, 255, 255, 0.08)",
   borderFocus: "rgba(255, 255, 255, 0.14)",
-  textPrimary: "#d0d0d4",
-  textDim: "#606068",
-  textMuted: "#3a3a40",
-  green: "#2ecc40",
+  textPrimary: "#dadadf",
+  textSecondary: "#a0a0a8",
+  textDim: "#5e5e6a",
+  textMuted: "#38383f",
+  textGhost: "#222228",
+  green: "#34d058",
   greenDim: "#1a5c25",
-  amber: "#f0c020",
+  amber: "#f5c842",
   amberDim: "#5c4a10",
   red: "#e8413a",
   redDim: "#5c1a18",
   blue: "#4a9eff",
-  cyan: "#7fdbca",
-  cyanDim: "#2a4a42",
+  cyan: "#6ee7c0",
+  cyanDim: "#1e4a3e",
   // Glass effects
-  glass: "rgba(255, 255, 255, 0.03)",
-  glassHover: "rgba(255, 255, 255, 0.06)",
-  glassBorder: "rgba(255, 255, 255, 0.08)",
-  blur: "blur(20px)",
-  blurLight: "blur(12px)",
+  glass: "rgba(255, 255, 255, 0.025)",
+  glassHover: "rgba(255, 255, 255, 0.055)",
+  glassBorder: "rgba(255, 255, 255, 0.07)",
+  glassHighlight: "rgba(255, 255, 255, 0.10)",
+  blur: "blur(24px)",
+  blurLight: "blur(14px)",
   radius: 14,
   radiusSm: 10,
   radiusXs: 6,
@@ -50,7 +53,7 @@ const Led = ({ color, size = 8, pulse = false, style = {} }) => (
       height: size,
       borderRadius: "50%",
       backgroundColor: color,
-      boxShadow: `0 0 ${size}px ${color}60, 0 0 ${size * 2}px ${color}20`,
+      boxShadow: `0 0 ${size * 0.5}px ${color}, 0 0 ${size}px ${color}70, 0 0 ${size * 2.5}px ${color}25`,
       animation: pulse ? "ledPulse 3s ease-in-out infinite" : "none",
       flexShrink: 0,
       ...style,
@@ -66,12 +69,12 @@ const RackPanel = ({ label, labelRight, children, style = {} }) => (
       backdropFilter: C.blur,
       WebkitBackdropFilter: C.blur,
       border: `1px solid ${C.glassBorder}`,
-      borderTop: `1px solid ${C.borderLight}`,
+      borderTop: `1px solid ${C.glassHighlight}`,
       borderRadius: C.radius,
       padding: 16,
       position: "relative",
-      boxShadow: "0 4px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.04)",
-      transition: "box-shadow 0.3s ease, border-color 0.3s ease",
+      boxShadow: `0 2px 4px rgba(0,0,0,0.3), 0 8px 32px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -1px 0 rgba(0,0,0,0.2)`,
+      transition: "box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.4s ease, transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
       ...style,
     }}
   >
@@ -92,6 +95,9 @@ const RackPanel = ({ label, labelRight, children, style = {} }) => (
             color: C.textMuted,
             letterSpacing: 2.5,
             textTransform: "uppercase",
+            background: `linear-gradient(135deg, ${C.textDim}, ${C.textMuted})`,
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
           }}
         >
           {label}
@@ -126,12 +132,14 @@ const Toggle = ({ on, onChange, disabled = false, label }) => (
         width: 38,
         height: 20,
         borderRadius: 10,
-        background: on ? `${C.green}25` : C.bgInset,
-        border: `1px solid ${on ? C.green + "50" : C.glassBorder}`,
+        background: on ? `${C.green}20` : C.bgInset,
+        border: `1px solid ${on ? C.green + "45" : C.glassBorder}`,
         position: "relative",
-        transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+        transition: "all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
         flexShrink: 0,
-        boxShadow: on ? `0 0 12px ${C.green}15, inset 0 1px 2px rgba(0,0,0,0.2)` : "inset 0 1px 2px rgba(0,0,0,0.2)",
+        boxShadow: on
+          ? `0 0 14px ${C.green}18, 0 0 4px ${C.green}10, inset 0 1px 2px rgba(0,0,0,0.2)`
+          : "inset 0 1px 3px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(0,0,0,0.1)",
       }}
     >
       <div
@@ -143,8 +151,10 @@ const Toggle = ({ on, onChange, disabled = false, label }) => (
           position: "absolute",
           top: 2,
           left: on ? 20 : 2,
-          transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
-          boxShadow: on ? `0 0 8px ${C.green}50` : "0 1px 3px rgba(0,0,0,0.3)",
+          transition: "all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
+          boxShadow: on
+            ? `0 0 10px ${C.green}60, 0 1px 3px rgba(0,0,0,0.3)`
+            : "0 1px 3px rgba(0,0,0,0.4)",
         }}
       />
     </div>
@@ -154,6 +164,7 @@ const Toggle = ({ on, onChange, disabled = false, label }) => (
 // ─── BUTTON ──────────────────────────────────────────────────────────────────
 const Btn = ({ children, color, onClick, disabled, fullWidth, style = {} }) => {
   const [hover, setHover] = useState(false);
+  const isDestructive = color === C.red;
   return (
     <button
       onClick={onClick}
@@ -164,22 +175,28 @@ const Btn = ({ children, color, onClick, disabled, fullWidth, style = {} }) => {
         ...font(10, 700),
         letterSpacing: 2,
         textTransform: "uppercase",
-        color: disabled ? C.textMuted : color === C.red ? "#fff" : C.bgDeep,
-        background: disabled ? C.bgInset : hover ? color + "dd" : color,
-        border: `1px solid ${disabled ? C.glassBorder : color}`,
+        color: disabled ? C.textMuted : isDestructive ? "#fff" : C.bgDeep,
+        background: disabled
+          ? C.bgInset
+          : hover
+            ? `linear-gradient(135deg, ${color}ee, ${color}cc)`
+            : `linear-gradient(135deg, ${color}, ${color}dd)`,
+        border: `1px solid ${disabled ? C.glassBorder : hover ? color : color + "cc"}`,
         borderRadius: C.radiusSm,
         padding: "10px 20px",
         cursor: disabled ? "not-allowed" : "pointer",
         width: fullWidth ? "100%" : "auto",
-        transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         gap: 8,
         opacity: disabled ? 0.4 : 1,
         boxShadow: disabled ? "none" : hover
-          ? `0 4px 16px ${color}30, 0 0 20px ${color}15`
-          : `0 2px 8px ${color}20`,
+          ? `0 4px 20px ${color}35, 0 0 24px ${color}18, inset 0 1px 0 rgba(255,255,255,0.15)`
+          : `0 2px 10px ${color}20, inset 0 1px 0 rgba(255,255,255,0.1)`,
+        transform: hover && !disabled ? "translateY(-1px)" : "translateY(0)",
+        backgroundSize: hover && !disabled ? "200% 100%" : "100% 100%",
         ...style,
       }}
     >
@@ -191,11 +208,11 @@ const Btn = ({ children, color, onClick, disabled, fullWidth, style = {} }) => {
 // ─── STATE BADGE ─────────────────────────────────────────────────────────────
 const StateBadge = ({ state }) => {
   const configs = {
-    running: { bg: C.green + "18", border: C.green + "40", color: C.green, text: "RUNNING", pulse: true },
+    running: { bg: C.green + "14", border: C.green + "38", color: C.green, text: "RUNNING", pulse: true },
     stopped: { bg: C.bgInset, border: C.glassBorder, color: C.textMuted, text: "STOPPED", pulse: false },
-    starting: { bg: C.amber + "12", border: C.amber + "35", color: C.amber, text: "STARTING...", pulse: true },
-    stopping: { bg: C.amber + "12", border: C.amber + "35", color: C.amber, text: "STOPPING...", pulse: true },
-    error: { bg: C.red + "18", border: C.red + "40", color: C.red, text: "ERROR", pulse: false },
+    starting: { bg: C.amber + "10", border: C.amber + "30", color: C.amber, text: "STARTING...", pulse: true },
+    stopping: { bg: C.amber + "10", border: C.amber + "30", color: C.amber, text: "STOPPING...", pulse: true },
+    error: { bg: C.red + "14", border: C.red + "38", color: C.red, text: "ERROR", pulse: false },
   };
   const c = configs[state] || configs.stopped;
   return (
@@ -210,8 +227,13 @@ const StateBadge = ({ state }) => {
         border: `1px solid ${c.border}`,
         backdropFilter: C.blurLight,
         WebkitBackdropFilter: C.blurLight,
-        boxShadow: state === "running" ? `0 0 16px ${C.green}10` : "none",
-        transition: "all 0.3s ease",
+        boxShadow: state === "running"
+          ? `0 0 20px ${C.green}12, inset 0 1px 0 rgba(255,255,255,0.05)`
+          : state === "starting" || state === "stopping"
+            ? `0 0 16px ${C.amber}10`
+            : "inset 0 1px 0 rgba(255,255,255,0.03)",
+        transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+        animation: state === "starting" ? "scanLine 2s ease-in-out infinite" : "none",
       }}
     >
       <Led color={c.color} size={6} pulse={c.pulse} />
@@ -913,44 +935,86 @@ export default function TRACKR() {
       style={{
         width: "100%",
         minHeight: "100vh",
-        background: C.bgDeep,
+        background: `radial-gradient(ellipse at 30% 20%, rgba(20, 20, 30, 1) 0%, ${C.bgDeep} 60%), ${C.bgDeep}`,
         color: C.textPrimary,
         display: "flex",
         flexDirection: "column",
         ...font(12),
         overflow: "hidden",
+        position: "relative",
       }}
     >
+      {/* Noise texture overlay */}
+      <div style={{
+        position: "fixed", inset: 0, pointerEvents: "none", zIndex: 9999, opacity: 0.025,
+        backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
+        backgroundRepeat: "repeat",
+      }} />
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        ::-webkit-scrollbar { width: 5px; }
+
+        /* Scrollbar — ultra-thin, fades */
+        ::-webkit-scrollbar { width: 3px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb {
+          background: rgba(255,255,255,0.06);
+          border-radius: 3px;
+          transition: background 0.3s ease;
+        }
         ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.14); }
+
+        /* Input refinements */
         input[type="text"], input[type="password"], input[type="number"] {
           border-radius: ${C.radiusXs}px !important;
-          transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+          transition: border-color 0.3s ease, box-shadow 0.3s ease, background 0.3s ease !important;
         }
         input[type="text"]:focus, input[type="password"]:focus {
-          border-color: ${C.cyan}40 !important;
-          box-shadow: 0 0 12px ${C.cyan}10 !important;
+          border-color: ${C.cyan}35 !important;
+          box-shadow: 0 0 16px ${C.cyan}0c, 0 0 4px ${C.cyan}08, inset 0 0 8px ${C.cyan}05 !important;
+          background: rgba(20, 20, 28, 0.8) !important;
         }
         input[type="range"] {
-          height: 4px;
+          height: 3px;
           border-radius: 2px;
+          appearance: none;
+          background: ${C.borderRack};
+          outline: none;
         }
+        input[type="range"]::-webkit-slider-thumb {
+          appearance: none;
+          width: 12px;
+          height: 12px;
+          border-radius: 50%;
+          background: ${C.cyan};
+          cursor: pointer;
+          box-shadow: 0 0 8px ${C.cyan}40;
+          transition: box-shadow 0.2s ease, transform 0.2s ease;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover {
+          box-shadow: 0 0 14px ${C.cyan}60;
+          transform: scale(1.15);
+        }
+        select {
+          appearance: none;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%235e5e6a'/%3E%3C/svg%3E");
+          background-repeat: no-repeat;
+          background-position: right 8px center;
+          padding-right: 24px !important;
+        }
+
+        /* ─── KEYFRAMES ─── */
         @keyframes ledPulse {
           0%, 100% { opacity: 1; }
-          50% { opacity: 0.4; }
+          50% { opacity: 0.35; }
         }
         @keyframes slideIn {
-          from { opacity: 0; transform: translateY(8px); }
+          from { opacity: 0; transform: translateY(6px); }
           to { opacity: 1; transform: translateY(0); }
         }
         @keyframes toastIn {
-          from { opacity: 0; transform: translateX(40px); }
-          to { opacity: 1; transform: translateX(0); }
+          from { opacity: 0; transform: translateX(30px) scale(0.96); }
+          to { opacity: 1; transform: translateX(0) scale(1); }
         }
         @keyframes flashCyan {
           0% { border-left-color: ${C.cyan}; }
@@ -960,6 +1024,26 @@ export default function TRACKR() {
           0% { background-position: -200% 0; }
           100% { background-position: 200% 0; }
         }
+        @keyframes pulseGlow {
+          0%, 100% { opacity: 0.6; }
+          50% { opacity: 1; }
+        }
+        @keyframes scanLine {
+          0% { background-position: -100% 0; }
+          100% { background-position: 200% 0; }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes shimmer {
+          0% { background-position: -200% center; }
+          100% { background-position: 200% center; }
+        }
+        @keyframes subtleBreathe {
+          0%, 100% { box-shadow: 0 0 12px ${C.cyan}08; }
+          50% { box-shadow: 0 0 20px ${C.cyan}14; }
+        }
       `}</style>
 
       {/* ═══ TOP BAR ═══ */}
@@ -968,7 +1052,7 @@ export default function TRACKR() {
         <div
           style={{
             height: 48,
-            background: "rgba(14, 14, 18, 0.85)",
+            background: "rgba(10, 10, 14, 0.92)",
             backdropFilter: C.blur,
             WebkitBackdropFilter: C.blur,
             borderBottom: `1px solid ${C.borderRack}`,
@@ -976,12 +1060,19 @@ export default function TRACKR() {
             alignItems: "center",
             padding: "0 20px",
             gap: 24,
+            boxShadow: "0 1px 0 rgba(255,255,255,0.03), 0 4px 16px rgba(0,0,0,0.3)",
           }}
         >
           {/* Wordmark */}
           <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-            <span style={{ ...font(14, 700), letterSpacing: 4, color: C.textPrimary }}>TRACKR</span>
-            <span style={{ ...font(9, 400), color: C.textMuted, letterSpacing: 1 }}>v1.0</span>
+            <span style={{
+              ...font(14, 700),
+              letterSpacing: 5,
+              background: `linear-gradient(135deg, ${C.textPrimary}, ${C.textSecondary})`,
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+            }}>TRACKR</span>
+            <span style={{ ...font(9, 300), color: C.textMuted, letterSpacing: 1 }}>v1.0</span>
           </div>
 
           {/* Spacer */}
@@ -1010,7 +1101,7 @@ export default function TRACKR() {
             </span>
             <span
               style={{
-                ...font(10, 400),
+                ...font(10, 300),
                 color: C.textDim,
                 marginLeft: 4,
                 borderLeft: `1px solid ${C.borderRack}`,
@@ -1031,21 +1122,21 @@ export default function TRACKR() {
           <div style={{ width: 1, height: 20, background: C.borderRack }} />
 
           {/* Window controls (decorative) */}
-          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
             {["─", "□", "✕"].map((icon, i) => (
               <span
                 key={i}
                 style={{
-                  ...font(12, 400),
+                  ...font(11, 400),
                   color: i === 2 ? C.textDim : C.textMuted,
                   cursor: "pointer",
-                  padding: "4px 6px",
+                  padding: "4px 7px",
                   borderRadius: C.radiusXs,
-                  transition: "all 0.2s ease",
+                  transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
                 }}
                 onMouseEnter={(e) => {
                   e.target.style.color = i === 2 ? C.red : C.textPrimary;
-                  e.target.style.background = i === 2 ? `${C.red}15` : C.glass;
+                  e.target.style.background = i === 2 ? `${C.red}18` : C.glassHover;
                 }}
                 onMouseLeave={(e) => {
                   e.target.style.color = i === 2 ? C.textDim : C.textMuted;
@@ -1062,12 +1153,17 @@ export default function TRACKR() {
         <div
           style={{
             minHeight: 40,
-            background: "rgba(8, 8, 10, 0.9)",
+            background: "rgba(6, 6, 10, 0.92)",
             borderBottom: `1px solid ${C.borderRack}`,
             display: "flex",
             alignItems: "center",
             padding: "6px 20px",
             gap: 14,
+            position: "relative",
+            boxShadow: isRunning && currentTrack
+              ? `inset 0 -1px 0 ${C.cyan}15, 0 2px 12px rgba(0,0,0,0.2)`
+              : "0 2px 12px rgba(0,0,0,0.2)",
+            transition: "box-shadow 0.6s ease",
           }}
         >
           {/* NOW label */}
@@ -1077,6 +1173,9 @@ export default function TRACKR() {
               color: isRunning && currentTrack ? C.cyan : C.textMuted,
               letterSpacing: 2.5,
               flexShrink: 0,
+              animation: isRunning && currentTrack ? "pulseGlow 3s ease-in-out infinite" : "none",
+              textShadow: isRunning && currentTrack ? `0 0 12px ${C.cyan}40` : "none",
+              transition: "color 0.4s ease, text-shadow 0.4s ease",
             }}
           >
             NOW
@@ -1087,11 +1186,15 @@ export default function TRACKR() {
 
           {/* Current track */}
           {isRunning && currentTrack ? (
-            <span style={{ ...font(12, 600), color: C.textPrimary }}>
+            <span style={{
+              ...font(12, 600),
+              color: C.textPrimary,
+              textShadow: `0 0 20px rgba(255,255,255,0.06)`,
+            }}>
               {renderTrackText(currentTrack)}
             </span>
           ) : (
-            <span style={{ ...font(12, 400), color: C.textMuted }}>—</span>
+            <span style={{ ...font(12, 300), color: C.textMuted }}>—</span>
           )}
 
           {/* Deck + recency */}
@@ -1142,7 +1245,8 @@ export default function TRACKR() {
             padding: 10,
             overflowY: "auto",
             borderRight: `1px solid ${C.borderRack}`,
-            background: "rgba(8, 8, 10, 0.4)",
+            background: "rgba(6, 6, 10, 0.45)",
+            boxShadow: "inset -1px 0 0 rgba(255,255,255,0.02), 4px 0 16px rgba(0,0,0,0.15)",
           }}
         >
           {/* ── Combined Status + Controls ── */}
@@ -1214,21 +1318,46 @@ export default function TRACKR() {
 
           {/* ── Now Playing Enrichment ── */}
           {currentTrack && (
-            <RackPanel label="NOW PLAYING" style={{ flex: 0 }}>
+            <RackPanel label="NOW PLAYING" style={{ flex: 0, animation: "fadeIn 0.4s ease" }}>
               {liveEnrichment?.art_filename ? (
-                <img
-                  src={`http://127.0.0.1:${apiPort}/art/cache/${liveEnrichment.art_filename}`}
-                  alt=""
-                  style={{ width: "100%", aspectRatio: "1/1", objectFit: "cover", borderRadius: 4, marginBottom: 10, background: C.bgInset }}
-                  onError={(e) => { e.target.style.display = "none"; }}
-                />
+                <div style={{ position: "relative", marginBottom: 10 }}>
+                  <img
+                    src={`http://127.0.0.1:${apiPort}/art/cache/${liveEnrichment.art_filename}`}
+                    alt=""
+                    style={{
+                      width: "100%", aspectRatio: "1/1", objectFit: "cover",
+                      borderRadius: 8, background: C.bgInset, display: "block",
+                      boxShadow: `0 4px 20px rgba(0,0,0,0.5), 0 0 30px rgba(110, 231, 192, 0.06)`,
+                    }}
+                    onError={(e) => { e.target.style.display = "none"; }}
+                  />
+                  {/* Reflection */}
+                  <div style={{
+                    position: "absolute", bottom: -4, left: "10%", right: "10%",
+                    height: 16, borderRadius: "50%",
+                    background: `radial-gradient(ellipse, rgba(110,231,192,0.08), transparent 70%)`,
+                    filter: "blur(8px)", pointerEvents: "none",
+                  }} />
+                </div>
               ) : liveEnrichment?.artFilename ? (
-                <img
-                  src={`http://127.0.0.1:${apiPort}/art/cache/${liveEnrichment.artFilename}`}
-                  alt=""
-                  style={{ width: "100%", aspectRatio: "1/1", objectFit: "cover", borderRadius: 4, marginBottom: 10, background: C.bgInset }}
-                  onError={(e) => { e.target.style.display = "none"; }}
-                />
+                <div style={{ position: "relative", marginBottom: 10 }}>
+                  <img
+                    src={`http://127.0.0.1:${apiPort}/art/cache/${liveEnrichment.artFilename}`}
+                    alt=""
+                    style={{
+                      width: "100%", aspectRatio: "1/1", objectFit: "cover",
+                      borderRadius: 8, background: C.bgInset, display: "block",
+                      boxShadow: `0 4px 20px rgba(0,0,0,0.5), 0 0 30px rgba(110, 231, 192, 0.06)`,
+                    }}
+                    onError={(e) => { e.target.style.display = "none"; }}
+                  />
+                  <div style={{
+                    position: "absolute", bottom: -4, left: "10%", right: "10%",
+                    height: 16, borderRadius: "50%",
+                    background: `radial-gradient(ellipse, rgba(110,231,192,0.08), transparent 70%)`,
+                    filter: "blur(8px)", pointerEvents: "none",
+                  }} />
+                </div>
               ) : null}
 
               <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 10px" }}>
@@ -1265,12 +1394,12 @@ export default function TRACKR() {
               </div>
 
               {!liveEnrichment && enrichmentEnabled && (
-                <div style={{ ...font(9, 400), color: C.textMuted, textAlign: "center", padding: "8px 0" }}>
+                <div style={{ ...font(9, 300), color: C.textMuted, textAlign: "center", padding: "8px 0", letterSpacing: 1 }}>
                   Enriching...
                 </div>
               )}
               {!liveEnrichment && !enrichmentEnabled && (
-                <div style={{ ...font(9, 400), color: C.textMuted, textAlign: "center", padding: "4px 0" }}>
+                <div style={{ ...font(9, 300), color: C.textGhost, textAlign: "center", padding: "4px 0", letterSpacing: 1 }}>
                   Enrichment disabled
                 </div>
               )}
@@ -1278,11 +1407,14 @@ export default function TRACKR() {
           )}
 
           {/* ── Output info ── */}
-          <div style={{ ...font(9, 400), color: C.textMuted, padding: "4px 8px", marginTop: "auto" }}>
+          <div style={{
+            ...font(9, 300), color: C.textMuted, padding: "8px 8px",
+            marginTop: "auto", borderTop: `1px solid ${C.borderRack}`,
+          }}>
             <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {outputDir || "%USERPROFILE%\\TRACKR"}
             </div>
-            <div style={{ marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <div style={{ marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: C.textGhost }}>
               {sessionLabel}
             </div>
           </div>
@@ -1294,13 +1426,14 @@ export default function TRACKR() {
           <div
             style={{
               display: "flex",
-              gap: 4,
+              gap: 2,
               padding: "6px 10px",
-              background: "rgba(14, 14, 18, 0.6)",
+              background: "rgba(10, 10, 14, 0.65)",
               backdropFilter: C.blurLight,
               WebkitBackdropFilter: C.blurLight,
               borderBottom: `1px solid ${C.borderRack}`,
               flexShrink: 0,
+              position: "relative",
             }}
           >
             {tabs.map((tab) => {
@@ -1310,21 +1443,22 @@ export default function TRACKR() {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   style={{
-                    ...font(10, active ? 700 : 500),
+                    ...font(10, active ? 700 : 400),
                     letterSpacing: 2,
                     color: active ? C.cyan : C.textMuted,
-                    background: active ? `${C.cyan}10` : "transparent",
-                    border: "none",
+                    background: active ? `${C.cyan}0c` : "transparent",
+                    border: active ? `1px solid ${C.cyan}18` : "1px solid transparent",
                     borderRadius: C.radiusXs,
                     padding: "8px 20px",
                     cursor: "pointer",
-                    transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+                    transition: "all 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
                     textTransform: "uppercase",
-                    boxShadow: active ? `0 0 12px ${C.cyan}08` : "none",
+                    boxShadow: active ? `0 0 16px ${C.cyan}08, inset 0 1px 0 ${C.cyan}0a` : "none",
+                    position: "relative",
                   }}
                   onMouseEnter={(e) => {
                     if (!active) {
-                      e.target.style.color = C.textDim;
+                      e.target.style.color = C.textSecondary;
                       e.target.style.background = C.glass;
                     }
                   }}
@@ -1342,7 +1476,7 @@ export default function TRACKR() {
           </div>
 
           {/* Tab content */}
-          <div style={{ flex: 1, overflow: "hidden", padding: 10 }}>
+          <div style={{ flex: 1, overflow: "hidden", padding: 10, animation: "fadeIn 0.3s ease" }}>
             {/* ─── LIVE TAB ─── */}
             {activeTab === "live" && (
               <RackPanel
@@ -1357,8 +1491,9 @@ export default function TRACKR() {
                     overflowY: "auto",
                     background: C.bgInset,
                     border: `1px solid ${C.borderRack}`,
-                    borderRadius: 4,
+                    borderRadius: C.radiusSm,
                     padding: 0,
+                    boxShadow: "inset 0 2px 6px rgba(0,0,0,0.2)",
                   }}
                 >
                   {tracks.length === 0 ? (
@@ -1369,12 +1504,12 @@ export default function TRACKR() {
                         alignItems: "center",
                         justifyContent: "center",
                         height: "100%",
-                        gap: 12,
+                        gap: 14,
                         padding: 40,
                       }}
                     >
-                      <Led color={C.textMuted} size={8} pulse />
-                      <span style={{ ...font(11, 400), color: C.textMuted }}>Waiting for first track...</span>
+                      <Led color={C.textMuted} size={10} pulse />
+                      <span style={{ ...font(11, 300), color: C.textMuted, letterSpacing: 1 }}>Waiting for first track...</span>
                     </div>
                   ) : (
                     tracks.map((track, i) => {
@@ -1388,9 +1523,9 @@ export default function TRACKR() {
                             padding: "9px 14px",
                             borderBottom: i < tracks.length - 1 ? `1px solid ${C.borderRack}40` : "none",
                             borderLeft: isLast ? `2px solid ${C.green}` : "2px solid transparent",
-                            background: isLast ? `${C.green}06` : "transparent",
+                            background: isLast ? `linear-gradient(90deg, ${C.green}08, transparent 60%)` : "transparent",
                             animation: "slideIn 0.3s ease",
-                            transition: "background 0.3s ease",
+                            transition: "background 0.4s ease, border-color 0.4s ease",
                           }}
                         >
                           {/* Timestamp */}
@@ -1432,13 +1567,14 @@ export default function TRACKR() {
                             style={{
                               ...font(9, 600),
                               color: C.cyan,
-                              background: `${C.cyan}10`,
-                              border: `1px solid ${C.cyan}20`,
+                              background: `linear-gradient(135deg, ${C.cyan}0e, ${C.cyan}06)`,
+                              border: `1px solid ${C.cyan}1a`,
                               borderRadius: 10,
                               padding: "2px 8px",
                               marginLeft: 12,
                               flexShrink: 0,
                               whiteSpace: "nowrap",
+                              boxShadow: `0 0 8px ${C.cyan}06`,
                             }}
                           >
                             ×{track.plays}
@@ -1455,7 +1591,7 @@ export default function TRACKR() {
             {activeTab === "history" && (
               <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
                 {/* Sub-tab bar */}
-                <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+                <div style={{ display: "flex", gap: 2, marginBottom: 12 }}>
                   {[{ id: "tracks", label: "TRACKS" }, { id: "sessions", label: "SESSIONS" }].map((st) => {
                     const active = historySubTab === st.id;
                     return (
@@ -1463,16 +1599,17 @@ export default function TRACKR() {
                         key={st.id}
                         onClick={() => { setHistorySubTab(st.id); setSelectedTrack(null); setSelectedSession(null); }}
                         style={{
-                          ...font(9, 700),
+                          ...font(9, active ? 700 : 400),
                           letterSpacing: 2,
                           textTransform: "uppercase",
                           color: active ? C.cyan : C.textMuted,
-                          background: active ? `${C.cyan}10` : "transparent",
-                          border: "none",
+                          background: active ? `${C.cyan}0c` : "transparent",
+                          border: active ? `1px solid ${C.cyan}18` : "1px solid transparent",
                           borderRadius: C.radiusXs,
                           padding: "8px 20px",
                           cursor: "pointer",
-                          transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+                          transition: "all 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
+                          boxShadow: active ? `0 0 12px ${C.cyan}06` : "none",
                         }}
                       >
                         {st.label}
@@ -1569,18 +1706,30 @@ export default function TRACKR() {
                       </RackPanel>
                     </div>
                     {selectedTrack && (
-                      <div style={{ width: 300, flexShrink: 0 }}>
+                      <div style={{ width: 300, flexShrink: 0, animation: "fadeIn 0.3s ease" }}>
                         <RackPanel label="TRACK DETAIL" style={{ position: "sticky", top: 0 }}>
                           {selectedTrack.art_filename && (
-                            <img
-                              src={`http://127.0.0.1:${apiPort}/art/cache/${selectedTrack.art_filename}`}
-                              alt="Album art"
-                              style={{ width: "100%", aspectRatio: "1/1", objectFit: "cover", borderRadius: 4, marginBottom: 14, background: C.bgInset }}
-                              onError={(e) => { e.target.style.display = "none"; }}
-                            />
+                            <div style={{ position: "relative", marginBottom: 14 }}>
+                              <img
+                                src={`http://127.0.0.1:${apiPort}/art/cache/${selectedTrack.art_filename}`}
+                                alt="Album art"
+                                style={{
+                                  width: "100%", aspectRatio: "1/1", objectFit: "cover",
+                                  borderRadius: 8, background: C.bgInset, display: "block",
+                                  boxShadow: `0 4px 20px rgba(0,0,0,0.5)`,
+                                }}
+                                onError={(e) => { e.target.style.display = "none"; }}
+                              />
+                              <div style={{
+                                position: "absolute", bottom: -4, left: "10%", right: "10%",
+                                height: 12, borderRadius: "50%",
+                                background: `radial-gradient(ellipse, rgba(0,0,0,0.3), transparent 70%)`,
+                                filter: "blur(6px)", pointerEvents: "none",
+                              }} />
+                            </div>
                           )}
                           <div style={{ ...font(13, 600), color: C.textPrimary, marginBottom: 2 }}>{selectedTrack.artist}</div>
-                          <div style={{ ...font(12, 400), color: C.textDim, marginBottom: 14 }}>{selectedTrack.title}</div>
+                          <div style={{ ...font(12, 300), color: C.textDim, marginBottom: 14 }}>{selectedTrack.title}</div>
                           <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "6px 12px" }}>
                             {selectedTrack.label && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Label</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedTrack.label}</span></>)}
                             {selectedTrack.year && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Year</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedTrack.year}</span></>)}
@@ -1709,18 +1858,30 @@ export default function TRACKR() {
 
                     {/* ── Right: Track Detail (appears on track click) ── */}
                     {selectedSessionTrack && (
-                      <div style={{ width: 300, flexShrink: 0 }}>
+                      <div style={{ width: 300, flexShrink: 0, animation: "fadeIn 0.3s ease" }}>
                         <RackPanel label="TRACK DETAIL" style={{ position: "sticky", top: 0 }}>
                           {selectedSessionTrack.art_filename && (
-                            <img
-                              src={`http://127.0.0.1:${apiPort}/art/cache/${selectedSessionTrack.art_filename}`}
-                              alt="Album art"
-                              style={{ width: "100%", aspectRatio: "1/1", objectFit: "cover", borderRadius: 4, marginBottom: 14, background: C.bgInset }}
-                              onError={(e) => { e.target.style.display = "none"; }}
-                            />
+                            <div style={{ position: "relative", marginBottom: 14 }}>
+                              <img
+                                src={`http://127.0.0.1:${apiPort}/art/cache/${selectedSessionTrack.art_filename}`}
+                                alt="Album art"
+                                style={{
+                                  width: "100%", aspectRatio: "1/1", objectFit: "cover",
+                                  borderRadius: 8, background: C.bgInset, display: "block",
+                                  boxShadow: `0 4px 20px rgba(0,0,0,0.5)`,
+                                }}
+                                onError={(e) => { e.target.style.display = "none"; }}
+                              />
+                              <div style={{
+                                position: "absolute", bottom: -4, left: "10%", right: "10%",
+                                height: 12, borderRadius: "50%",
+                                background: `radial-gradient(ellipse, rgba(0,0,0,0.3), transparent 70%)`,
+                                filter: "blur(6px)", pointerEvents: "none",
+                              }} />
+                            </div>
                           )}
                           <div style={{ ...font(13, 600), color: C.textPrimary, marginBottom: 2 }}>{selectedSessionTrack.artist}</div>
-                          <div style={{ ...font(12, 400), color: C.textDim, marginBottom: 14 }}>{selectedSessionTrack.title}</div>
+                          <div style={{ ...font(12, 300), color: C.textDim, marginBottom: 14 }}>{selectedSessionTrack.title}</div>
                           <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "6px 12px" }}>
                             {selectedSessionTrack.label && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Label</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedSessionTrack.label}</span></>)}
                             {selectedSessionTrack.year && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Year</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedSessionTrack.year}</span></>)}
@@ -1793,8 +1954,8 @@ export default function TRACKR() {
                       style={{
                         height: 140,
                         background: previewBg,
-                        transition: "background 0.2s ease",
-                        borderRadius: 4,
+                        transition: "background 0.3s ease",
+                        borderRadius: C.radiusSm,
                         padding: 20,
                         overflow: "hidden",
                         display: "flex",
@@ -2292,12 +2453,15 @@ export default function TRACKR() {
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.62)",
+            background: "rgba(0,0,0,0.55)",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             zIndex: 96,
             padding: 16,
+            animation: "fadeIn 0.2s ease",
           }}
         >
           <div
@@ -2305,10 +2469,13 @@ export default function TRACKR() {
               width: "100%",
               maxWidth: 620,
               background: C.bgPanel,
-              border: `1px solid ${C.borderRack}`,
-              borderRadius: 6,
-              padding: 18,
-              boxShadow: "0 10px 28px rgba(0,0,0,0.45)",
+              border: `1px solid ${C.glassHighlight}`,
+              borderRadius: C.radius,
+              padding: 24,
+              boxShadow: `0 10px 40px rgba(0,0,0,0.5), 0 0 30px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06)`,
+              backdropFilter: C.blur,
+              WebkitBackdropFilter: C.blur,
+              animation: "slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
             }}
           >
             <div style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 2.2, textTransform: "uppercase" }}>
@@ -2337,12 +2504,15 @@ export default function TRACKR() {
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.62)",
+            background: "rgba(0,0,0,0.55)",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             zIndex: 95,
             padding: 16,
+            animation: "fadeIn 0.2s ease",
           }}
         >
           <div
@@ -2350,10 +2520,13 @@ export default function TRACKR() {
               width: "100%",
               maxWidth: 620,
               background: C.bgPanel,
-              border: `1px solid ${C.borderRack}`,
-              borderRadius: 6,
-              padding: 18,
-              boxShadow: "0 10px 28px rgba(0,0,0,0.45)",
+              border: `1px solid ${C.glassHighlight}`,
+              borderRadius: C.radius,
+              padding: 24,
+              boxShadow: `0 10px 40px rgba(0,0,0,0.5), 0 0 30px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06)`,
+              backdropFilter: C.blur,
+              WebkitBackdropFilter: C.blur,
+              animation: "slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
             }}
           >
             <div style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 2.2, textTransform: "uppercase" }}>
@@ -2411,15 +2584,17 @@ export default function TRACKR() {
               style={{
                 ...font(10, 500),
                 color: C.textPrimary,
-                background: C.bgPanel,
-                border: `1px solid ${C.borderRack}`,
+                background: "rgba(16, 16, 22, 0.85)",
+                backdropFilter: "blur(16px)",
+                WebkitBackdropFilter: "blur(16px)",
+                border: `1px solid ${C.glassBorder}`,
                 borderLeft: `3px solid ${borderColor}`,
-                borderRadius: 4,
+                borderRadius: C.radiusSm,
                 padding: "10px 16px",
                 minWidth: 240,
                 maxWidth: 360,
-                animation: "toastIn 0.25s ease",
-                boxShadow: `0 4px 16px rgba(0,0,0,0.4)`,
+                animation: "toastIn 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                boxShadow: `0 8px 32px rgba(0,0,0,0.45), 0 0 16px ${borderColor}08, inset 0 1px 0 rgba(255,255,255,0.04)`,
                 display: "flex",
                 alignItems: "center",
                 gap: 10,
@@ -2433,8 +2608,11 @@ export default function TRACKR() {
                   cursor: "pointer",
                   color: C.textMuted,
                   ...font(10),
+                  transition: "color 0.2s ease",
                 }}
                 onClick={() => setToasts((t) => t.filter((x) => x.id !== toast.id))}
+                onMouseEnter={(e) => { e.target.style.color = C.textDim; }}
+                onMouseLeave={(e) => { e.target.style.color = C.textMuted; }}
               >
                 ✕
               </span>

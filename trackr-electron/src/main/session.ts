@@ -62,11 +62,9 @@ export class SessionTracker {
 
   startNewSession(sessionDate?: Date): string {
     this._sessionFile = chooseNextSessionPath(this._outputRoot, sessionDate);
-    mkdirSync(dirname(this._sessionFile), { recursive: true });
-    if (!existsSync(this._sessionFile)) writeFileSync(this._sessionFile, '', 'utf8');
+    // File is created lazily on first append() — not here
     this._seen.clear();
     this._mixStartAt = null;
-    this._primeSeen();
     return this._sessionFile;
   }
 
