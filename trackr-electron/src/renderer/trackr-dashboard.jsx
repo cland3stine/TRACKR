@@ -1921,7 +1921,7 @@ export default function TRACKR() {
                           onChange={(e) => setBeatportUsername(e.target.value)}
                           onBlur={handleBeatportCredentialsSave}
                           disabled={!enrichmentEnabled}
-                          placeholder="Beatport email"
+                          placeholder="Beatport username"
                           style={{
                             flex: 1,
                             ...font(10, 400),

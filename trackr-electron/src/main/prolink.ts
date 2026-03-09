@@ -303,7 +303,7 @@ export async function startProlink(emit: EmitFn): Promise<void> {
   const mixstatus = network.mixstatus!;
   mixstatus.configure({
     mode: MixstatusMode.SmartTiming,
-    beatsUntilReported: 128,    // 2 phrases (~62s at 124 BPM) before reporting
+    beatsUntilReported: _fastFirstTrack ? 16 : 128,
     allowedInterruptBeats: 8,   // 2 bars tolerance for brief interruptions
     useOnAirStatus: true,       // respect DJM on-air flag
   });
