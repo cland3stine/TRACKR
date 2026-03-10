@@ -36,7 +36,7 @@ export interface OverlayCanvasConfig {
 export interface OverlayTriggerConfig {
   autoShowOnTrackChange: boolean;
   chatCommand: boolean;
-  chatCommandName: string;
+  chatCommandNames: string[];
   chatCommandCooldown: number;
   twitchChannel: string;
 }

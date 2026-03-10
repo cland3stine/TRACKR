@@ -20,14 +20,15 @@ body,
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px;
-  border: 1px solid #2a2a2e;
-  border-radius: 14px;
-  background: rgba(16, 16, 18, 0.92);
+  padding: 5px 14px;
+  border: 1px solid #252528;
+  border-radius: 20px;
+  background: #131315;
   color: #d0d0d4;
   font-family: "JetBrains Mono", "Fira Code", "SF Mono", monospace;
   font-size: 10px;
-  letter-spacing: 0.5px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
 }
 
 .backend-dot {

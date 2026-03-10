@@ -3,19 +3,19 @@ import { checkForUpdate } from "./updater";
 
 // ─── DESIGN TOKENS ───────────────────────────────────────────────────────────
 const C = {
-  bgDeep: "#06060a",
-  bgPanel: "#0e0e1a",
-  bgPanelSolid: "#0e0e1a",
-  bgCard: "#12121f",
-  bgInset: "#0a0a11",
-  bgInsetHover: "#161624",
-  borderRack: "rgba(255, 255, 255, 0.05)",
-  borderLight: "rgba(255, 255, 255, 0.07)",
-  borderFocus: "rgba(255, 255, 255, 0.14)",
-  textPrimary: "#dadadf",
+  bgDeep: "#0a0a0a",
+  bgPanel: "#131315",
+  bgPanelSolid: "#131315",
+  bgCard: "#18181b",
+  bgInset: "#0a0a0a",
+  bgInsetHover: "#1e1e22",
+  borderRack: "#252528",
+  borderLight: "#2a2a2e",
+  borderFocus: "#3a3a40",
+  textPrimary: "#d0d0d4",
   textSecondary: "#a0a0a8",
-  textDim: "#5e5e6a",
-  textMuted: "#38383f",
+  textDim: "#606068",
+  textMuted: "#3a3a40",
   textGhost: "#222228",
   green: "#34d058",
   greenDim: "#1a5c25",
@@ -24,21 +24,21 @@ const C = {
   red: "#e8413a",
   redDim: "#5c1a18",
   blue: "#4a9eff",
-  cyan: "#6ee7c0",
-  cyanDim: "#1e4a3e",
-  // Glossy tinted glass — smooth depth via layered inset box-shadows
+  cyan: "#00d4ff",
+  cyanDim: "#0a3a4a",
+  // Rack-mount glass — subtle depth via inset shadows, no backdrop-filter grain
   glass: "rgba(255, 255, 255, 0.025)",
   glassHover: "rgba(255, 255, 255, 0.05)",
   glassBorder: "rgba(255, 255, 255, 0.08)",
-  glassHighlight: "rgba(255, 255, 255, 0.16)",
-  // Shadow presets — outer glow + inset top-light + inner diffuse glow
-  panelShadow: "0 2px 4px rgba(0,0,0,0.5), 0 12px 40px rgba(0,0,0,0.3), 0 0 20px rgba(255,255,255,0.015), inset 0 1px 0 rgba(255,255,255,0.12), inset 0 40px 60px -30px rgba(255,255,255,0.03), inset 0 0 0 1px rgba(255,255,255,0.02)",
-  cardShadow: "0 2px 8px rgba(0,0,0,0.3), 0 0 12px rgba(255,255,255,0.01), inset 0 1px 0 rgba(255,255,255,0.09), inset 0 30px 50px -25px rgba(255,255,255,0.02)",
+  glassHighlight: "rgba(255, 255, 255, 0.12)",
+  // Shadow presets — hardware-panel depth
+  panelShadow: "inset 0 1px 0 rgba(255,255,255,0.03), 0 1px 3px rgba(0,0,0,0.4), 0 4px 12px rgba(0,0,0,0.2)",
+  cardShadow: "inset 0 1px 0 rgba(255,255,255,0.03), 0 1px 2px rgba(0,0,0,0.3)",
   blur: "blur(24px)",
   blurLight: "blur(14px)",
-  radius: 14,
-  radiusSm: 10,
-  radiusXs: 6,
+  radius: 8,
+  radiusSm: 6,
+  radiusXs: 4,
 };
 
 const font = (size, weight = 400) => ({
@@ -70,13 +70,12 @@ const RackPanel = ({ label, labelRight, children, style = {} }) => (
   <div
     style={{
       background: C.bgPanel,
-      border: `1px solid ${C.glassBorder}`,
-      borderTop: `1px solid ${C.glassHighlight}`,
+      border: `1px solid ${C.borderRack}`,
       borderRadius: C.radius,
       padding: 16,
       position: "relative",
       boxShadow: C.panelShadow,
-      transition: "box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.4s ease, transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+      transition: "box-shadow 0.3s ease, border-color 0.3s ease",
       ...style,
     }}
   >
@@ -97,9 +96,6 @@ const RackPanel = ({ label, labelRight, children, style = {} }) => (
             color: C.textMuted,
             letterSpacing: 2.5,
             textTransform: "uppercase",
-            background: `linear-gradient(135deg, ${C.textDim}, ${C.textMuted})`,
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
           }}
         >
           {label}
@@ -134,13 +130,13 @@ const Toggle = ({ on, onChange, disabled = false, label }) => (
         width: 38,
         height: 20,
         borderRadius: 10,
-        background: on ? `${C.green}20` : C.bgInset,
-        border: `1px solid ${on ? C.green + "45" : C.glassBorder}`,
+        background: on ? `${C.cyan}18` : C.bgInset,
+        border: `1px solid ${on ? C.cyan + "40" : C.borderRack}`,
         position: "relative",
         transition: "all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
         flexShrink: 0,
         boxShadow: on
-          ? `0 0 14px ${C.green}18, 0 0 4px ${C.green}10, inset 0 1px 2px rgba(0,0,0,0.2)`
+          ? `0 0 10px ${C.cyan}14, inset 0 1px 2px rgba(0,0,0,0.2)`
           : "inset 0 1px 3px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(0,0,0,0.1)",
       }}
     >
@@ -149,13 +145,13 @@ const Toggle = ({ on, onChange, disabled = false, label }) => (
           width: 14,
           height: 14,
           borderRadius: "50%",
-          background: on ? C.green : C.textMuted,
+          background: on ? C.cyan : C.textMuted,
           position: "absolute",
           top: 2,
           left: on ? 20 : 2,
           transition: "all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
           boxShadow: on
-            ? `0 0 10px ${C.green}60, 0 1px 3px rgba(0,0,0,0.3)`
+            ? `0 0 8px ${C.cyan}50, 0 1px 3px rgba(0,0,0,0.3)`
             : "0 1px 3px rgba(0,0,0,0.4)",
         }}
       />
@@ -227,15 +223,7 @@ const StateBadge = ({ state }) => {
         borderRadius: 20,
         background: c.bg,
         border: `1px solid ${c.border}`,
-        backdropFilter: C.blurLight,
-        WebkitBackdropFilter: C.blurLight,
-        boxShadow: state === "running"
-          ? `0 0 20px ${C.green}12, inset 0 1px 0 rgba(255,255,255,0.05)`
-          : state === "starting" || state === "stopping"
-            ? `0 0 16px ${C.amber}10`
-            : "inset 0 1px 0 rgba(255,255,255,0.03)",
-        transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
-        animation: state === "starting" ? "scanLine 2s ease-in-out infinite" : "none",
+        transition: "all 0.3s ease",
       }}
     >
       <Led color={c.color} size={6} pulse={c.pulse} />
@@ -948,7 +936,7 @@ export default function TRACKR() {
       style={{
         width: "100%",
         minHeight: "100vh",
-        background: `radial-gradient(ellipse at 30% 20%, rgba(20, 20, 30, 1) 0%, ${C.bgDeep} 60%), ${C.bgDeep}`,
+        background: C.bgDeep,
         color: C.textPrimary,
         display: "flex",
         flexDirection: "column",
@@ -962,25 +950,29 @@ export default function TRACKR() {
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
-        /* Scrollbar — ultra-thin, fades */
-        ::-webkit-scrollbar { width: 3px; }
+        /* Scrollbar — thin, rack-hardware style */
+        ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb {
-          background: rgba(255,255,255,0.06);
+          background: #252528;
           border-radius: 3px;
-          transition: background 0.3s ease;
         }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.14); }
+        ::-webkit-scrollbar-thumb:hover { background: #333338; }
 
         /* Input refinements */
         input[type="text"], input[type="password"], input[type="number"] {
           border-radius: ${C.radiusXs}px !important;
           transition: border-color 0.3s ease, box-shadow 0.3s ease, background 0.3s ease !important;
         }
+        input::placeholder {
+          color: ${C.textMuted} !important;
+          font-style: italic;
+          opacity: 1;
+        }
         input[type="text"]:focus, input[type="password"]:focus {
-          border-color: ${C.cyan}35 !important;
-          box-shadow: 0 0 16px ${C.cyan}0c, 0 0 4px ${C.cyan}08, inset 0 0 8px ${C.cyan}05 !important;
-          background: rgba(20, 20, 28, 0.8) !important;
+          border-color: rgba(0,212,255,0.3) !important;
+          box-shadow: 0 0 8px rgba(0,212,255,0.06) !important;
+          background: #18181b !important;
         }
         input[type="range"] {
           height: 3px;
@@ -1005,10 +997,14 @@ export default function TRACKR() {
         }
         select {
           appearance: none;
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%235e5e6a'/%3E%3C/svg%3E");
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23606068'/%3E%3C/svg%3E");
           background-repeat: no-repeat;
           background-position: right 8px center;
           padding-right: 24px !important;
+        }
+        select:focus {
+          border-color: rgba(0,212,255,0.3) !important;
+          outline: none;
         }
 
         /* ─── KEYFRAMES ─── */
@@ -1060,13 +1056,13 @@ export default function TRACKR() {
         <div
           style={{
             height: 48,
-            background: "#0a0a14",
-            borderBottom: `1px solid ${C.glassBorder}`,
+            background: "#101012",
+            borderBottom: `1px solid ${C.borderRack}`,
             display: "flex",
             alignItems: "center",
             padding: "0 20px",
             gap: 24,
-            boxShadow: "0 1px 0 rgba(255,255,255,0.04), 0 4px 16px rgba(0,0,0,0.4), inset 0 -1px 0 rgba(0,0,0,0.3)",
+            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03), 0 2px 8px rgba(0,0,0,0.4)",
           }}
         >
           {/* Wordmark */}
@@ -1159,7 +1155,7 @@ export default function TRACKR() {
         <div
           style={{
             minHeight: 40,
-            backgroundColor: "#07070c",
+            backgroundColor: "#0c0c0e",
             borderBottom: `1px solid ${C.borderRack}`,
             display: "flex",
             alignItems: "center",
@@ -1250,9 +1246,9 @@ export default function TRACKR() {
             gap: 10,
             padding: 10,
             overflowY: "auto",
-            borderRight: `1px solid ${C.glassBorder}`,
-            background: "#09090f",
-            boxShadow: "inset -1px 0 0 rgba(255,255,255,0.03), 4px 0 20px rgba(0,0,0,0.25), inset 0 0 40px rgba(255,255,255,0.008)",
+            borderRight: `1px solid ${C.borderRack}`,
+            background: "#0e0e10",
+            boxShadow: "2px 0 8px rgba(0,0,0,0.2)",
           }}
         >
           {/* ── Combined Status + Controls ── */}
@@ -1268,28 +1264,47 @@ export default function TRACKR() {
               </span>
             </div>
 
-            {/* Buttons side by side */}
-            <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+            {/* Buttons side by side — equal width */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 10 }}>
               <Btn
                 fullWidth
                 color={isRunning ? C.red : C.green}
                 onClick={handleStartStop}
                 disabled={isTransitioning}
+                style={{ padding: "9px 0" }}
               >
                 {appState === "starting" ? "STARTING..." : appState === "stopping" ? "STOPPING..." : isRunning ? "■ STOP" : "▶ START"}
               </Btn>
-              <Btn
-                fullWidth
-                color={C.amber}
+              <button
                 onClick={handleRefresh}
                 disabled={!isRunning || isTransitioning}
+                style={{
+                  ...font(10, 700),
+                  letterSpacing: 2,
+                  textTransform: "uppercase",
+                  color: (!isRunning || isTransitioning) ? C.textMuted : C.textPrimary,
+                  background: (!isRunning || isTransitioning) ? C.bgInset : C.bgInset,
+                  border: `1px solid ${C.borderRack}`,
+                  borderRadius: C.radiusSm,
+                  padding: "9px 0",
+                  cursor: (!isRunning || isTransitioning) ? "not-allowed" : "pointer",
+                  width: "100%",
+                  transition: "all 0.2s ease",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                  opacity: (!isRunning || isTransitioning) ? 0.4 : 1,
+                }}
+                onMouseEnter={(e) => { if (isRunning && !isTransitioning) e.target.style.borderColor = C.textDim; }}
+                onMouseLeave={(e) => { e.target.style.borderColor = C.borderRack; }}
               >
                 ↻ REFRESH
-              </Btn>
+              </button>
             </div>
 
             {/* Parameters — compact */}
-            <div style={{ borderTop: `1px solid ${C.borderRack}`, paddingTop: 8 }}>
+            <div style={{ borderTop: `1px solid ${C.borderRack}`, paddingTop: 10, marginTop: 2 }}>
               <div
                 style={{
                   display: "flex",
@@ -1299,20 +1314,20 @@ export default function TRACKR() {
                   opacity: isRunning ? 0.35 : 1,
                 }}
               >
-                <span style={{ ...font(10, 500), color: C.textDim }}>Delay</span>
-                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <span style={{ ...font(11, 500), color: C.textDim }}>Delay</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <button
                     onClick={() => !isRunning && setDelay(Math.max(1, delay - 1))}
                     disabled={isRunning}
-                    style={{ ...font(10, 700), width: 20, height: 20, border: `1px solid ${C.borderRack}`, borderRadius: 3, background: C.bgInset, color: C.textDim, cursor: isRunning ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                    style={{ ...font(10, 700), width: 22, height: 22, border: `1px solid ${C.borderRack}`, borderRadius: C.radiusXs, background: C.bgInset, color: C.textDim, cursor: isRunning ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "border-color 0.2s ease" }}
                   >−</button>
-                  <span style={{ ...font(11, 600), color: C.textPrimary, minWidth: 24, textAlign: "center", background: C.bgInset, border: `1px solid ${C.borderRack}`, borderRadius: 3, padding: "1px 4px" }}>
+                  <span style={{ ...font(11, 600), color: C.textPrimary, minWidth: 28, textAlign: "center", background: C.bgDeep, border: `1px solid ${C.borderRack}`, borderRadius: C.radiusXs, padding: "2px 6px" }}>
                     {delay}
                   </span>
                   <button
                     onClick={() => !isRunning && setDelay(Math.min(30, delay + 1))}
                     disabled={isRunning}
-                    style={{ ...font(10, 700), width: 20, height: 20, border: `1px solid ${C.borderRack}`, borderRadius: 3, background: C.bgInset, color: C.textDim, cursor: isRunning ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                    style={{ ...font(10, 700), width: 22, height: 22, border: `1px solid ${C.borderRack}`, borderRadius: C.radiusXs, background: C.bgInset, color: C.textDim, cursor: isRunning ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "border-color 0.2s ease" }}
                   >+</button>
                   <span style={{ ...font(9, 400), color: C.textMuted }}>sec</span>
                 </div>
@@ -1412,18 +1427,6 @@ export default function TRACKR() {
             </RackPanel>
           )}
 
-          {/* ── Output info ── */}
-          <div style={{
-            ...font(9, 300), color: C.textMuted, padding: "8px 8px",
-            marginTop: "auto", borderTop: `1px solid ${C.borderRack}`,
-          }}>
-            <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {outputDir || "%USERPROFILE%\\TRACKR"}
-            </div>
-            <div style={{ marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: C.textGhost }}>
-              {sessionLabel}
-            </div>
-          </div>
         </div>
 
         {/* ─── RIGHT CONTENT ─── */}
@@ -1432,11 +1435,10 @@ export default function TRACKR() {
           <div
             style={{
               display: "flex",
-              gap: 2,
-              padding: "6px 10px",
-              background: "#0b0b12",
+              gap: 0,
+              padding: "0 10px",
+              background: "#0e0e10",
               borderBottom: `1px solid ${C.borderRack}`,
-              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)",
               flexShrink: 0,
               position: "relative",
             }}
@@ -1448,29 +1450,26 @@ export default function TRACKR() {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   style={{
-                    ...font(10, active ? 700 : 400),
-                    letterSpacing: 2,
-                    color: active ? C.cyan : C.textMuted,
-                    background: active ? `${C.cyan}0c` : "transparent",
-                    border: active ? `1px solid ${C.cyan}18` : "1px solid transparent",
-                    borderRadius: C.radiusXs,
-                    padding: "8px 20px",
+                    ...font(11, active ? 600 : 500),
+                    letterSpacing: 1.5,
+                    color: active ? C.cyan : C.textDim,
+                    background: "transparent",
+                    border: "none",
+                    borderBottom: active ? `2px solid ${C.cyan}` : "2px solid transparent",
+                    padding: "10px 20px 8px",
                     cursor: "pointer",
-                    transition: "all 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
+                    transition: "all 0.25s ease",
                     textTransform: "uppercase",
-                    boxShadow: active ? `0 0 16px ${C.cyan}08, inset 0 1px 0 ${C.cyan}0a` : "none",
                     position: "relative",
                   }}
                   onMouseEnter={(e) => {
                     if (!active) {
-                      e.target.style.color = C.textSecondary;
-                      e.target.style.background = C.glass;
+                      e.target.style.color = C.textPrimary;
                     }
                   }}
                   onMouseLeave={(e) => {
                     if (!active) {
-                      e.target.style.color = C.textMuted;
-                      e.target.style.background = "transparent";
+                      e.target.style.color = C.textDim;
                     }
                   }}
                 >
@@ -1596,7 +1595,7 @@ export default function TRACKR() {
             {activeTab === "history" && (
               <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
                 {/* Sub-tab bar */}
-                <div style={{ display: "flex", gap: 2, marginBottom: 12 }}>
+                <div style={{ display: "flex", gap: 0, marginBottom: 12, borderBottom: `1px solid ${C.borderRack}` }}>
                   {[{ id: "tracks", label: "TRACKS" }, { id: "sessions", label: "SESSIONS" }].map((st) => {
                     const active = historySubTab === st.id;
                     return (
@@ -1604,17 +1603,16 @@ export default function TRACKR() {
                         key={st.id}
                         onClick={() => { setHistorySubTab(st.id); setSelectedTrack(null); setSelectedSession(null); }}
                         style={{
-                          ...font(9, active ? 700 : 400),
-                          letterSpacing: 2,
+                          ...font(10, active ? 600 : 500),
+                          letterSpacing: 1.5,
                           textTransform: "uppercase",
-                          color: active ? C.cyan : C.textMuted,
-                          background: active ? `${C.cyan}0c` : "transparent",
-                          border: active ? `1px solid ${C.cyan}18` : "1px solid transparent",
-                          borderRadius: C.radiusXs,
-                          padding: "8px 20px",
+                          color: active ? C.cyan : C.textDim,
+                          background: "transparent",
+                          border: "none",
+                          borderBottom: active ? `2px solid ${C.cyan}` : "2px solid transparent",
+                          padding: "8px 16px 6px",
                           cursor: "pointer",
-                          transition: "all 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
-                          boxShadow: active ? `0 0 12px ${C.cyan}06` : "none",
+                          transition: "all 0.25s ease",
                         }}
                       >
                         {st.label}
@@ -2164,14 +2162,16 @@ export default function TRACKR() {
               };
 
               const selectStyle = {
-                ...font(10, 500), color: C.textPrimary, background: C.bgInset,
-                border: `1px solid ${C.borderLight}`, padding: "6px 10px",
+                ...font(11, 500), color: C.textPrimary, background: "#18181b",
+                border: `1px solid ${C.borderRack}`, padding: "8px 10px",
                 borderRadius: C.radiusXs, outline: "none", cursor: "pointer",
+                transition: "border-color 0.2s ease",
               };
               const inputStyle = {
-                ...font(10, 500), color: C.textPrimary, background: C.bgInset,
-                border: `1px solid ${C.borderLight}`, padding: "6px 10px",
+                ...font(11, 500), color: C.textPrimary, background: "#18181b",
+                border: `1px solid ${C.borderRack}`, padding: "8px 10px",
                 borderRadius: C.radiusXs, outline: "none",
+                transition: "border-color 0.2s ease",
               };
               const port = apiPort || 8755;
               const mainCfg = overlaysConfig.main;
@@ -2215,8 +2215,8 @@ export default function TRACKR() {
                   : [["bottom-left", "Bottom Left"], ["bottom-right", "Bottom Right"], ["top-left", "Top Left"], ["top-right", "Top Right"], ["bottom-center", "Bottom Center"]];
                 return (
                   <>
-                    <div style={{ display: "grid", gridTemplateColumns: "72px 1fr", gap: "8px 10px", alignItems: "center", marginBottom: 10 }}>
-                      <span style={{ ...font(9, 500), color: C.textSecondary }}>Theme</span>
+                    <div style={{ display: "grid", gridTemplateColumns: "72px 1fr", gap: "12px 10px", alignItems: "center", marginBottom: 12 }}>
+                      <span style={{ ...font(11, 500), color: C.textDim }}>Theme</span>
                       <select value={config.theme} onChange={(e) => {
                         const nid = e.target.value;
                         updateOverlayCanvas(canvas, "theme", nid);
@@ -2226,17 +2226,17 @@ export default function TRACKR() {
                         {themeList.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                       </select>
 
-                      <span style={{ ...font(9, 500), color: C.textSecondary }}>Transition</span>
+                      <span style={{ ...font(11, 500), color: C.textDim }}>Transition</span>
                       <select value={config.transition} onChange={(e) => updateOverlayCanvas(canvas, "transition", e.target.value)} style={selectStyle}>
                         {transitions.map(t => <option key={t} value={t}>{t.split("-").map(w => w[0].toUpperCase() + w.slice(1)).join(" ")}</option>)}
                       </select>
 
-                      <span style={{ ...font(9, 500), color: C.textSecondary }}>Position</span>
+                      <span style={{ ...font(11, 500), color: C.textDim }}>Position</span>
                       <select value={config.position} onChange={(e) => updateOverlayCanvas(canvas, "position", e.target.value)} style={selectStyle}>
                         {positions.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                       </select>
 
-                      <span style={{ ...font(9, 500), color: C.textSecondary }}>Duration</span>
+                      <span style={{ ...font(11, 500), color: C.textDim }}>Duration</span>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <input type="number" min="0" max="120" value={config.displayDuration}
                           onChange={(e) => updateOverlayCanvas(canvas, "displayDuration", Math.max(0, parseInt(e.target.value) || 0))}
@@ -2244,23 +2244,34 @@ export default function TRACKR() {
                         <span style={{ ...font(8, 400), color: C.textDim }}>{config.displayDuration === 0 ? "always" : "sec"}</span>
                       </div>
                     </div>
-                    <div style={{ display: "flex", gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", gap: 18, marginBottom: 12, flexWrap: "wrap" }}>
                       {[["showLabel", "Label"], ["showYear", "Year"], ["showArt", "Art"]].map(([k, l]) => (
                         <Checkbox key={k} checked={config[k]} label={l} onClick={() => updateOverlayCanvas(canvas, k, !config[k])} />
                       ))}
                     </div>
                     <div style={{
                       display: "flex", alignItems: "center", gap: 8,
-                      padding: "5px 10px", background: C.bgDeep,
+                      padding: "6px 10px", background: C.bgDeep,
                       border: `1px solid ${C.borderRack}`, borderRadius: C.radiusXs,
                     }}>
-                      <span style={{ ...font(7, 600), color: C.textMuted, letterSpacing: 1 }}>OBS</span>
-                      <span style={{ ...font(9, 400), color: C.textDim, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <span style={{ ...font(7, 600), color: `${C.cyan}88`, letterSpacing: 1 }}>OBS</span>
+                      <span style={{ ...font(10, 400), color: C.textDim, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {lanIp}:{port}/overlay/{canvas}
                       </span>
-                      <Btn color={C.cyan} onClick={() => copyUrl(canvas)} style={{ padding: "2px 8px", ...font(8, 600) }}>
-                        {overlayCopied === canvas ? "COPIED" : "COPY"}
-                      </Btn>
+                      <button
+                        onClick={() => copyUrl(canvas)}
+                        style={{
+                          ...font(8, 600), letterSpacing: 1.5, textTransform: "uppercase",
+                          color: C.cyan, background: "transparent",
+                          border: `1px solid ${C.cyan}40`, borderRadius: C.radiusXs,
+                          padding: "3px 10px", cursor: "pointer",
+                          transition: "all 0.2s ease",
+                        }}
+                        onMouseEnter={(e) => { e.target.style.background = `${C.cyan}18`; }}
+                        onMouseLeave={(e) => { e.target.style.background = "transparent"; }}
+                      >
+                        {overlayCopied === canvas ? "COPIED!" : "COPY"}
+                      </button>
                     </div>
                   </>
                 );
@@ -2275,22 +2286,46 @@ export default function TRACKR() {
                     border: `1px solid ${C.borderRack}`,
                     overflow: "hidden",
                     marginBottom: 14,
-                    backgroundColor: "#0a0a10",
-                    backgroundImage: "repeating-conic-gradient(rgba(255,255,255,0.03) 0% 25%, transparent 0% 50%)",
-                    backgroundSize: "12px 12px",
+                    backgroundColor: "#070707",
+                    boxShadow: "inset 0 2px 8px rgba(0,0,0,0.5), inset 0 0 20px rgba(0,0,0,0.2)",
                   }}>
+                    {/* Scanline texture overlay */}
+                    <style>{`
+                      .preview-viewport::after {
+                        content: '';
+                        position: absolute;
+                        inset: 0;
+                        background: repeating-linear-gradient(
+                          0deg,
+                          transparent,
+                          transparent 2px,
+                          rgba(255,255,255,0.015) 2px,
+                          rgba(255,255,255,0.015) 4px
+                        );
+                        pointer-events: none;
+                        z-index: 2;
+                      }
+                    `}</style>
                     {/* Main preview (landscape) */}
-                    <div style={{ flex: "1.5 1 0", position: "relative", minHeight: 0 }}>
-                      <div style={{ ...font(7, 700), color: "rgba(255,255,255,0.12)", letterSpacing: 2, textTransform: "uppercase", position: "absolute", top: 8, left: 10, zIndex: 1 }}>MAIN</div>
+                    <div className="preview-viewport" style={{ flex: "1.5 1 0", position: "relative", minHeight: 0 }}>
+                      <div style={{
+                        ...font(7, 700), color: C.bgDeep, letterSpacing: 2, textTransform: "uppercase",
+                        position: "absolute", top: 6, left: 8, zIndex: 3,
+                        background: `${C.cyan}cc`, padding: "1px 6px", borderRadius: 3,
+                      }}>MAIN</div>
                       <div style={{ position: "relative", width: "100%", paddingBottom: "52%", overflow: "hidden" }}>
                         {PreviewIframe({ canvas: "main", config: mainCfg })}
                       </div>
                     </div>
                     {/* Divider */}
-                    <div style={{ width: 1, background: C.borderRack, flexShrink: 0 }} />
+                    <div style={{ width: 6, background: "#050505", flexShrink: 0, borderLeft: `1px solid ${C.borderRack}`, borderRight: `1px solid ${C.borderRack}` }} />
                     {/* TikTok preview (portrait) */}
-                    <div style={{ flex: "1 1 0", display: "flex", alignItems: "center", justifyContent: "center", position: "relative", minHeight: 0 }}>
-                      <div style={{ ...font(7, 700), color: "rgba(255,255,255,0.12)", letterSpacing: 2, textTransform: "uppercase", position: "absolute", top: 8, left: 10, zIndex: 1 }}>TIKTOK</div>
+                    <div className="preview-viewport" style={{ flex: "1 1 0", display: "flex", alignItems: "center", justifyContent: "center", position: "relative", minHeight: 0 }}>
+                      <div style={{
+                        ...font(7, 700), color: C.bgDeep, letterSpacing: 2, textTransform: "uppercase",
+                        position: "absolute", top: 6, left: 8, zIndex: 3,
+                        background: `${C.cyan}cc`, padding: "1px 6px", borderRadius: 3,
+                      }}>TIKTOK</div>
                       <div style={{ position: "relative", width: "45%", paddingBottom: "80%", overflow: "hidden" }}>
                         {PreviewIframe({ canvas: "tiktok", config: tikCfg })}
                       </div>
@@ -2302,33 +2337,38 @@ export default function TRACKR() {
                     {/* Left column — Main + Twitch Chat */}
                     <div style={{
                       background: C.bgCard,
-                      border: `1px solid ${C.glassBorder}`, borderTop: `1px solid ${C.glassHighlight}`,
+                      border: `1px solid ${C.borderRack}`,
                       borderRadius: C.radiusSm, padding: 14,
                       boxShadow: C.cardShadow,
                     }}>
-                      <div style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 10, paddingBottom: 8, borderBottom: `1px solid ${C.borderRack}` }}>
+                      <div style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${C.borderRack}` }}>
                         MAIN CANVAS
                       </div>
                       {ControlsGrid({ canvas: "main", config: mainCfg, themeList: landscapeThemes })}
 
                       {/* Twitch Chat */}
-                      <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.borderRack}` }}>
-                        <div style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 10 }}>
+                      <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${C.borderRack}` }}>
+                        <div style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 12 }}>
                           TWITCH CHAT
                         </div>
                         <div style={{ display: "grid", gridTemplateColumns: "72px 1fr", gap: "8px 10px", alignItems: "center" }}>
-                          <span style={{ ...font(9, 500), color: C.textSecondary }}>Channel</span>
+                          <span style={{ ...font(11, 500), color: C.textDim }}>Channel</span>
                           <input type="text" value={trig.twitchChannel}
                             onChange={(e) => updateOverlayTrigger("twitchChannel", e.target.value)}
                             placeholder="your_channel" style={inputStyle} />
-                          <span style={{ ...font(9, 500), color: C.textSecondary }}>Command</span>
+                          <span style={{ ...font(11, 500), color: C.textDim }}>Commands</span>
                           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                             <Checkbox checked={trig.chatCommand} onClick={() => updateOverlayTrigger("chatCommand", !trig.chatCommand)} />
-                            <input type="text" value={trig.chatCommandName}
-                              onChange={(e) => updateOverlayTrigger("chatCommandName", e.target.value)}
-                              style={{ ...inputStyle, padding: "4px 8px", width: 80 }} />
+                            <input type="text"
+                              value={Array.isArray(trig.chatCommandNames) ? trig.chatCommandNames.join(", ") : (trig.chatCommandName || "!trackid")}
+                              onChange={(e) => {
+                                const names = e.target.value.split(",").map(s => s.trim()).filter(Boolean);
+                                updateOverlayTrigger("chatCommandNames", names);
+                              }}
+                              placeholder="!trackid, !song"
+                              style={{ ...inputStyle, padding: "4px 8px", flex: 1 }} />
                           </div>
-                          <span style={{ ...font(9, 500), color: C.textSecondary }}>Cooldown</span>
+                          <span style={{ ...font(11, 500), color: C.textDim }}>Cooldown</span>
                           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                             <input type="number" min="0" max="300" value={trig.chatCommandCooldown}
                               onChange={(e) => updateOverlayTrigger("chatCommandCooldown", Math.max(0, parseInt(e.target.value) || 0))}
@@ -2347,11 +2387,11 @@ export default function TRACKR() {
                     {/* Right column — TikTok */}
                     <div style={{
                       background: C.bgCard,
-                      border: `1px solid ${C.glassBorder}`, borderTop: `1px solid ${C.glassHighlight}`,
+                      border: `1px solid ${C.borderRack}`,
                       borderRadius: C.radiusSm, padding: 14,
                       boxShadow: C.cardShadow,
                     }}>
-                      <div style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 10, paddingBottom: 8, borderBottom: `1px solid ${C.borderRack}` }}>
+                      <div style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${C.borderRack}` }}>
                         TIKTOK CANVAS
                       </div>
                       {ControlsGrid({ canvas: "tiktok", config: tikCfg, themeList: portraitThemes })}
@@ -2362,9 +2402,20 @@ export default function TRACKR() {
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <Checkbox checked={trig.autoShowOnTrackChange} label="Auto-show on track change"
                       onClick={() => updateOverlayTrigger("autoShowOnTrackChange", !trig.autoShowOnTrackChange)} />
-                    <Btn color={C.cyan} onClick={testOverlay}>
+                    <button
+                      onClick={testOverlay}
+                      style={{
+                        ...font(9, 600), letterSpacing: 1.5, textTransform: "uppercase",
+                        color: C.cyan, background: "transparent",
+                        border: `1px solid ${C.cyan}40`, borderRadius: C.radiusXs,
+                        padding: "5px 14px", cursor: "pointer",
+                        transition: "all 0.2s ease",
+                      }}
+                      onMouseEnter={(e) => { e.target.style.background = `${C.cyan}14`; }}
+                      onMouseLeave={(e) => { e.target.style.background = "transparent"; }}
+                    >
                       TEST OVERLAY
-                    </Btn>
+                    </button>
                   </div>
                 </RackPanel>
               );
@@ -2452,15 +2503,15 @@ export default function TRACKR() {
 
                     {/* OBS Overlay URL */}
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                      <span style={{ ...font(11, 500), color: C.textDim, minWidth: 80 }}>OBS Overlay</span>
+                      <span style={{ ...font(7, 600), color: `${C.cyan}88`, letterSpacing: 1, minWidth: 32 }}>OBS</span>
                       <div
                         style={{
                           flex: 1,
                           ...font(10, 400),
-                          color: apiEnabled ? C.textPrimary : C.textMuted,
-                          background: C.bgInset,
+                          color: apiEnabled ? C.textDim : C.textMuted,
+                          background: C.bgDeep,
                           border: `1px solid ${C.borderRack}`,
-                          borderRadius: 3,
+                          borderRadius: C.radiusXs,
                           padding: "7px 10px",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
@@ -2469,29 +2520,39 @@ export default function TRACKR() {
                       >
                         {`http://${lanIp}:${apiPort}/trackr-current.html`}
                       </div>
-                      <Btn
-                        color={C.blue}
+                      <button
                         disabled={!apiEnabled}
                         onClick={() => {
                           navigator.clipboard.writeText(`http://${lanIp}:${apiPort}/trackr-current.html`);
                           addToast("OBS overlay URL copied to clipboard", "success");
                         }}
+                        style={{
+                          ...font(8, 600), letterSpacing: 1.5, textTransform: "uppercase",
+                          color: !apiEnabled ? C.textMuted : C.cyan,
+                          background: "transparent",
+                          border: `1px solid ${!apiEnabled ? C.borderRack : C.cyan + "40"}`,
+                          borderRadius: C.radiusXs, padding: "5px 12px",
+                          cursor: !apiEnabled ? "not-allowed" : "pointer",
+                          transition: "all 0.2s ease", opacity: !apiEnabled ? 0.4 : 1,
+                        }}
+                        onMouseEnter={(e) => { if (apiEnabled) e.target.style.background = `${C.cyan}18`; }}
+                        onMouseLeave={(e) => { e.target.style.background = "transparent"; }}
                       >
                         COPY
-                      </Btn>
+                      </button>
                     </div>
 
                     {/* API URL */}
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ ...font(11, 500), color: C.textDim, minWidth: 80 }}>API</span>
+                      <span style={{ ...font(7, 600), color: `${C.cyan}88`, letterSpacing: 1, minWidth: 32 }}>API</span>
                       <div
                         style={{
                           flex: 1,
                           ...font(10, 400),
-                          color: apiEnabled ? C.cyan : C.textMuted,
-                          background: C.bgInset,
-                          border: `1px solid ${C.cyanDim}40`,
-                          borderRadius: 3,
+                          color: apiEnabled ? C.textDim : C.textMuted,
+                          background: C.bgDeep,
+                          border: `1px solid ${C.borderRack}`,
+                          borderRadius: C.radiusXs,
                           padding: "7px 10px",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
@@ -2500,16 +2561,26 @@ export default function TRACKR() {
                       >
                         {`http://${lanIp}:${apiPort}`}
                       </div>
-                      <Btn
-                        color={C.blue}
+                      <button
                         disabled={!apiEnabled}
                         onClick={() => {
                           navigator.clipboard.writeText(`http://${lanIp}:${apiPort}`);
                           addToast("API URL copied to clipboard", "success");
                         }}
+                        style={{
+                          ...font(8, 600), letterSpacing: 1.5, textTransform: "uppercase",
+                          color: !apiEnabled ? C.textMuted : C.cyan,
+                          background: "transparent",
+                          border: `1px solid ${!apiEnabled ? C.borderRack : C.cyan + "40"}`,
+                          borderRadius: C.radiusXs, padding: "5px 12px",
+                          cursor: !apiEnabled ? "not-allowed" : "pointer",
+                          transition: "all 0.2s ease", opacity: !apiEnabled ? 0.4 : 1,
+                        }}
+                        onMouseEnter={(e) => { if (apiEnabled) e.target.style.background = `${C.cyan}18`; }}
+                        onMouseLeave={(e) => { e.target.style.background = "transparent"; }}
                       >
                         COPY
-                      </Btn>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -2692,6 +2763,27 @@ export default function TRACKR() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* ═══ FOOTER STATUS BAR ═══ */}
+      <div style={{
+        flexShrink: 0,
+        display: "flex",
+        alignItems: "center",
+        gap: 16,
+        padding: "6px 20px",
+        background: "#080808",
+        borderTop: "1px solid #1a1a1a",
+        ...font(9, 400),
+        color: C.textMuted,
+      }}>
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {outputDir || "%USERPROFILE%\\TRACKR"}
+        </span>
+        <span style={{ color: C.textGhost }}>·</span>
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: C.textGhost }}>
+          {sessionLabel}
+        </span>
       </div>
 
       {confirmDialog && (

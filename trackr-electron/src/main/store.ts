@@ -77,7 +77,7 @@ export interface OverlayCanvasConfig {
 export interface OverlayTriggerConfig {
   autoShowOnTrackChange: boolean;
   chatCommand:           boolean;
-  chatCommandName:       string;
+  chatCommandNames:      string[];
   chatCommandCooldown:   number;  // seconds
   twitchChannel:         string;
 }
@@ -133,7 +133,7 @@ export const DEFAULT_OVERLAYS: OverlaysConfig = {
   triggers: {
     autoShowOnTrackChange: true,
     chatCommand:           false,
-    chatCommandName:       '!trackid',
+    chatCommandNames:      ['!trackid', '!id', '!track', '!song'],
     chatCommandCooldown:   30,
     twitchChannel:         '',
   },
@@ -277,7 +277,19 @@ function _rawToConfig(raw: StoreType): TrackrConfig {
     overlays: {
       main:     { ...DEFAULT_OVERLAYS.main,     ...raw.overlays?.main },
       tiktok:   { ...DEFAULT_OVERLAYS.tiktok,   ...raw.overlays?.tiktok },
-      triggers: { ...DEFAULT_OVERLAYS.triggers,  ...raw.overlays?.triggers },
+      triggers: (() => {
+        const merged = { ...DEFAULT_OVERLAYS.triggers, ...raw.overlays?.triggers };
+        // Migrate old chatCommandName (string) → chatCommandNames (string[])
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const oldName = (raw.overlays?.triggers as any)?.chatCommandName;
+        if (typeof oldName === 'string' && !Array.isArray(merged.chatCommandNames)) {
+          merged.chatCommandNames = [oldName];
+        }
+        if (!Array.isArray(merged.chatCommandNames)) {
+          merged.chatCommandNames = DEFAULT_OVERLAYS.triggers.chatCommandNames;
+        }
+        return merged;
+      })(),
     },
   };
 }

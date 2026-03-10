@@ -13,7 +13,7 @@ import { emitShowCard } from './sse';
 
 let _ws: WebSocket | null = null;
 let _channel = '';
-let _commandName = '!trackid';
+let _commandNames: string[] = ['!trackid'];
 let _cooldownMs = 30000;
 let _lastTrigger = 0;
 let _enabled = false;
@@ -59,14 +59,18 @@ function connect(): void {
       const [, username, text] = privmsgMatch;
       const trimmed = text.trim().toLowerCase();
 
-      if (trimmed === _commandName.toLowerCase() || trimmed.startsWith(_commandName.toLowerCase() + ' ')) {
+      const matched = _commandNames.some(cmd => {
+        const lc = cmd.toLowerCase();
+        return trimmed === lc || trimmed.startsWith(lc + ' ');
+      });
+      if (matched) {
         const now = Date.now();
         if (now - _lastTrigger < _cooldownMs) {
-          console.log(`[chat] !trackid from ${username} — cooldown active (${Math.ceil((_cooldownMs - (now - _lastTrigger)) / 1000)}s remaining)`);
+          console.log(`[chat] command from ${username} — cooldown active (${Math.ceil((_cooldownMs - (now - _lastTrigger)) / 1000)}s remaining)`);
           return;
         }
         _lastTrigger = now;
-        console.log(`[chat] !trackid triggered by ${username}`);
+        console.log(`[chat] command triggered by ${username}: ${trimmed}`);
         emitShowCard({ trigger: 'chat_command', user: username });
       }
     }
@@ -88,9 +92,9 @@ function connect(): void {
   _ws = ws;
 }
 
-export function startChatListener(channel: string, commandName: string, cooldownSeconds: number): void {
+export function startChatListener(channel: string, commandNames: string[], cooldownSeconds: number): void {
   _channel = channel.replace(/^#/, '').toLowerCase();
-  _commandName = commandName || '!trackid';
+  _commandNames = commandNames.length ? commandNames : ['!trackid'];
   _cooldownMs = (cooldownSeconds || 30) * 1000;
   _enabled = true;
 
@@ -115,11 +119,11 @@ export function stopChatListener(): void {
   console.log('[chat] Stopped');
 }
 
-export function updateChatConfig(channel: string, commandName: string, cooldownSeconds: number): void {
+export function updateChatConfig(channel: string, commandNames: string[], cooldownSeconds: number): void {
   const newChannel = channel.replace(/^#/, '').toLowerCase();
   const needsReconnect = newChannel !== _channel;
 
-  _commandName = commandName || '!trackid';
+  _commandNames = commandNames.length ? commandNames : ['!trackid'];
   _cooldownMs = (cooldownSeconds || 30) * 1000;
 
   if (needsReconnect) {
