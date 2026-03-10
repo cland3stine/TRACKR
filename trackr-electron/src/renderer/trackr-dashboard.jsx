@@ -576,10 +576,6 @@ export default function TRACKR() {
           return;
         }
 
-        if (event.event_type === "api_rebound") {
-          if (typeof payload.enabled === "boolean") setApiEnabled(payload.enabled);
-          if (payload.bind_host) setApiBindHost(payload.bind_host);
-        }
       });
 
       if (subRes?.ok && subRes.data?.unsubscribe) {
@@ -593,16 +589,16 @@ export default function TRACKR() {
 
     bind();
 
-    // Direct IPC listeners
-    window.electronAPI.on("trackr:session-started", () => {
+    // Direct IPC listeners — store unsubscribe functions for targeted cleanup
+    const offSession = window.electronAPI.on("trackr:session-started", () => {
       setTracks([]);
       setPublishedAgo(0);
       setLiveEnrichment(null);
     });
-    window.electronAPI.on("trackr:enrichment-update", (data) => {
+    const offEnrichment = window.electronAPI.on("trackr:enrichment-update", (data) => {
       setLiveEnrichment(data || null);
     });
-    window.electronAPI.on("trackr:track-published", () => {
+    const offPublished = window.electronAPI.on("trackr:track-published", () => {
       setLiveEnrichment(null); // clear until enrichment arrives
     });
 
@@ -610,9 +606,9 @@ export default function TRACKR() {
       mounted = false;
       if (statusPollRef.current) clearInterval(statusPollRef.current);
       if (typeof unsubscribeRef.current === "function") unsubscribeRef.current();
-      window.electronAPI.removeAllListeners("trackr:session-started");
-      window.electronAPI.removeAllListeners("trackr:enrichment-update");
-      window.electronAPI.removeAllListeners("trackr:track-published");
+      offSession();
+      offEnrichment();
+      offPublished();
     };
   }, [applyOutputRootResolution, callCore, refreshFromCore, reloadStyle, reloadTracklist]);
 
@@ -857,11 +853,11 @@ export default function TRACKR() {
     const handler = () => {
       if (activeTab === "history") loadHistory(historyQuery, historyPage);
     };
-    window.electronAPI.on("trackr:enrichment-update", handler);
-    window.electronAPI.on("trackr:track-published", handler);
+    const offEnrichment = window.electronAPI.on("trackr:enrichment-update", handler);
+    const offPublished = window.electronAPI.on("trackr:track-published", handler);
     return () => {
-      window.electronAPI.removeAllListeners("trackr:enrichment-update");
-      window.electronAPI.removeAllListeners("trackr:track-published");
+      offEnrichment();
+      offPublished();
     };
   }, [activeTab, historyQuery, historyPage, loadHistory]);
 
@@ -2159,7 +2155,7 @@ export default function TRACKR() {
               };
               const copyUrl = (canvas) => {
                 const port = apiPort || 8755;
-                navigator.clipboard.writeText(`http://localhost:${port}/overlay/${canvas}`);
+                navigator.clipboard.writeText(`http://${lanIp}:${port}/overlay/${canvas}`);
                 setOverlayCopied(canvas);
                 setTimeout(() => setOverlayCopied(null), 2000);
               };
@@ -2260,7 +2256,7 @@ export default function TRACKR() {
                     }}>
                       <span style={{ ...font(7, 600), color: C.textMuted, letterSpacing: 1 }}>OBS</span>
                       <span style={{ ...font(9, 400), color: C.textDim, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        localhost:{port}/overlay/{canvas}
+                        {lanIp}:{port}/overlay/{canvas}
                       </span>
                       <Btn color={C.cyan} onClick={() => copyUrl(canvas)} style={{ padding: "2px 8px", ...font(8, 600) }}>
                         {overlayCopied === canvas ? "COPIED" : "COPY"}
@@ -2471,13 +2467,13 @@ export default function TRACKR() {
                           whiteSpace: "nowrap",
                         }}
                       >
-                        {`http://127.0.0.1:${apiPort}/trackr-current.html`}
+                        {`http://${lanIp}:${apiPort}/trackr-current.html`}
                       </div>
                       <Btn
                         color={C.blue}
                         disabled={!apiEnabled}
                         onClick={() => {
-                          navigator.clipboard.writeText(`http://127.0.0.1:${apiPort}/trackr-current.html`);
+                          navigator.clipboard.writeText(`http://${lanIp}:${apiPort}/trackr-current.html`);
                           addToast("OBS overlay URL copied to clipboard", "success");
                         }}
                       >
@@ -2638,7 +2634,7 @@ export default function TRACKR() {
                       RESET PLAY COUNTS
                     </Btn>
                     <span style={{ ...font(9, 400), color: C.textMuted }}>
-                      Deletes all per-track play count history
+                      Resets all per-track play counts to zero
                     </span>
                   </div>
                 </div>

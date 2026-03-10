@@ -73,7 +73,7 @@ let _server: Server | null = null;
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
-function detectLanIp(): string {
+export function detectLanIp(): string {
   let fallback: string | null = null;
   for (const iface of Object.values(networkInterfaces())) {
     for (const addr of iface ?? []) {

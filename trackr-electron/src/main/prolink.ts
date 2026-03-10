@@ -104,7 +104,7 @@ export function isPlaybackActive(): boolean {
 
 // ─── publish pipeline ────────────────────────────────────────────────────────
 
-function cancelPending(): void {
+export function cancelPending(): void {
   if (_pendingTimer !== null) clearTimeout(_pendingTimer);
   _pendingTimer = null;
   _pendingKey   = null;

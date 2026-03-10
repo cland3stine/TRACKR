@@ -25,7 +25,7 @@ process.on('unhandledRejection', (reason) => {
 import {
   startProlink, stopProlink, getDeviceCount, getDeviceSummaries,
   setPublishCallback, setPublishDelay, isPlaybackActive, setOnSetEnded,
-  resetLastPublished, enableFastFirstTrack,
+  resetLastPublished, enableFastFirstTrack, cancelPending,
 } from './prolink';
 import { OutputWriter }      from './output';
 import { TrackrDatabase }    from './database';
@@ -33,7 +33,7 @@ import {
   getConfig, setConfig, resolveOutputRoot, persistOutputRootChoice, getEffectiveBindHost,
   DEFAULT_OVERLAY_STYLE, OverlayStyle,
 } from './store';
-import { startApiServer, stopApiServer, ApiDeps } from './api';
+import { startApiServer, stopApiServer, detectLanIp, ApiDeps } from './api';
 import { emitTrackChange, emitConfigChanged } from './overlays/index';
 import { startChatListener, stopChatListener, updateChatConfig } from './overlays/chat';
 import { createTray, refreshTray, destroyTray, TrayCallbacks } from './tray';
@@ -157,6 +157,7 @@ function buildTrayCallbacks(): TrayCallbacks {
     onStartStop: () => {
       if (_isRunning) {
         _isRunning = false;
+        cancelPending();
         emit('trackr:state', { state: 'stopped' });
       } else {
         const resolution = resolveOutputRoot();
@@ -210,6 +211,7 @@ function buildApiDeps(): ApiDeps {
     },
     controlStop: () => {
       _isRunning = false;
+      cancelPending();
       emit('trackr:state', { state: 'stopped' });
       refreshTray(buildTrayCallbacks());
     },
@@ -272,7 +274,7 @@ function buildApiDeps(): ApiDeps {
     },
     getApiBaseUrl: () => {
       const cfg = getConfig();
-      return `http://127.0.0.1:${cfg.apiPort}`;
+      return `http://${detectLanIp()}:${cfg.apiPort}`;
     },
     getLastTrack: () => {
       if (!db || !_lastPublishedLine) return null;
@@ -325,8 +327,8 @@ function initModules(outputRoot: string): void {
 
 /** Called by prolink.ts when a track passes all gates and the timer fires. */
 function handlePublish(line: string, deviceId: number, publishedAt: number): void {
-  if (!outputWriter || !db) {
-    console.warn('[main] handlePublish: modules not initialized, skipping');
+  if (!_isRunning || !outputWriter || !db) {
+    console.warn('[main] handlePublish: stopped or not initialized, skipping');
     return;
   }
 

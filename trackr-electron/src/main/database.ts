@@ -122,9 +122,9 @@ export class TrackrDatabase {
     ).run(artist, title);
   }
 
-  /** Delete all tracks and reset the global session counter. */
+  /** Zero out all play counts but preserve enrichment data. */
   resetAllPlayCounts(): void {
-    this._db.exec("DELETE FROM tracks");
+    this._db.exec("UPDATE tracks SET play_count = 0");
     this._db.prepare("UPDATE counters SET value = 0 WHERE name = 'play_count'").run();
   }
 

@@ -9,9 +9,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // One-way IPC (renderer → main)
   send:               (channel: string, ...args: unknown[]) =>
     ipcRenderer.send(channel, ...args),
-  // Subscribe to events from main process
-  on:                 (channel: string, listener: (...args: unknown[]) => void) =>
-    ipcRenderer.on(channel, (_event, ...args) => listener(...args)),
+  // Subscribe to events from main process — returns an unsubscribe function
+  on:                 (channel: string, listener: (...args: unknown[]) => void) => {
+    const wrapped = (_event: Electron.IpcRendererEvent, ...args: unknown[]) => listener(...args);
+    ipcRenderer.on(channel, wrapped);
+    return () => { ipcRenderer.removeListener(channel, wrapped); };
+  },
   removeAllListeners: (channel: string) =>
     ipcRenderer.removeAllListeners(channel),
 });

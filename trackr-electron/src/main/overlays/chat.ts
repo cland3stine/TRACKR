@@ -124,6 +124,10 @@ export function updateChatConfig(channel: string, commandName: string, cooldownS
 
   if (needsReconnect) {
     _channel = newChannel;
+    if (_reconnectTimer) {
+      clearTimeout(_reconnectTimer);
+      _reconnectTimer = null;
+    }
     if (_enabled) connect();
   }
 }

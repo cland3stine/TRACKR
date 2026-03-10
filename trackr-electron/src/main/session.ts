@@ -28,7 +28,7 @@ export function formatElapsed(seconds: number): string {
 
 /** Returns "YYYY-MM-DD(N)-tracklist.txt" */
 export function buildSessionFilename(date: Date, index: number): string {
-  const dateStr = date.toISOString().slice(0, 10); // YYYY-MM-DD
+  const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
   return `${dateStr}(${index})-tracklist.txt`;
 }
 
