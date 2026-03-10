@@ -18,8 +18,9 @@ import { networkInterfaces } from 'os';
 import { Server } from 'http';
 
 import { EM_DASH } from './cleaner';
-import { TrackrConfig, OverlayStyle, OutputRootResolution, DEFAULT_OVERLAY_STYLE } from './store';
+import { TrackrConfig, OverlayStyle, OverlaysConfig, OutputRootResolution, DEFAULT_OVERLAY_STYLE, DEFAULT_OVERLAYS } from './store';
 import { EnrichmentResult } from './enrichment/types';
+import { registerOverlayRoutes } from './overlays/index';
 
 // ─── types ───────────────────────────────────────────────────────────────────
 
@@ -58,6 +59,12 @@ export interface ApiDeps {
   // output root
   resolveOutputRoot: () => OutputRootResolution;
   chooseOutputRoot:  (choice: 'legacy' | 'trackr') => OutputRootResolution;
+
+  // overlays
+  getOverlaysConfig: () => OverlaysConfig;
+  setOverlaysConfig: (partial: Partial<OverlaysConfig>) => OverlaysConfig;
+  getApiBaseUrl:     () => string;
+  getLastTrack:      () => { artist: string; title: string; label?: string; year?: number; artUrl?: string } | null;
 }
 
 // ─── module state ────────────────────────────────────────────────────────────
@@ -380,6 +387,14 @@ function buildApp(deps: ApiDeps): Express {
     }
     const resolution = deps.chooseOutputRoot(choice);
     res.json({ state: resolution.state, output_root: resolution.outputRoot });
+  });
+
+  // ── Overlay system routes ──────────────────────────────────────────────────
+  // Must be registered BEFORE the static catch-all below.
+  registerOverlayRoutes(app, {
+    getOverlaysConfig: () => deps.getOverlaysConfig(),
+    getApiBaseUrl:     () => deps.getApiBaseUrl(),
+    getLastTrack:      () => deps.getLastTrack(),
   });
 
   // ── Static file serving (overlay/) ────────────────────────────────────────

@@ -34,6 +34,8 @@ import {
   DEFAULT_OVERLAY_STYLE, OverlayStyle,
 } from './store';
 import { startApiServer, stopApiServer, ApiDeps } from './api';
+import { emitTrackChange, emitConfigChanged } from './overlays/index';
+import { startChatListener, stopChatListener, updateChatConfig } from './overlays/chat';
 import { createTray, refreshTray, destroyTray, TrayCallbacks } from './tray';
 import { autoUpdater } from 'electron-updater';
 import {
@@ -253,6 +255,39 @@ function buildApiDeps(): ApiDeps {
       if (resolution.outputRoot) initModules(resolution.outputRoot);
       return resolution;
     },
+
+    // Overlays
+    getOverlaysConfig: () => getConfig().overlays,
+    setOverlaysConfig: (partial) => {
+      setConfig({ overlays: partial } as Record<string, unknown>);
+      emitConfigChanged();
+      const updated = getConfig().overlays;
+      // Sync chat listener with trigger config changes
+      if (updated.triggers.chatCommand && updated.triggers.twitchChannel) {
+        updateChatConfig(updated.triggers.twitchChannel, updated.triggers.chatCommandName, updated.triggers.chatCommandCooldown);
+      } else {
+        stopChatListener();
+      }
+      return updated;
+    },
+    getApiBaseUrl: () => {
+      const cfg = getConfig();
+      return `http://127.0.0.1:${cfg.apiPort}`;
+    },
+    getLastTrack: () => {
+      if (!db || !_lastPublishedLine) return null;
+      const parts = splitTrackLine(_lastPublishedLine);
+      if (!parts) return null;
+      const [artist, title] = parts;
+      const row = db.getTrack(artist, title);
+      const result: { artist: string; title: string; label?: string; year?: number; artUrl?: string } = { artist, title };
+      if (row?.enrichment_status === 'complete') {
+        if (row.label) result.label = row.label;
+        if (row.year) result.year = row.year;
+        if (row.art_filename) result.artUrl = '/art/current';
+      }
+      return result;
+    },
   };
 }
 
@@ -317,9 +352,22 @@ function handlePublish(line: string, deviceId: number, publishedAt: number): voi
       if (!artCache.copyToOverlay(artist, title)) artCache.clearOverlay();
     }
 
+    // Emit SSE track_change to overlay clients (if auto-show enabled)
+    if (getConfig().overlays.triggers.autoShowOnTrackChange) {
+      emitTrackChange({ artist, title, deck: deviceId });
+    }
+
     // Fire enrichment asynchronously — never blocks publishing
     enrichTrack(db, line, artCache, (result) => {
       emit('trackr:enrichment-update', { line, ...result });
+      // Update SSE overlays with enrichment data
+      if (getConfig().overlays.triggers.autoShowOnTrackChange) {
+        const enrichedData: Record<string, unknown> = { artist, title, deck: deviceId };
+        if (result.label) enrichedData.label = result.label;
+        if (result.year) enrichedData.year = result.year;
+        if (result.artFilename) enrichedData.artUrl = '/art/current';
+        emitTrackChange(enrichedData as { artist: string; title: string });
+      }
       // Art may have just been downloaded — copy to overlay
       if (artOverlay && artCache && result.artFilename) {
         artCache.copyToOverlay(artist, title);
@@ -493,6 +541,43 @@ function registerIpc(): void {
     return db?.getSessionTracks(params.sessionId) ?? [];
   });
 
+  // ── Overlays ─────────────────────────────────────────────────────────────────
+  ipcMain.handle('overlays:get-config', () => getConfig().overlays);
+  ipcMain.handle('overlays:set-config', (_event, partial: Record<string, unknown>) => {
+    setConfig({ overlays: partial } as Record<string, unknown>);
+    emitConfigChanged();
+    const updated = getConfig().overlays;
+    // Sync chat listener
+    if (updated.triggers.chatCommand && updated.triggers.twitchChannel) {
+      updateChatConfig(updated.triggers.twitchChannel, updated.triggers.chatCommandName, updated.triggers.chatCommandCooldown);
+    } else {
+      stopChatListener();
+    }
+    return updated;
+  });
+  ipcMain.handle('overlays:get-themes', () => {
+    const { getThemeList } = require('./overlays/themes/registry');
+    return getThemeList();
+  });
+  ipcMain.handle('overlays:test', () => {
+    const deps = buildApiDeps();
+    const lastTrack = deps.getLastTrack();
+    const trackData = lastTrack ?? {
+      artist: 'Luca Abayan',
+      title: 'Prisma (Tonaco Extended Remix)',
+      label: 'Colorize',
+      year: 2025,
+      artUrl: '',
+    };
+    emitTrackChange(trackData);
+    return { ok: true };
+  });
+  ipcMain.handle('overlays:hide', () => {
+    const { emitHideCard } = require('./overlays/sse');
+    emitHideCard();
+    return { ok: true };
+  });
+
   // ── Enrichment ─────────────────────────────────────────────────────────────
   ipcMain.handle('enrichment:test-connection', () => testConnection());
 
@@ -612,6 +697,16 @@ app.whenReady().then(() => {
   startProlink(emit).catch(err => {
     console.error('[main] prolink auto-start failed:', err);
   });
+
+  // Start Twitch chat listener if configured
+  const overlaysCfg = getConfig().overlays;
+  if (overlaysCfg.triggers.chatCommand && overlaysCfg.triggers.twitchChannel) {
+    startChatListener(
+      overlaysCfg.triggers.twitchChannel,
+      overlaysCfg.triggers.chatCommandName,
+      overlaysCfg.triggers.chatCommandCooldown,
+    );
+  }
 });
 
 app.on('second-instance', () => {

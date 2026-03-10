@@ -4,12 +4,13 @@ import { checkForUpdate } from "./updater";
 // ─── DESIGN TOKENS ───────────────────────────────────────────────────────────
 const C = {
   bgDeep: "#06060a",
-  bgPanel: "rgba(16, 16, 22, 0.78)",
-  bgPanelSolid: "#0e0e14",
-  bgInset: "rgba(20, 20, 28, 0.65)",
-  bgInsetHover: "rgba(32, 32, 42, 0.7)",
+  bgPanel: "#0e0e1a",
+  bgPanelSolid: "#0e0e1a",
+  bgCard: "#12121f",
+  bgInset: "#0a0a11",
+  bgInsetHover: "#161624",
   borderRack: "rgba(255, 255, 255, 0.05)",
-  borderLight: "rgba(255, 255, 255, 0.08)",
+  borderLight: "rgba(255, 255, 255, 0.07)",
   borderFocus: "rgba(255, 255, 255, 0.14)",
   textPrimary: "#dadadf",
   textSecondary: "#a0a0a8",
@@ -25,11 +26,14 @@ const C = {
   blue: "#4a9eff",
   cyan: "#6ee7c0",
   cyanDim: "#1e4a3e",
-  // Glass effects
+  // Glossy tinted glass — smooth depth via layered inset box-shadows
   glass: "rgba(255, 255, 255, 0.025)",
-  glassHover: "rgba(255, 255, 255, 0.055)",
-  glassBorder: "rgba(255, 255, 255, 0.07)",
-  glassHighlight: "rgba(255, 255, 255, 0.10)",
+  glassHover: "rgba(255, 255, 255, 0.05)",
+  glassBorder: "rgba(255, 255, 255, 0.08)",
+  glassHighlight: "rgba(255, 255, 255, 0.16)",
+  // Shadow presets — outer glow + inset top-light + inner diffuse glow
+  panelShadow: "0 2px 4px rgba(0,0,0,0.5), 0 12px 40px rgba(0,0,0,0.3), 0 0 20px rgba(255,255,255,0.015), inset 0 1px 0 rgba(255,255,255,0.12), inset 0 40px 60px -30px rgba(255,255,255,0.03), inset 0 0 0 1px rgba(255,255,255,0.02)",
+  cardShadow: "0 2px 8px rgba(0,0,0,0.3), 0 0 12px rgba(255,255,255,0.01), inset 0 1px 0 rgba(255,255,255,0.09), inset 0 30px 50px -25px rgba(255,255,255,0.02)",
   blur: "blur(24px)",
   blurLight: "blur(14px)",
   radius: 14,
@@ -66,14 +70,12 @@ const RackPanel = ({ label, labelRight, children, style = {} }) => (
   <div
     style={{
       background: C.bgPanel,
-      backdropFilter: C.blur,
-      WebkitBackdropFilter: C.blur,
       border: `1px solid ${C.glassBorder}`,
       borderTop: `1px solid ${C.glassHighlight}`,
       borderRadius: C.radius,
       padding: 16,
       position: "relative",
-      boxShadow: `0 2px 4px rgba(0,0,0,0.3), 0 8px 32px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -1px 0 rgba(0,0,0,0.2)`,
+      boxShadow: C.panelShadow,
       transition: "box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.4s ease, transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
       ...style,
     }}
@@ -387,6 +389,10 @@ export default function TRACKR() {
   const [sessionRows, setSessionRows] = useState([]);
   const [sessionTotal, setSessionTotal] = useState(0);
   const [sessionPage, setSessionPage] = useState(0);
+  // Overlays tab
+  const [overlaysConfig, setOverlaysConfig] = useState(null);
+  const [overlayThemes, setOverlayThemes] = useState([]);
+  const [overlayCopied, setOverlayCopied] = useState(null);  // "main" | "tiktok" | null
   const [selectedSession, setSelectedSession] = useState(null);
   const [selectedSessionTracks, setSelectedSessionTracks] = useState([]);
   const [selectedSessionTrack, setSelectedSessionTrack] = useState(null);
@@ -526,6 +532,16 @@ export default function TRACKR() {
           setBeatportPassword(cfg.enrichment.beatportPassword || "");
           setArtOverlayEnabled(cfg.enrichment.artOverlayEnabled || false);
         }
+      } catch (_) { /* non-critical */ }
+
+      // Load overlay config + themes
+      try {
+        const [oCfg, oThemes] = await Promise.all([
+          window.electronAPI.invoke("overlays:get-config"),
+          window.electronAPI.invoke("overlays:get-themes"),
+        ]);
+        if (oCfg) setOverlaysConfig(oCfg);
+        if (oThemes) setOverlayThemes(oThemes);
       } catch (_) { /* non-critical */ }
 
       const subRes = await callCore("subscribe_events", (event) => {
@@ -926,6 +942,7 @@ export default function TRACKR() {
     { id: "live", label: "LIVE" },
     { id: "history", label: "HISTORY" },
     { id: "style", label: "STYLE" },
+    { id: "overlays", label: "OVERLAYS" },
     { id: "settings", label: "SETTINGS" },
   ];
 
@@ -944,12 +961,7 @@ export default function TRACKR() {
         position: "relative",
       }}
     >
-      {/* Noise texture overlay */}
-      <div style={{
-        position: "fixed", inset: 0, pointerEvents: "none", zIndex: 9999, opacity: 0.025,
-        backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
-        backgroundRepeat: "repeat",
-      }} />
+      {/* Noise texture removed — clean glass surfaces */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1052,15 +1064,13 @@ export default function TRACKR() {
         <div
           style={{
             height: 48,
-            background: "rgba(10, 10, 14, 0.92)",
-            backdropFilter: C.blur,
-            WebkitBackdropFilter: C.blur,
-            borderBottom: `1px solid ${C.borderRack}`,
+            background: "#0a0a14",
+            borderBottom: `1px solid ${C.glassBorder}`,
             display: "flex",
             alignItems: "center",
             padding: "0 20px",
             gap: 24,
-            boxShadow: "0 1px 0 rgba(255,255,255,0.03), 0 4px 16px rgba(0,0,0,0.3)",
+            boxShadow: "0 1px 0 rgba(255,255,255,0.04), 0 4px 16px rgba(0,0,0,0.4), inset 0 -1px 0 rgba(0,0,0,0.3)",
           }}
         >
           {/* Wordmark */}
@@ -1153,7 +1163,7 @@ export default function TRACKR() {
         <div
           style={{
             minHeight: 40,
-            background: "rgba(6, 6, 10, 0.92)",
+            backgroundColor: "#07070c",
             borderBottom: `1px solid ${C.borderRack}`,
             display: "flex",
             alignItems: "center",
@@ -1244,9 +1254,9 @@ export default function TRACKR() {
             gap: 10,
             padding: 10,
             overflowY: "auto",
-            borderRight: `1px solid ${C.borderRack}`,
-            background: "rgba(6, 6, 10, 0.45)",
-            boxShadow: "inset -1px 0 0 rgba(255,255,255,0.02), 4px 0 16px rgba(0,0,0,0.15)",
+            borderRight: `1px solid ${C.glassBorder}`,
+            background: "#09090f",
+            boxShadow: "inset -1px 0 0 rgba(255,255,255,0.03), 4px 0 20px rgba(0,0,0,0.25), inset 0 0 40px rgba(255,255,255,0.008)",
           }}
         >
           {/* ── Combined Status + Controls ── */}
@@ -1428,10 +1438,9 @@ export default function TRACKR() {
               display: "flex",
               gap: 2,
               padding: "6px 10px",
-              background: "rgba(10, 10, 14, 0.65)",
-              backdropFilter: C.blurLight,
-              WebkitBackdropFilter: C.blurLight,
+              background: "#0b0b12",
               borderBottom: `1px solid ${C.borderRack}`,
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)",
               flexShrink: 0,
               position: "relative",
             }}
@@ -1493,7 +1502,7 @@ export default function TRACKR() {
                     border: `1px solid ${C.borderRack}`,
                     borderRadius: C.radiusSm,
                     padding: 0,
-                    boxShadow: "inset 0 2px 6px rgba(0,0,0,0.2)",
+                    boxShadow: "inset 0 2px 6px rgba(0,0,0,0.3), inset 0 0 12px rgba(255,255,255,0.008)",
                   }}
                 >
                   {tracks.length === 0 ? (
@@ -2124,6 +2133,247 @@ export default function TRACKR() {
               );
             })()}
 
+            {/* ─── OVERLAYS TAB ─── */}
+            {activeTab === "overlays" && overlaysConfig && (() => {
+              const updateOverlayCanvas = async (canvas, key, value) => {
+                const updated = {
+                  ...overlaysConfig,
+                  [canvas]: { ...overlaysConfig[canvas], [key]: value },
+                };
+                setOverlaysConfig(updated);
+                try { await window.electronAPI.invoke("overlays:set-config", updated); } catch (_) {}
+              };
+              const updateOverlayTrigger = async (key, value) => {
+                const updated = {
+                  ...overlaysConfig,
+                  triggers: { ...overlaysConfig.triggers, [key]: value },
+                };
+                setOverlaysConfig(updated);
+                try { await window.electronAPI.invoke("overlays:set-config", updated); } catch (_) {}
+              };
+              const landscapeThemes = overlayThemes.filter(t => t.canvas === "landscape" || t.canvas === "both");
+              const portraitThemes = overlayThemes.filter(t => t.canvas === "portrait" || t.canvas === "both");
+              const getTransitionsForTheme = (themeId) => {
+                const theme = overlayThemes.find(t => t.id === themeId);
+                return theme?.transitions || [];
+              };
+              const copyUrl = (canvas) => {
+                const port = apiPort || 8755;
+                navigator.clipboard.writeText(`http://localhost:${port}/overlay/${canvas}`);
+                setOverlayCopied(canvas);
+                setTimeout(() => setOverlayCopied(null), 2000);
+              };
+              const testOverlay = async () => {
+                try { await window.electronAPI.invoke("overlays:test"); } catch (_) {}
+              };
+
+              const selectStyle = {
+                ...font(10, 500), color: C.textPrimary, background: C.bgInset,
+                border: `1px solid ${C.borderLight}`, padding: "6px 10px",
+                borderRadius: C.radiusXs, outline: "none", cursor: "pointer",
+              };
+              const inputStyle = {
+                ...font(10, 500), color: C.textPrimary, background: C.bgInset,
+                border: `1px solid ${C.borderLight}`, padding: "6px 10px",
+                borderRadius: C.radiusXs, outline: "none",
+              };
+              const port = apiPort || 8755;
+              const mainCfg = overlaysConfig.main;
+              const tikCfg = overlaysConfig.tiktok;
+              const trig = overlaysConfig.triggers;
+
+              const Checkbox = ({ checked, label, onClick }) => (
+                <div onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", userSelect: "none" }}>
+                  <div style={{
+                    width: 13, height: 13, borderRadius: 3,
+                    background: checked ? C.cyan : "transparent",
+                    border: `1px solid ${checked ? C.cyan : C.borderLight}`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    transition: "all 0.2s ease",
+                  }}>
+                    {checked && <span style={{ ...font(8, 700), color: C.bgDeep, lineHeight: 1 }}>✓</span>}
+                  </div>
+                  {label && <span style={{ ...font(9, 500), color: checked ? C.textPrimary : C.textDim }}>{label}</span>}
+                </div>
+              );
+
+              const PreviewIframe = ({ canvas, config }) => (
+                <iframe
+                  key={`${config.theme}-${config.transition}-${config.showLabel}-${config.showYear}-${config.showArt}`}
+                  src={`http://localhost:${port}/overlay/${canvas}?preview=true`}
+                  style={{
+                    position: "absolute", top: 0, left: 0,
+                    width: "133.33%", height: "133.33%",
+                    transform: "scale(0.75)", transformOrigin: "top left",
+                    border: "none",
+                  }}
+                  title={`${canvas} preview`}
+                />
+              );
+
+              const ControlsGrid = ({ canvas, config, themeList }) => {
+                const currentTheme = overlayThemes.find(t => t.id === config.theme);
+                const transitions = currentTheme?.transitions || [];
+                const positions = canvas === "tiktok"
+                  ? [["bottom-center", "Bottom Center"], ["bottom-left", "Bottom Left"], ["bottom-right", "Bottom Right"]]
+                  : [["bottom-left", "Bottom Left"], ["bottom-right", "Bottom Right"], ["top-left", "Top Left"], ["top-right", "Top Right"], ["bottom-center", "Bottom Center"]];
+                return (
+                  <>
+                    <div style={{ display: "grid", gridTemplateColumns: "72px 1fr", gap: "8px 10px", alignItems: "center", marginBottom: 10 }}>
+                      <span style={{ ...font(9, 500), color: C.textSecondary }}>Theme</span>
+                      <select value={config.theme} onChange={(e) => {
+                        const nid = e.target.value;
+                        updateOverlayCanvas(canvas, "theme", nid);
+                        const t = overlayThemes.find(x => x.id === nid);
+                        if (t && !t.transitions.includes(config.transition)) updateOverlayCanvas(canvas, "transition", t.defaultTransition);
+                      }} style={selectStyle}>
+                        {themeList.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+
+                      <span style={{ ...font(9, 500), color: C.textSecondary }}>Transition</span>
+                      <select value={config.transition} onChange={(e) => updateOverlayCanvas(canvas, "transition", e.target.value)} style={selectStyle}>
+                        {transitions.map(t => <option key={t} value={t}>{t.split("-").map(w => w[0].toUpperCase() + w.slice(1)).join(" ")}</option>)}
+                      </select>
+
+                      <span style={{ ...font(9, 500), color: C.textSecondary }}>Position</span>
+                      <select value={config.position} onChange={(e) => updateOverlayCanvas(canvas, "position", e.target.value)} style={selectStyle}>
+                        {positions.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                      </select>
+
+                      <span style={{ ...font(9, 500), color: C.textSecondary }}>Duration</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <input type="number" min="0" max="120" value={config.displayDuration}
+                          onChange={(e) => updateOverlayCanvas(canvas, "displayDuration", Math.max(0, parseInt(e.target.value) || 0))}
+                          style={{ ...inputStyle, width: 54 }} />
+                        <span style={{ ...font(8, 400), color: C.textDim }}>{config.displayDuration === 0 ? "always" : "sec"}</span>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
+                      {[["showLabel", "Label"], ["showYear", "Year"], ["showArt", "Art"]].map(([k, l]) => (
+                        <Checkbox key={k} checked={config[k]} label={l} onClick={() => updateOverlayCanvas(canvas, k, !config[k])} />
+                      ))}
+                    </div>
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: 8,
+                      padding: "5px 10px", background: C.bgDeep,
+                      border: `1px solid ${C.borderRack}`, borderRadius: C.radiusXs,
+                    }}>
+                      <span style={{ ...font(7, 600), color: C.textMuted, letterSpacing: 1 }}>OBS</span>
+                      <span style={{ ...font(9, 400), color: C.textDim, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        localhost:{port}/overlay/{canvas}
+                      </span>
+                      <Btn color={C.cyan} onClick={() => copyUrl(canvas)} style={{ padding: "2px 8px", ...font(8, 600) }}>
+                        {overlayCopied === canvas ? "COPIED" : "COPY"}
+                      </Btn>
+                    </div>
+                  </>
+                );
+              };
+
+              return (
+                <RackPanel label="OVERLAYS">
+                  {/* ── Unified Preview ── */}
+                  <div style={{
+                    display: "flex",
+                    borderRadius: C.radiusSm,
+                    border: `1px solid ${C.borderRack}`,
+                    overflow: "hidden",
+                    marginBottom: 14,
+                    backgroundColor: "#0a0a10",
+                    backgroundImage: "repeating-conic-gradient(rgba(255,255,255,0.03) 0% 25%, transparent 0% 50%)",
+                    backgroundSize: "12px 12px",
+                  }}>
+                    {/* Main preview (landscape) */}
+                    <div style={{ flex: "1.5 1 0", position: "relative", minHeight: 0 }}>
+                      <div style={{ ...font(7, 700), color: "rgba(255,255,255,0.12)", letterSpacing: 2, textTransform: "uppercase", position: "absolute", top: 8, left: 10, zIndex: 1 }}>MAIN</div>
+                      <div style={{ position: "relative", width: "100%", paddingBottom: "52%", overflow: "hidden" }}>
+                        {PreviewIframe({ canvas: "main", config: mainCfg })}
+                      </div>
+                    </div>
+                    {/* Divider */}
+                    <div style={{ width: 1, background: C.borderRack, flexShrink: 0 }} />
+                    {/* TikTok preview (portrait) */}
+                    <div style={{ flex: "1 1 0", display: "flex", alignItems: "center", justifyContent: "center", position: "relative", minHeight: 0 }}>
+                      <div style={{ ...font(7, 700), color: "rgba(255,255,255,0.12)", letterSpacing: 2, textTransform: "uppercase", position: "absolute", top: 8, left: 10, zIndex: 1 }}>TIKTOK</div>
+                      <div style={{ position: "relative", width: "45%", paddingBottom: "80%", overflow: "hidden" }}>
+                        {PreviewIframe({ canvas: "tiktok", config: tikCfg })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ── Settings: two columns ── */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+                    {/* Left column — Main + Twitch Chat */}
+                    <div style={{
+                      background: C.bgCard,
+                      border: `1px solid ${C.glassBorder}`, borderTop: `1px solid ${C.glassHighlight}`,
+                      borderRadius: C.radiusSm, padding: 14,
+                      boxShadow: C.cardShadow,
+                    }}>
+                      <div style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 10, paddingBottom: 8, borderBottom: `1px solid ${C.borderRack}` }}>
+                        MAIN CANVAS
+                      </div>
+                      {ControlsGrid({ canvas: "main", config: mainCfg, themeList: landscapeThemes })}
+
+                      {/* Twitch Chat */}
+                      <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.borderRack}` }}>
+                        <div style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 10 }}>
+                          TWITCH CHAT
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "72px 1fr", gap: "8px 10px", alignItems: "center" }}>
+                          <span style={{ ...font(9, 500), color: C.textSecondary }}>Channel</span>
+                          <input type="text" value={trig.twitchChannel}
+                            onChange={(e) => updateOverlayTrigger("twitchChannel", e.target.value)}
+                            placeholder="your_channel" style={inputStyle} />
+                          <span style={{ ...font(9, 500), color: C.textSecondary }}>Command</span>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <Checkbox checked={trig.chatCommand} onClick={() => updateOverlayTrigger("chatCommand", !trig.chatCommand)} />
+                            <input type="text" value={trig.chatCommandName}
+                              onChange={(e) => updateOverlayTrigger("chatCommandName", e.target.value)}
+                              style={{ ...inputStyle, padding: "4px 8px", width: 80 }} />
+                          </div>
+                          <span style={{ ...font(9, 500), color: C.textSecondary }}>Cooldown</span>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <input type="number" min="0" max="300" value={trig.chatCommandCooldown}
+                              onChange={(e) => updateOverlayTrigger("chatCommandCooldown", Math.max(0, parseInt(e.target.value) || 0))}
+                              style={{ ...inputStyle, width: 54 }} />
+                            <span style={{ ...font(8, 400), color: C.textDim }}>sec</span>
+                          </div>
+                        </div>
+                        {trig.chatCommand && !trig.twitchChannel && (
+                          <div style={{ ...font(8, 400), color: C.amber, marginTop: 6 }}>
+                            Enter your Twitch channel to enable chat commands
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Right column — TikTok */}
+                    <div style={{
+                      background: C.bgCard,
+                      border: `1px solid ${C.glassBorder}`, borderTop: `1px solid ${C.glassHighlight}`,
+                      borderRadius: C.radiusSm, padding: 14,
+                      boxShadow: C.cardShadow,
+                    }}>
+                      <div style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 10, paddingBottom: 8, borderBottom: `1px solid ${C.borderRack}` }}>
+                        TIKTOK CANVAS
+                      </div>
+                      {ControlsGrid({ canvas: "tiktok", config: tikCfg, themeList: portraitThemes })}
+                    </div>
+                  </div>
+
+                  {/* ── Footer: Auto-show + Test ── */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <Checkbox checked={trig.autoShowOnTrackChange} label="Auto-show on track change"
+                      onClick={() => updateOverlayTrigger("autoShowOnTrackChange", !trig.autoShowOnTrackChange)} />
+                    <Btn color={C.cyan} onClick={testOverlay}>
+                      TEST OVERLAY
+                    </Btn>
+                  </div>
+                </RackPanel>
+              );
+            })()}
+
             {/* ─── SETTINGS TAB ─── */}
             {activeTab === "settings" && (
               <RackPanel label="SETTINGS" style={{ maxWidth: 560 }}>
@@ -2472,7 +2722,7 @@ export default function TRACKR() {
               border: `1px solid ${C.glassHighlight}`,
               borderRadius: C.radius,
               padding: 24,
-              boxShadow: `0 10px 40px rgba(0,0,0,0.5), 0 0 30px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06)`,
+              boxShadow: `0 10px 40px rgba(0,0,0,0.5), 0 0 30px rgba(0,0,0,0.3), 0 0 25px rgba(255,255,255,0.02), inset 0 1px 0 rgba(255,255,255,0.10)`,
               backdropFilter: C.blur,
               WebkitBackdropFilter: C.blur,
               animation: "slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
@@ -2523,7 +2773,7 @@ export default function TRACKR() {
               border: `1px solid ${C.glassHighlight}`,
               borderRadius: C.radius,
               padding: 24,
-              boxShadow: `0 10px 40px rgba(0,0,0,0.5), 0 0 30px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06)`,
+              boxShadow: `0 10px 40px rgba(0,0,0,0.5), 0 0 30px rgba(0,0,0,0.3), 0 0 25px rgba(255,255,255,0.02), inset 0 1px 0 rgba(255,255,255,0.10)`,
               backdropFilter: C.blur,
               WebkitBackdropFilter: C.blur,
               animation: "slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
@@ -2584,7 +2834,7 @@ export default function TRACKR() {
               style={{
                 ...font(10, 500),
                 color: C.textPrimary,
-                background: "rgba(16, 16, 22, 0.85)",
+                background: "rgba(16, 16, 22, 0.92)",
                 backdropFilter: "blur(16px)",
                 WebkitBackdropFilter: "blur(16px)",
                 border: `1px solid ${C.glassBorder}`,
@@ -2594,7 +2844,7 @@ export default function TRACKR() {
                 minWidth: 240,
                 maxWidth: 360,
                 animation: "toastIn 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                boxShadow: `0 8px 32px rgba(0,0,0,0.45), 0 0 16px ${borderColor}08, inset 0 1px 0 rgba(255,255,255,0.04)`,
+                boxShadow: `0 8px 32px rgba(0,0,0,0.45), 0 0 16px ${borderColor}08, 0 0 12px rgba(255,255,255,0.01), inset 0 1px 0 rgba(255,255,255,0.05)`,
                 display: "flex",
                 alignItems: "center",
                 gap: 10,

@@ -64,6 +64,30 @@ export interface ApiEnrichmentConfig {
   sendArt:   boolean;
 }
 
+export interface OverlayCanvasConfig {
+  theme:           string;
+  transition:      string;
+  position:        string;
+  displayDuration: number;  // seconds, 0 = always visible
+  showLabel:       boolean;
+  showYear:        boolean;
+  showArt:         boolean;
+}
+
+export interface OverlayTriggerConfig {
+  autoShowOnTrackChange: boolean;
+  chatCommand:           boolean;
+  chatCommandName:       string;
+  chatCommandCooldown:   number;  // seconds
+  twitchChannel:         string;
+}
+
+export interface OverlaysConfig {
+  main:     OverlayCanvasConfig;
+  tiktok:   OverlayCanvasConfig;
+  triggers: OverlayTriggerConfig;
+}
+
 export const DEFAULT_ENRICHMENT: EnrichmentConfig = {
   enabled:               false,
   beatportUsername:       '',
@@ -87,6 +111,34 @@ export const DEFAULT_API_ENRICHMENT: ApiEnrichmentConfig = {
   sendArt:   true,
 };
 
+export const DEFAULT_OVERLAYS: OverlaysConfig = {
+  main: {
+    theme:           'glass-card',
+    transition:      'slide',
+    position:        'bottom-left',
+    displayDuration: 20,
+    showLabel:       true,
+    showYear:        true,
+    showArt:         true,
+  },
+  tiktok: {
+    theme:           'glass-card',
+    transition:      'digital',
+    position:        'bottom-center',
+    displayDuration: 15,
+    showLabel:       false,
+    showYear:        false,
+    showArt:         false,
+  },
+  triggers: {
+    autoShowOnTrackChange: true,
+    chatCommand:           false,
+    chatCommandName:       '!trackid',
+    chatCommandCooldown:   30,
+    twitchChannel:         '',
+  },
+};
+
 export interface TrackrConfig {
   outputRoot:            string;  // '' = not set
   migrationPromptSeen:   boolean;
@@ -102,6 +154,7 @@ export interface TrackrConfig {
   enrichment:            EnrichmentConfig;
   tracklistFormat:       TracklistFormatConfig;
   apiEnrichment:         ApiEnrichmentConfig;
+  overlays:              OverlaysConfig;
 }
 
 export interface OutputRootResolution {
@@ -129,6 +182,7 @@ interface StoreType {
   enrichment:               EnrichmentConfig;
   tracklistFormat:          TracklistFormatConfig;
   apiEnrichment:            ApiEnrichmentConfig;
+  overlays:                 OverlaysConfig;
   _migrationFromPythonDone: boolean;
 }
 
@@ -147,6 +201,7 @@ const DEFAULTS: StoreType = {
   enrichment:               { ...DEFAULT_ENRICHMENT },
   tracklistFormat:          { ...DEFAULT_TRACKLIST_FORMAT },
   apiEnrichment:            { ...DEFAULT_API_ENRICHMENT },
+  overlays:                 JSON.parse(JSON.stringify(DEFAULT_OVERLAYS)),
   _migrationFromPythonDone: false,
 };
 
@@ -219,6 +274,11 @@ function _rawToConfig(raw: StoreType): TrackrConfig {
     enrichment:           { ...DEFAULT_ENRICHMENT, ...raw.enrichment },
     tracklistFormat:      { ...DEFAULT_TRACKLIST_FORMAT, ...raw.tracklistFormat },
     apiEnrichment:        { ...DEFAULT_API_ENRICHMENT, ...raw.apiEnrichment },
+    overlays: {
+      main:     { ...DEFAULT_OVERLAYS.main,     ...raw.overlays?.main },
+      tiktok:   { ...DEFAULT_OVERLAYS.tiktok,   ...raw.overlays?.tiktok },
+      triggers: { ...DEFAULT_OVERLAYS.triggers,  ...raw.overlays?.triggers },
+    },
   };
 }
 
@@ -256,6 +316,14 @@ export function setConfig(partial: Partial<TrackrConfig>): void {
   }
   if (partial.tracklistFormat) {
     partial.tracklistFormat = { ...store.get('tracklistFormat'), ...partial.tracklistFormat } as TracklistFormatConfig;
+  }
+  if (partial.overlays) {
+    const current = store.get('overlays') ?? DEFAULT_OVERLAYS;
+    partial.overlays = {
+      main:     { ...current.main,     ...(partial.overlays as Partial<OverlaysConfig>).main },
+      tiktok:   { ...current.tiktok,   ...(partial.overlays as Partial<OverlaysConfig>).tiktok },
+      triggers: { ...current.triggers,  ...(partial.overlays as Partial<OverlaysConfig>).triggers },
+    } as OverlaysConfig;
   }
 
   store.set(partial as Partial<StoreType>);
