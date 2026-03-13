@@ -26,19 +26,21 @@ const C = {
   blue: "#4a9eff",
   cyan: "#00d4ff",
   cyanDim: "#0a3a4a",
-  // Rack-mount glass — subtle depth via inset shadows, no backdrop-filter grain
+  // Liquid glass material
   glass: "rgba(255, 255, 255, 0.025)",
   glassHover: "rgba(255, 255, 255, 0.05)",
-  glassBorder: "rgba(255, 255, 255, 0.08)",
+  glassBorder: "rgba(255, 255, 255, 0.06)",
   glassHighlight: "rgba(255, 255, 255, 0.12)",
-  // Shadow presets — hardware-panel depth
-  panelShadow: "inset 0 1px 0 rgba(255,255,255,0.03), 0 1px 3px rgba(0,0,0,0.4), 0 4px 12px rgba(0,0,0,0.2)",
-  cardShadow: "inset 0 1px 0 rgba(255,255,255,0.03), 0 1px 2px rgba(0,0,0,0.3)",
+  // Glass panel presets
+  panelBg: "linear-gradient(165deg, rgba(22,22,30,0.65) 0%, rgba(16,16,22,0.72) 50%, rgba(12,12,18,0.78) 100%)",
+  panelBlur: "blur(20px) saturate(1.3)",
+  panelShadow: "0 2px 8px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.04), inset 0 -1px 0 rgba(0,0,0,0.2)",
+  cardShadow: "0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.03)",
   blur: "blur(24px)",
   blurLight: "blur(14px)",
-  radius: 8,
-  radiusSm: 6,
-  radiusXs: 4,
+  radius: 12,
+  radiusSm: 8,
+  radiusXs: 6,
 };
 
 const font = (size, weight = 400) => ({
@@ -47,6 +49,23 @@ const font = (size, weight = 400) => ({
   fontWeight: weight,
   lineHeight: 1.5,
 });
+
+// ─── CAMELOT KEY MAPPING ─────────────────────────────────────────────────────
+const CLASSIC_TO_CAMELOT = {
+  "Ab Minor": "1A",  "G# Minor": "1A",  "B Major":  "1B",
+  "Eb Minor": "2A",  "D# Minor": "2A",  "F# Major": "2B",  "Gb Major": "2B",
+  "Bb Minor": "3A",  "A# Minor": "3A",  "Db Major": "3B",  "C# Major": "3B",
+  "F Minor":  "4A",  "Ab Major": "4B",  "G# Major": "4B",
+  "C Minor":  "5A",  "Eb Major": "5B",  "D# Major": "5B",
+  "G Minor":  "6A",  "Bb Major": "6B",  "A# Major": "6B",
+  "D Minor":  "7A",  "F Major":  "7B",
+  "A Minor":  "8A",  "C Major":  "8B",
+  "E Minor":  "9A",  "G Major":  "9B",
+  "B Minor": "10A",  "D Major": "10B",
+  "F# Minor":"11A",  "Gb Minor":"11A",  "A Major": "11B",
+  "Db Minor":"12A",  "C# Minor":"12A",  "E Major": "12B",
+};
+const toCamelot = (k) => (k && CLASSIC_TO_CAMELOT[k]) || k;
 
 // ─── LED COMPONENT ───────────────────────────────────────────────────────────
 const Led = ({ color, size = 8, pulse = false, style = {} }) => (
@@ -69,8 +88,10 @@ const Led = ({ color, size = 8, pulse = false, style = {} }) => (
 const RackPanel = ({ label, labelRight, children, style = {} }) => (
   <div
     style={{
-      background: C.bgPanel,
-      border: `1px solid ${C.borderRack}`,
+      background: C.panelBg,
+      backdropFilter: C.panelBlur,
+      WebkitBackdropFilter: C.panelBlur,
+      border: `1px solid ${C.glassBorder}`,
       borderRadius: C.radius,
       padding: 16,
       position: "relative",
@@ -87,7 +108,7 @@ const RackPanel = ({ label, labelRight, children, style = {} }) => (
           alignItems: "center",
           marginBottom: 14,
           paddingBottom: 10,
-          borderBottom: `1px solid ${C.borderRack}`,
+          borderBottom: "1px solid rgba(255,255,255,0.04)",
         }}
       >
         <span
@@ -129,15 +150,17 @@ const Toggle = ({ on, onChange, disabled = false, label }) => (
       style={{
         width: 38,
         height: 20,
-        borderRadius: 10,
-        background: on ? `${C.cyan}18` : C.bgInset,
-        border: `1px solid ${on ? C.cyan + "40" : C.borderRack}`,
+        borderRadius: 12,
+        background: on
+          ? "linear-gradient(180deg, rgba(0,212,255,0.3) 0%, rgba(0,212,255,0.2) 100%)"
+          : "rgba(255,255,255,0.06)",
+        border: `1px solid ${on ? "rgba(0,212,255,0.3)" : "rgba(255,255,255,0.08)"}`,
         position: "relative",
         transition: "all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
         flexShrink: 0,
         boxShadow: on
-          ? `0 0 10px ${C.cyan}14, inset 0 1px 2px rgba(0,0,0,0.2)`
-          : "inset 0 1px 3px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(0,0,0,0.1)",
+          ? "inset 0 1px 3px rgba(0,0,0,0.2), 0 0 8px rgba(0,212,255,0.1)"
+          : "inset 0 1px 3px rgba(0,0,0,0.4)",
       }}
     >
       <div
@@ -145,14 +168,14 @@ const Toggle = ({ on, onChange, disabled = false, label }) => (
           width: 14,
           height: 14,
           borderRadius: "50%",
-          background: on ? C.cyan : C.textMuted,
+          background: on
+            ? "linear-gradient(180deg, #e0e0e4 0%, #c8c8cc 100%)"
+            : "linear-gradient(180deg, #666 0%, #555 100%)",
           position: "absolute",
           top: 2,
           left: on ? 20 : 2,
           transition: "all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
-          boxShadow: on
-            ? `0 0 8px ${C.cyan}50, 0 1px 3px rgba(0,0,0,0.3)`
-            : "0 1px 3px rgba(0,0,0,0.4)",
+          boxShadow: "0 1px 4px rgba(0,0,0,0.4)",
         }}
       />
     </div>
@@ -162,7 +185,6 @@ const Toggle = ({ on, onChange, disabled = false, label }) => (
 // ─── BUTTON ──────────────────────────────────────────────────────────────────
 const Btn = ({ children, color, onClick, disabled, fullWidth, style = {} }) => {
   const [hover, setHover] = useState(false);
-  const isDestructive = color === C.red;
   return (
     <button
       onClick={onClick}
@@ -173,28 +195,28 @@ const Btn = ({ children, color, onClick, disabled, fullWidth, style = {} }) => {
         ...font(10, 700),
         letterSpacing: 2,
         textTransform: "uppercase",
-        color: disabled ? C.textMuted : isDestructive ? "#fff" : C.bgDeep,
+        color: disabled ? C.textMuted : "#fff",
         background: disabled
-          ? C.bgInset
+          ? "rgba(10,10,16,0.5)"
           : hover
-            ? `linear-gradient(135deg, ${color}ee, ${color}cc)`
-            : `linear-gradient(135deg, ${color}, ${color}dd)`,
-        border: `1px solid ${disabled ? C.glassBorder : hover ? color : color + "cc"}`,
+            ? `linear-gradient(180deg, ${color}58, ${color}40)`
+            : `linear-gradient(180deg, ${color}40, ${color}2e)`,
+        border: `1px solid ${disabled ? C.glassBorder : hover ? `${color}60` : `${color}4c`}`,
         borderRadius: C.radiusSm,
         padding: "10px 20px",
         cursor: disabled ? "not-allowed" : "pointer",
         width: fullWidth ? "100%" : "auto",
-        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+        transition: "all 0.2s ease",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         gap: 8,
         opacity: disabled ? 0.4 : 1,
+        backdropFilter: disabled ? "none" : "blur(8px)",
+        WebkitBackdropFilter: disabled ? "none" : "blur(8px)",
         boxShadow: disabled ? "none" : hover
-          ? `0 4px 20px ${color}35, 0 0 24px ${color}18, inset 0 1px 0 rgba(255,255,255,0.15)`
-          : `0 2px 10px ${color}20, inset 0 1px 0 rgba(255,255,255,0.1)`,
-        transform: hover && !disabled ? "translateY(-1px)" : "translateY(0)",
-        backgroundSize: hover && !disabled ? "200% 100%" : "100% 100%",
+          ? `0 4px 12px ${color}25, inset 0 1px 0 rgba(255,255,255,0.08)`
+          : `0 2px 6px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06)`,
         ...style,
       }}
     >
@@ -206,11 +228,11 @@ const Btn = ({ children, color, onClick, disabled, fullWidth, style = {} }) => {
 // ─── STATE BADGE ─────────────────────────────────────────────────────────────
 const StateBadge = ({ state }) => {
   const configs = {
-    running: { bg: C.green + "14", border: C.green + "38", color: C.green, text: "RUNNING", pulse: true },
-    stopped: { bg: C.bgInset, border: C.glassBorder, color: C.textMuted, text: "STOPPED", pulse: false },
-    starting: { bg: C.amber + "10", border: C.amber + "30", color: C.amber, text: "STARTING...", pulse: true },
-    stopping: { bg: C.amber + "10", border: C.amber + "30", color: C.amber, text: "STOPPING...", pulse: true },
-    error: { bg: C.red + "14", border: C.red + "38", color: C.red, text: "ERROR", pulse: false },
+    running: { bg: "rgba(46,204,64,0.1)", border: "rgba(46,204,64,0.25)", color: C.green, text: "RUNNING", pulse: true },
+    stopped: { bg: "rgba(10,10,16,0.5)", border: C.glassBorder, color: C.textMuted, text: "STOPPED", pulse: false },
+    starting: { bg: "rgba(245,200,66,0.08)", border: "rgba(245,200,66,0.25)", color: C.amber, text: "STARTING...", pulse: true },
+    stopping: { bg: "rgba(245,200,66,0.08)", border: "rgba(245,200,66,0.25)", color: C.amber, text: "STOPPING...", pulse: true },
+    error: { bg: "rgba(232,65,58,0.1)", border: "rgba(232,65,58,0.25)", color: C.red, text: "ERROR", pulse: false },
   };
   const c = configs[state] || configs.stopped;
   return (
@@ -219,10 +241,13 @@ const StateBadge = ({ state }) => {
         display: "inline-flex",
         alignItems: "center",
         gap: 7,
-        padding: "5px 14px",
+        padding: "4px 12px",
         borderRadius: 20,
         background: c.bg,
         border: `1px solid ${c.border}`,
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
+        boxShadow: `0 0 8px ${c.color}08, inset 0 1px 0 rgba(255,255,255,0.04)`,
         transition: "all 0.3s ease",
       }}
     >
@@ -381,6 +406,8 @@ export default function TRACKR() {
   const [overlaysConfig, setOverlaysConfig] = useState(null);
   const [overlayThemes, setOverlayThemes] = useState([]);
   const [overlayCopied, setOverlayCopied] = useState(null);  // "main" | "tiktok" | null
+  const [keyCamelot, setKeyCamelot] = useState(() => localStorage.getItem("trackr-key-camelot") === "1");
+  const [overlaySubTab, setOverlaySubTab] = useState("visual"); // "text" | "visual"
   const [selectedSession, setSelectedSession] = useState(null);
   const [selectedSessionTracks, setSelectedSessionTracks] = useState([]);
   const [selectedSessionTrack, setSelectedSessionTrack] = useState(null);
@@ -925,7 +952,6 @@ export default function TRACKR() {
   const tabs = [
     { id: "live", label: "LIVE" },
     { id: "history", label: "HISTORY" },
-    { id: "style", label: "STYLE" },
     { id: "overlays", label: "OVERLAYS" },
     { id: "settings", label: "SETTINGS" },
   ];
@@ -937,6 +963,7 @@ export default function TRACKR() {
         width: "100%",
         minHeight: "100vh",
         background: C.bgDeep,
+        backgroundImage: "radial-gradient(ellipse at 20% 50%, rgba(0,212,255,0.015) 0%, transparent 60%), radial-gradient(ellipse at 80% 80%, rgba(0,212,255,0.008) 0%, transparent 50%)",
         color: C.textPrimary,
         display: "flex",
         flexDirection: "column",
@@ -950,50 +977,58 @@ export default function TRACKR() {
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
-        /* Scrollbar — thin, rack-hardware style */
+        /* Scrollbar — thin glass */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb {
-          background: #252528;
+          background: rgba(255,255,255,0.08);
           border-radius: 3px;
         }
-        ::-webkit-scrollbar-thumb:hover { background: #333338; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.14); }
 
-        /* Input refinements */
+        /* Input refinements — glass inputs */
         input[type="text"], input[type="password"], input[type="number"] {
           border-radius: ${C.radiusXs}px !important;
-          transition: border-color 0.3s ease, box-shadow 0.3s ease, background 0.3s ease !important;
+          transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease !important;
+          box-shadow: inset 0 1px 3px rgba(0,0,0,0.3) !important;
         }
         input::placeholder {
-          color: ${C.textMuted} !important;
+          color: #2a2a30 !important;
           font-style: italic;
           opacity: 1;
         }
-        input[type="text"]:focus, input[type="password"]:focus {
+        input[type="text"]:focus, input[type="password"]:focus, input[type="number"]:focus {
           border-color: rgba(0,212,255,0.3) !important;
-          box-shadow: 0 0 8px rgba(0,212,255,0.06) !important;
-          background: #18181b !important;
+          box-shadow: inset 0 1px 3px rgba(0,0,0,0.3), 0 0 0 2px rgba(0,212,255,0.08) !important;
+          outline: none;
         }
         input[type="range"] {
-          height: 3px;
-          border-radius: 2px;
+          height: 4px;
+          border-radius: 4px;
           appearance: none;
-          background: ${C.borderRack};
+          background: rgba(255,255,255,0.06);
           outline: none;
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+          height: 4px;
+          border-radius: 4px;
+          background: rgba(255,255,255,0.06);
         }
         input[type="range"]::-webkit-slider-thumb {
           appearance: none;
-          width: 12px;
-          height: 12px;
+          width: 14px;
+          height: 14px;
           border-radius: 50%;
-          background: ${C.cyan};
+          background: linear-gradient(180deg, #e0e0e4 0%, #c0c0c4 100%);
+          border: 2px solid rgba(0,212,255,0.3);
           cursor: pointer;
-          box-shadow: 0 0 8px ${C.cyan}40;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+          margin-top: -5px;
           transition: box-shadow 0.2s ease, transform 0.2s ease;
         }
         input[type="range"]::-webkit-slider-thumb:hover {
-          box-shadow: 0 0 14px ${C.cyan}60;
-          transform: scale(1.15);
+          box-shadow: 0 1px 6px rgba(0,0,0,0.5), 0 0 8px rgba(0,212,255,0.2);
+          transform: scale(1.1);
         }
         select {
           appearance: none;
@@ -1001,9 +1036,11 @@ export default function TRACKR() {
           background-repeat: no-repeat;
           background-position: right 8px center;
           padding-right: 24px !important;
+          box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
         }
         select:focus {
           border-color: rgba(0,212,255,0.3) !important;
+          box-shadow: inset 0 1px 3px rgba(0,0,0,0.3), 0 0 0 2px rgba(0,212,255,0.08) !important;
           outline: none;
         }
 
@@ -1056,8 +1093,10 @@ export default function TRACKR() {
         <div
           style={{
             height: 48,
-            background: "#101012",
-            borderBottom: `1px solid ${C.borderRack}`,
+            background: "rgba(14,14,20,0.7)",
+            backdropFilter: "blur(12px) saturate(1.2)",
+            WebkitBackdropFilter: "blur(12px) saturate(1.2)",
+            borderBottom: "1px solid rgba(255,255,255,0.04)",
             display: "flex",
             alignItems: "center",
             padding: "0 20px",
@@ -1155,8 +1194,12 @@ export default function TRACKR() {
         <div
           style={{
             minHeight: 40,
-            backgroundColor: "#0c0c0e",
-            borderBottom: `1px solid ${C.borderRack}`,
+            background: isRunning && currentTrack
+              ? "linear-gradient(90deg, rgba(0,212,255,0.04) 0%, rgba(10,10,16,0.7) 30%, rgba(10,10,16,0.7) 100%)"
+              : "rgba(10,10,16,0.6)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
+            borderBottom: "1px solid rgba(255,255,255,0.04)",
             display: "flex",
             alignItems: "center",
             padding: "6px 20px",
@@ -1165,7 +1208,7 @@ export default function TRACKR() {
             boxShadow: isRunning && currentTrack
               ? `inset 0 -1px 0 ${C.cyan}15, 0 2px 12px rgba(0,0,0,0.2)`
               : "0 2px 12px rgba(0,0,0,0.2)",
-            transition: "box-shadow 0.6s ease",
+            transition: "all 0.6s ease",
           }}
         >
           {/* NOW label */}
@@ -1246,9 +1289,11 @@ export default function TRACKR() {
             gap: 10,
             padding: 10,
             overflowY: "auto",
-            borderRight: `1px solid ${C.borderRack}`,
-            background: "#0e0e10",
-            boxShadow: "2px 0 8px rgba(0,0,0,0.2)",
+            borderRight: "1px solid rgba(255,255,255,0.04)",
+            background: "rgba(10,10,14,0.6)",
+            backdropFilter: "blur(16px)",
+            WebkitBackdropFilter: "blur(16px)",
+            boxShadow: "2px 0 12px rgba(0,0,0,0.25)",
           }}
         >
           {/* ── Combined Status + Controls ── */}
@@ -1283,8 +1328,8 @@ export default function TRACKR() {
                   letterSpacing: 2,
                   textTransform: "uppercase",
                   color: (!isRunning || isTransitioning) ? C.textMuted : C.textPrimary,
-                  background: (!isRunning || isTransitioning) ? C.bgInset : C.bgInset,
-                  border: `1px solid ${C.borderRack}`,
+                  background: "rgba(10,10,16,0.5)",
+                  border: `1px solid ${C.glassBorder}`,
                   borderRadius: C.radiusSm,
                   padding: "9px 0",
                   cursor: (!isRunning || isTransitioning) ? "not-allowed" : "pointer",
@@ -1295,16 +1340,19 @@ export default function TRACKR() {
                   justifyContent: "center",
                   gap: 8,
                   opacity: (!isRunning || isTransitioning) ? 0.4 : 1,
+                  backdropFilter: "blur(8px)",
+                  WebkitBackdropFilter: "blur(8px)",
+                  boxShadow: "0 2px 6px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.04)",
                 }}
-                onMouseEnter={(e) => { if (isRunning && !isTransitioning) e.target.style.borderColor = C.textDim; }}
-                onMouseLeave={(e) => { e.target.style.borderColor = C.borderRack; }}
+                onMouseEnter={(e) => { if (isRunning && !isTransitioning) { e.target.style.borderColor = "rgba(255,255,255,0.12)"; e.target.style.background = "rgba(255,255,255,0.04)"; } }}
+                onMouseLeave={(e) => { e.target.style.borderColor = C.glassBorder; e.target.style.background = "rgba(10,10,16,0.5)"; }}
               >
                 ↻ REFRESH
               </button>
             </div>
 
             {/* Parameters — compact */}
-            <div style={{ borderTop: `1px solid ${C.borderRack}`, paddingTop: 10, marginTop: 2 }}>
+            <div style={{ borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 10, marginTop: 2 }}>
               <div
                 style={{
                   display: "flex",
@@ -1408,8 +1456,14 @@ export default function TRACKR() {
                 )}
                 {(liveEnrichment?.key_name || liveEnrichment?.key) && (
                   <>
-                    <span style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Key</span>
-                    <span style={{ ...font(10, 400), color: C.textPrimary }}>{liveEnrichment.key_name || liveEnrichment.key}</span>
+                    <span
+                      style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer", transition: "color 0.15s" }}
+                      onClick={() => { const next = !keyCamelot; setKeyCamelot(next); localStorage.setItem("trackr-key-camelot", next ? "1" : "0"); }}
+                      onMouseEnter={(e) => { e.target.style.color = C.cyan; }}
+                      onMouseLeave={(e) => { e.target.style.color = C.textMuted; }}
+                      title="Click to toggle Classic / Camelot"
+                    >{keyCamelot ? "Camelot" : "Key"}</span>
+                    <span style={{ ...font(10, 400), color: C.textPrimary }}>{keyCamelot ? toCamelot(liveEnrichment.key_name || liveEnrichment.key) : (liveEnrichment.key_name || liveEnrichment.key)}</span>
                   </>
                 )}
               </div>
@@ -1437,8 +1491,10 @@ export default function TRACKR() {
               display: "flex",
               gap: 0,
               padding: "0 10px",
-              background: "#0e0e10",
-              borderBottom: `1px solid ${C.borderRack}`,
+              background: "rgba(14,14,20,0.5)",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
+              borderBottom: "1px solid rgba(255,255,255,0.04)",
               flexShrink: 0,
               position: "relative",
             }}
@@ -1461,10 +1517,11 @@ export default function TRACKR() {
                     transition: "all 0.25s ease",
                     textTransform: "uppercase",
                     position: "relative",
+                    textShadow: active ? `0 0 12px rgba(0,212,255,0.3)` : "none",
                   }}
                   onMouseEnter={(e) => {
                     if (!active) {
-                      e.target.style.color = C.textPrimary;
+                      e.target.style.color = "#a0a0a8";
                     }
                   }}
                   onMouseLeave={(e) => {
@@ -1738,7 +1795,7 @@ export default function TRACKR() {
                             {selectedTrack.year && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Year</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedTrack.year}</span></>)}
                             {selectedTrack.genre && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Genre</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedTrack.genre}</span></>)}
                             {selectedTrack.bpm && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>BPM</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedTrack.bpm}</span></>)}
-                            {selectedTrack.key_name && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Key</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedTrack.key_name}</span></>)}
+                            {selectedTrack.key_name && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer", transition: "color 0.15s" }} onClick={() => { const next = !keyCamelot; setKeyCamelot(next); localStorage.setItem("trackr-key-camelot", next ? "1" : "0"); }} onMouseEnter={(e) => { e.target.style.color = C.cyan; }} onMouseLeave={(e) => { e.target.style.color = C.textMuted; }} title="Click to toggle Classic / Camelot">{keyCamelot ? "Camelot" : "Key"}</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{keyCamelot ? toCamelot(selectedTrack.key_name) : selectedTrack.key_name}</span></>)}
                             <span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Plays</span><span style={{ ...font(10, 600), color: C.cyan }}>{selectedTrack.play_count}</span>
                             <span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>First</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{formatDate(selectedTrack.first_played)}</span>
                             <span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Last</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{formatDate(selectedTrack.last_played)}</span>
@@ -1890,7 +1947,7 @@ export default function TRACKR() {
                             {selectedSessionTrack.year && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Year</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedSessionTrack.year}</span></>)}
                             {selectedSessionTrack.genre && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Genre</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedSessionTrack.genre}</span></>)}
                             {selectedSessionTrack.bpm && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>BPM</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedSessionTrack.bpm}</span></>)}
-                            {selectedSessionTrack.key_name && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Key</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedSessionTrack.key_name}</span></>)}
+                            {selectedSessionTrack.key_name && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer", transition: "color 0.15s" }} onClick={() => { const next = !keyCamelot; setKeyCamelot(next); localStorage.setItem("trackr-key-camelot", next ? "1" : "0"); }} onMouseEnter={(e) => { e.target.style.color = C.cyan; }} onMouseLeave={(e) => { e.target.style.color = C.textMuted; }} title="Click to toggle Classic / Camelot">{keyCamelot ? "Camelot" : "Key"}</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{keyCamelot ? toCamelot(selectedSessionTrack.key_name) : selectedSessionTrack.key_name}</span></>)}
                             {selectedSessionTrack.play_count != null && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Plays</span><span style={{ ...font(10, 600), color: C.cyan }}>{selectedSessionTrack.play_count}</span></>)}
                           </div>
                           {selectedSessionTrack.enrichment_status && (
@@ -1911,8 +1968,9 @@ export default function TRACKR() {
               </div>
             )}
 
-            {/* ─── STYLE TAB ─── */}
-            {activeTab === "style" && (() => {
+            {/* ─── OVERLAYS TAB (merged STYLE + OVERLAYS) ─── */}
+            {activeTab === "overlays" && (() => {
+              /* ── Style sub-tab variables ── */
               const s = overlayStyle;
               const gfontHref = GFONTS_SET.has(s.font_family)
                 ? `https://fonts.googleapis.com/css2?family=${encodeURIComponent(s.font_family)}:wght@400;700&display=swap`
@@ -1925,211 +1983,9 @@ export default function TRACKR() {
               const BG_CYCLE = ["#000000", "#ffffff", "#333333"];
               const BG_LABELS = ["BLK", "WHT", "GRY"];
 
-              return (
-                <div style={{ display: "flex", flexDirection: "column", gap: 16, height: "100%" }}>
-                  {/* Google Fonts link for preview */}
-                  {gfontHref && <link rel="stylesheet" href={gfontHref} />}
-
-                  {/* Live Preview Panel */}
-                  <RackPanel label="PREVIEW" labelRight={
-                    <div style={{ display: "flex", gap: 4 }}>
-                      {BG_CYCLE.map((bg, i) => (
-                        <button
-                          key={bg}
-                          onClick={() => setPreviewBg(bg)}
-                          style={{
-                            ...font(8, previewBg === bg ? 700 : 500),
-                            letterSpacing: 1,
-                            padding: "2px 6px",
-                            border: `1px solid ${previewBg === bg ? C.cyan : C.borderRack}`,
-                            borderRadius: 3,
-                            background: previewBg === bg ? `${C.cyan}18` : "transparent",
-                            color: previewBg === bg ? C.cyan : C.textMuted,
-                            cursor: "pointer",
-                          }}
-                        >
-                          {BG_LABELS[i]}
-                        </button>
-                      ))}
-                    </div>
-                  } style={{ flexShrink: 0 }}>
-                    <div
-                      style={{
-                        height: 140,
-                        background: previewBg,
-                        transition: "background 0.3s ease",
-                        borderRadius: C.radiusSm,
-                        padding: 20,
-                        overflow: "hidden",
-                        display: "flex",
-                        flexDirection: "column",
-                        justifyContent: "center",
-                        position: "relative",
-                      }}
-                    >
-                      <div style={{ display: "inline-block", maxWidth: "100%", overflow: "hidden" }} ref={(wrap) => {
-                        if (!wrap) return;
-                        const els = wrap.querySelectorAll(".preview-text");
-                        els.forEach((el) => {
-                          el.style.transform = "scaleX(1)";
-                          const cw = wrap.offsetWidth;
-                          const sw = el.scrollWidth;
-                          if (sw > cw && cw > 0) {
-                            el.style.transform = `scaleX(${Math.max(0.5, cw / sw)})`;
-                          }
-                        });
-                      }}>
-                        <div
-                          className="preview-text"
-                          style={{
-                            fontFamily: `"${s.font_family}", Arial, sans-serif`,
-                            fontSize: s.font_size,
-                            color: s.font_color,
-                            textTransform: s.text_transform,
-                            letterSpacing: `${s.letter_spacing}em`,
-                            filter: shadowCss,
-                            whiteSpace: "nowrap",
-                            transformOrigin: "left center",
-                          }}
-                        >
-                          {previewArtist}
-                        </div>
-                        <div
-                          className="preview-text"
-                          style={{
-                            fontFamily: `"${s.font_family}", Arial, sans-serif`,
-                            fontSize: s.font_size,
-                            color: s.font_color,
-                            textTransform: s.text_transform,
-                            letterSpacing: `${s.letter_spacing}em`,
-                            filter: shadowCss,
-                            whiteSpace: "nowrap",
-                            transformOrigin: "left center",
-                            marginTop: s.line_gap,
-                          }}
-                        >
-                          {previewTitle}
-                        </div>
-                      </div>
-                    </div>
-                    <div style={{ marginTop: 10, ...font(9, 400), color: C.textMuted }}>
-                      Long text auto-shrinks to fit. Changes reflect in OBS within 2 seconds.
-                    </div>
-                  </RackPanel>
-
-                  {/* Controls Panel */}
-                  <RackPanel label="OVERLAY STYLE" style={{ flex: 1, overflowY: "auto" }}>
-                    {/* Font Family */}
-                    <div style={{ display: "flex", alignItems: "center", padding: "6px 0", gap: 10 }}>
-                      <span style={{ ...font(11, 500), color: C.textDim, minWidth: 120 }}>Font</span>
-                      <select
-                        value={s.font_family}
-                        onChange={(e) => handleStyleChange("font_family", e.target.value)}
-                        style={{
-                          flex: 1,
-                          background: C.bgInset,
-                          color: C.textPrimary,
-                          border: `1px solid ${C.borderRack}`,
-                          borderRadius: 4,
-                          padding: "6px 8px",
-                          ...font(11, 400),
-                          cursor: "pointer",
-                          outline: "none",
-                        }}
-                      >
-                        {FONT_OPTIONS.map((f) => (
-                          <option key={f} value={f}>{f}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Uppercase */}
-                    <Toggle
-                      label="Uppercase"
-                      on={s.text_transform === "uppercase"}
-                      onChange={(on) => handleStyleChange("text_transform", on ? "uppercase" : "none")}
-                    />
-
-                    {/* Font Size */}
-                    <SliderControl
-                      label="Font Size"
-                      value={s.font_size}
-                      min={24} max={72} step={1} unit="px"
-                      onChange={(v) => handleStyleChange("font_size", v)}
-                    />
-
-                    {/* Letter Spacing */}
-                    <SliderControl
-                      label="Letter Spacing"
-                      value={s.letter_spacing}
-                      min={0} max={0.3} step={0.01} unit="em"
-                      onChange={(v) => handleStyleChange("letter_spacing", v)}
-                    />
-
-                    {/* Font Color */}
-                    <div style={{ display: "flex", alignItems: "center", padding: "6px 0", gap: 10 }}>
-                      <span style={{ ...font(11, 500), color: C.textDim, minWidth: 120 }}>Font Color</span>
-                      <input
-                        type="color"
-                        value={s.font_color}
-                        onChange={(e) => handleStyleChange("font_color", e.target.value)}
-                        style={{ width: 36, height: 28, border: `1px solid ${C.borderRack}`, borderRadius: 4, background: "transparent", cursor: "pointer", padding: 0 }}
-                      />
-                      <span style={{ ...font(10, 500), color: C.textPrimary }}>{s.font_color}</span>
-                    </div>
-
-                    {/* Line Gap */}
-                    <SliderControl
-                      label="Line Gap"
-                      value={s.line_gap}
-                      min={0} max={30} step={1} unit="px"
-                      onChange={(v) => handleStyleChange("line_gap", v)}
-                    />
-
-                    {/* Drop Shadow section header */}
-                    <div style={{ marginTop: 12, marginBottom: 4, borderTop: `1px solid ${C.borderRack}`, paddingTop: 10 }}>
-                      <Toggle
-                        label="Drop Shadow"
-                        on={s.drop_shadow_on}
-                        onChange={(on) => handleStyleChange("drop_shadow_on", on)}
-                      />
-                    </div>
-                    {s.drop_shadow_on && (
-                      <div style={{ paddingLeft: 12 }}>
-                        <SliderControl label="Distance" value={s.drop_shadow_x} min={0} max={20} step={1} unit="px" onChange={(v) => {
-                          setOverlayStyle((prev) => ({ ...prev, drop_shadow_x: v, drop_shadow_y: v }));
-                          if (styleDebounceRef.current) clearTimeout(styleDebounceRef.current);
-                          styleDebounceRef.current = setTimeout(async () => {
-                            const res = await callCore("set_style", { drop_shadow_x: v, drop_shadow_y: v });
-                            if (!res?.ok) addToast("Style update failed", "error");
-                          }, 200);
-                        }} />
-                        <SliderControl label="Blur" value={s.drop_shadow_blur} min={0} max={20} step={1} unit="px" onChange={(v) => handleStyleChange("drop_shadow_blur", v)} />
-                        <div style={{ display: "flex", alignItems: "center", padding: "6px 0", gap: 10 }}>
-                          <span style={{ ...font(11, 500), color: C.textDim, minWidth: 120 }}>Shadow Color</span>
-                          <input
-                            type="color"
-                            value={s.drop_shadow_color}
-                            onChange={(e) => handleStyleChange("drop_shadow_color", e.target.value)}
-                            style={{ width: 36, height: 28, border: `1px solid ${C.borderRack}`, borderRadius: 4, background: "transparent", cursor: "pointer", padding: 0 }}
-                          />
-                          <span style={{ ...font(10, 500), color: C.textPrimary }}>{s.drop_shadow_color}</span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Reset */}
-                    <div style={{ marginTop: 16, borderTop: `1px solid ${C.borderRack}`, paddingTop: 12 }}>
-                      <Btn color={C.amber} onClick={handleResetStyle}>RESET DEFAULTS</Btn>
-                    </div>
-                  </RackPanel>
-                </div>
-              );
-            })()}
-
-            {/* ─── OVERLAYS TAB ─── */}
-            {activeTab === "overlays" && overlaysConfig && (() => {
+              /* ── Visual sub-tab variables ── */
               const updateOverlayCanvas = async (canvas, key, value) => {
+                if (!overlaysConfig) return;
                 const updated = {
                   ...overlaysConfig,
                   [canvas]: { ...overlaysConfig[canvas], [key]: value },
@@ -2138,6 +1994,7 @@ export default function TRACKR() {
                 try { await window.electronAPI.invoke("overlays:set-config", updated); } catch (_) {}
               };
               const updateOverlayTrigger = async (key, value) => {
+                if (!overlaysConfig) return;
                 const updated = {
                   ...overlaysConfig,
                   triggers: { ...overlaysConfig.triggers, [key]: value },
@@ -2147,10 +2004,6 @@ export default function TRACKR() {
               };
               const landscapeThemes = overlayThemes.filter(t => t.canvas === "landscape" || t.canvas === "both");
               const portraitThemes = overlayThemes.filter(t => t.canvas === "portrait" || t.canvas === "both");
-              const getTransitionsForTheme = (themeId) => {
-                const theme = overlayThemes.find(t => t.id === themeId);
-                return theme?.transitions || [];
-              };
               const copyUrl = (canvas) => {
                 const port = apiPort || 8755;
                 navigator.clipboard.writeText(`http://${lanIp}:${port}/overlay/${canvas}`);
@@ -2160,34 +2013,38 @@ export default function TRACKR() {
               const testOverlay = async () => {
                 try { await window.electronAPI.invoke("overlays:test"); } catch (_) {}
               };
-
               const selectStyle = {
-                ...font(11, 500), color: C.textPrimary, background: "#18181b",
-                border: `1px solid ${C.borderRack}`, padding: "8px 10px",
+                ...font(11, 500), color: C.textPrimary, background: "rgba(10,10,16,0.5)",
+                border: `1px solid ${C.glassBorder}`, padding: "8px 10px",
                 borderRadius: C.radiusXs, outline: "none", cursor: "pointer",
                 transition: "border-color 0.2s ease",
               };
               const inputStyle = {
-                ...font(11, 500), color: C.textPrimary, background: "#18181b",
-                border: `1px solid ${C.borderRack}`, padding: "8px 10px",
+                ...font(11, 500), color: C.textPrimary, background: "rgba(10,10,16,0.5)",
+                border: `1px solid ${C.glassBorder}`, padding: "8px 10px",
                 borderRadius: C.radiusXs, outline: "none",
                 transition: "border-color 0.2s ease",
               };
               const port = apiPort || 8755;
-              const mainCfg = overlaysConfig.main;
-              const tikCfg = overlaysConfig.tiktok;
-              const trig = overlaysConfig.triggers;
+              const mainCfg = overlaysConfig?.main;
+              const tikCfg = overlaysConfig?.tiktok;
+              const trig = overlaysConfig?.triggers;
 
               const Checkbox = ({ checked, label, onClick }) => (
                 <div onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", userSelect: "none" }}>
                   <div style={{
-                    width: 13, height: 13, borderRadius: 3,
-                    background: checked ? C.cyan : "transparent",
-                    border: `1px solid ${checked ? C.cyan : C.borderLight}`,
+                    width: 13, height: 13, borderRadius: 4,
+                    background: checked
+                      ? "linear-gradient(135deg, rgba(0,212,255,0.35) 0%, rgba(0,212,255,0.2) 100%)"
+                      : "rgba(10,10,16,0.5)",
+                    border: `1px solid ${checked ? "rgba(0,212,255,0.4)" : "rgba(255,255,255,0.1)"}`,
                     display: "flex", alignItems: "center", justifyContent: "center",
                     transition: "all 0.2s ease",
+                    boxShadow: checked
+                      ? "inset 0 1px 2px rgba(0,0,0,0.2), 0 0 6px rgba(0,212,255,0.1)"
+                      : "inset 0 1px 2px rgba(0,0,0,0.3)",
                   }}>
-                    {checked && <span style={{ ...font(8, 700), color: C.bgDeep, lineHeight: 1 }}>✓</span>}
+                    {checked && <span style={{ ...font(8, 700), color: "#fff", lineHeight: 1 }}>✓</span>}
                   </div>
                   {label && <span style={{ ...font(9, 500), color: checked ? C.textPrimary : C.textDim }}>{label}</span>}
                 </div>
@@ -2197,12 +2054,7 @@ export default function TRACKR() {
                 <iframe
                   key={`${config.theme}-${config.transition}-${config.showLabel}-${config.showYear}-${config.showArt}`}
                   src={`http://localhost:${port}/overlay/${canvas}?preview=true`}
-                  style={{
-                    position: "absolute", top: 0, left: 0,
-                    width: "133.33%", height: "133.33%",
-                    transform: "scale(0.75)", transformOrigin: "top left",
-                    border: "none",
-                  }}
+                  style={{ width: "100%", height: "100%", border: "none", borderRadius: 4 }}
                   title={`${canvas} preview`}
                 />
               );
@@ -2251,10 +2103,16 @@ export default function TRACKR() {
                     </div>
                     <div style={{
                       display: "flex", alignItems: "center", gap: 8,
-                      padding: "6px 10px", background: C.bgDeep,
-                      border: `1px solid ${C.borderRack}`, borderRadius: C.radiusXs,
+                      padding: "6px 10px", background: "rgba(6,6,10,0.6)",
+                      border: "1px solid rgba(255,255,255,0.05)", borderRadius: C.radiusSm,
+                      boxShadow: "inset 0 1px 4px rgba(0,0,0,0.4)",
                     }}>
-                      <span style={{ ...font(7, 600), color: `${C.cyan}88`, letterSpacing: 1 }}>OBS</span>
+                      <span style={{
+                        ...font(7, 600), letterSpacing: 1,
+                        color: `${C.cyan}aa`, background: "rgba(0,212,255,0.15)",
+                        border: "1px solid rgba(0,212,255,0.3)", borderRadius: 4,
+                        padding: "1px 6px",
+                      }}>OBS</span>
                       <span style={{ ...font(10, 400), color: C.textDim, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {lanIp}:{port}/overlay/{canvas}
                       </span>
@@ -2262,16 +2120,19 @@ export default function TRACKR() {
                         onClick={() => copyUrl(canvas)}
                         style={{
                           ...font(8, 600), letterSpacing: 1.5, textTransform: "uppercase",
-                          color: C.cyan, background: "transparent",
-                          border: `1px solid ${C.cyan}40`, borderRadius: C.radiusXs,
+                          color: `${C.cyan}b0`, background: "rgba(255,255,255,0.03)",
+                          border: `1px solid rgba(0,212,255,0.15)`, borderRadius: C.radiusSm,
                           padding: "3px 10px", cursor: "pointer",
                           transition: "all 0.2s ease",
                         }}
-                        onMouseEnter={(e) => { e.target.style.background = `${C.cyan}18`; }}
-                        onMouseLeave={(e) => { e.target.style.background = "transparent"; }}
+                        onMouseEnter={(e) => { e.target.style.background = "rgba(0,212,255,0.06)"; e.target.style.borderColor = "rgba(0,212,255,0.25)"; e.target.style.color = "rgba(0,212,255,0.9)"; }}
+                        onMouseLeave={(e) => { e.target.style.background = "rgba(255,255,255,0.03)"; e.target.style.borderColor = "rgba(0,212,255,0.15)"; e.target.style.color = "rgba(0,212,255,0.7)"; }}
                       >
                         {overlayCopied === canvas ? "COPIED!" : "COPY"}
                       </button>
+                    </div>
+                    <div style={{ ...font(9, 400), color: C.textMuted, marginTop: 4, paddingLeft: 2 }}>
+                      Browser source: {canvas === "tiktok" ? "2160\u00d73840" : "3840\u00d72160"} · Position and resize in OBS
                     </div>
                   </>
                 );
@@ -2279,144 +2140,485 @@ export default function TRACKR() {
 
               return (
                 <RackPanel label="OVERLAYS">
-                  {/* ── Unified Preview ── */}
-                  <div style={{
-                    display: "flex",
-                    borderRadius: C.radiusSm,
-                    border: `1px solid ${C.borderRack}`,
-                    overflow: "hidden",
-                    marginBottom: 14,
-                    backgroundColor: "#070707",
-                    boxShadow: "inset 0 2px 8px rgba(0,0,0,0.5), inset 0 0 20px rgba(0,0,0,0.2)",
-                  }}>
-                    {/* Scanline texture overlay */}
-                    <style>{`
-                      .preview-viewport::after {
-                        content: '';
-                        position: absolute;
-                        inset: 0;
-                        background: repeating-linear-gradient(
-                          0deg,
-                          transparent,
-                          transparent 2px,
-                          rgba(255,255,255,0.015) 2px,
-                          rgba(255,255,255,0.015) 4px
-                        );
-                        pointer-events: none;
-                        z-index: 2;
-                      }
-                    `}</style>
-                    {/* Main preview (landscape) */}
-                    <div className="preview-viewport" style={{ flex: "1.5 1 0", position: "relative", minHeight: 0 }}>
-                      <div style={{
-                        ...font(7, 700), color: C.bgDeep, letterSpacing: 2, textTransform: "uppercase",
-                        position: "absolute", top: 6, left: 8, zIndex: 3,
-                        background: `${C.cyan}cc`, padding: "1px 6px", borderRadius: 3,
-                      }}>MAIN</div>
-                      <div style={{ position: "relative", width: "100%", paddingBottom: "52%", overflow: "hidden" }}>
-                        {PreviewIframe({ canvas: "main", config: mainCfg })}
-                      </div>
-                    </div>
-                    {/* Divider */}
-                    <div style={{ width: 6, background: "#050505", flexShrink: 0, borderLeft: `1px solid ${C.borderRack}`, borderRight: `1px solid ${C.borderRack}` }} />
-                    {/* TikTok preview (portrait) */}
-                    <div className="preview-viewport" style={{ flex: "1 1 0", display: "flex", alignItems: "center", justifyContent: "center", position: "relative", minHeight: 0 }}>
-                      <div style={{
-                        ...font(7, 700), color: C.bgDeep, letterSpacing: 2, textTransform: "uppercase",
-                        position: "absolute", top: 6, left: 8, zIndex: 3,
-                        background: `${C.cyan}cc`, padding: "1px 6px", borderRadius: 3,
-                      }}>TIKTOK</div>
-                      <div style={{ position: "relative", width: "45%", paddingBottom: "80%", overflow: "hidden" }}>
-                        {PreviewIframe({ canvas: "tiktok", config: tikCfg })}
-                      </div>
-                    </div>
+                  {/* ── Sub-tab navigation ── */}
+                  <div style={{ display: "flex", gap: 24, marginBottom: 0, marginTop: -4 }}>
+                    {[{ id: "text", label: "TEXT" }, { id: "visual", label: "VISUAL" }].map((st) => {
+                      const active = overlaySubTab === st.id;
+                      return (
+                        <button
+                          key={st.id}
+                          onClick={() => setOverlaySubTab(st.id)}
+                          style={{
+                            ...font(10, 600),
+                            letterSpacing: 2,
+                            textTransform: "uppercase",
+                            color: active ? C.cyan : C.textDim,
+                            background: "transparent",
+                            border: "none",
+                            borderBottom: active ? `2px solid ${C.cyan}` : "2px solid transparent",
+                            padding: "6px 0 4px",
+                            cursor: "pointer",
+                            transition: "all 0.25s ease",
+                          }}
+                          onMouseEnter={(e) => { if (!active) e.target.style.color = "#a0a0a4"; }}
+                          onMouseLeave={(e) => { if (!active) e.target.style.color = C.textDim; }}
+                        >
+                          {st.label}
+                        </button>
+                      );
+                    })}
                   </div>
+                  <div style={{ borderBottom: "1px solid #1a1a1e", marginBottom: 12, paddingTop: 12 }} />
 
-                  {/* ── Settings: two columns ── */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-                    {/* Left column — Main + Twitch Chat */}
-                    <div style={{
-                      background: C.bgCard,
-                      border: `1px solid ${C.borderRack}`,
-                      borderRadius: C.radiusSm, padding: 14,
-                      boxShadow: C.cardShadow,
-                    }}>
-                      <div style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${C.borderRack}` }}>
-                        MAIN CANVAS
+                  {/* ═══ TEXT SUB-TAB ═══ */}
+                  {overlaySubTab === "text" && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                      <div style={{ ...font(9, 400), color: C.textMuted }}>
+                        Simple text overlay for OBS text sources and Streamer.bot
                       </div>
-                      {ControlsGrid({ canvas: "main", config: mainCfg, themeList: landscapeThemes })}
 
-                      {/* Twitch Chat */}
-                      <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${C.borderRack}` }}>
-                        <div style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 12 }}>
-                          TWITCH CHAT
+                      {/* Google Fonts link for preview */}
+                      {gfontHref && <link rel="stylesheet" href={gfontHref} />}
+
+                      {/* Live Preview — inset monitor style */}
+                      <div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                          <span style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2.5, textTransform: "uppercase" }}>PREVIEW</span>
+                          <div style={{ display: "flex", gap: 4 }}>
+                            {BG_CYCLE.map((bg, i) => {
+                              const isActive = previewBg === bg;
+                              return (
+                                <button
+                                  key={bg}
+                                  onClick={() => setPreviewBg(bg)}
+                                  style={{
+                                    ...font(8, isActive ? 700 : 500),
+                                    letterSpacing: 1,
+                                    padding: "2px 8px",
+                                    border: `1px solid ${isActive ? "rgba(0,212,255,0.3)" : "rgba(255,255,255,0.08)"}`,
+                                    borderRadius: 20,
+                                    background: isActive ? "rgba(0,212,255,0.1)" : "rgba(255,255,255,0.03)",
+                                    color: isActive ? C.cyan : C.textMuted,
+                                    cursor: "pointer",
+                                    backdropFilter: "blur(8px)",
+                                    transition: "all 0.2s ease",
+                                  }}
+                                >
+                                  {BG_LABELS[i]}
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
-                        <div style={{ display: "grid", gridTemplateColumns: "72px 1fr", gap: "8px 10px", alignItems: "center" }}>
-                          <span style={{ ...font(11, 500), color: C.textDim }}>Channel</span>
-                          <input type="text" value={trig.twitchChannel}
-                            onChange={(e) => updateOverlayTrigger("twitchChannel", e.target.value)}
-                            placeholder="your_channel" style={inputStyle} />
-                          <span style={{ ...font(11, 500), color: C.textDim }}>Commands</span>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <Checkbox checked={trig.chatCommand} onClick={() => updateOverlayTrigger("chatCommand", !trig.chatCommand)} />
-                            <input type="text"
-                              value={Array.isArray(trig.chatCommandNames) ? trig.chatCommandNames.join(", ") : (trig.chatCommandName || "!trackid")}
-                              onChange={(e) => {
-                                const names = e.target.value.split(",").map(s => s.trim()).filter(Boolean);
-                                updateOverlayTrigger("chatCommandNames", names);
+                        <div
+                          style={{
+                            background: "#050508",
+                            borderRadius: C.radiusSm,
+                            boxShadow: "inset 0 2px 8px rgba(0,0,0,0.6)",
+                            padding: 4,
+                          }}
+                        >
+                          <div
+                            style={{
+                              height: 140,
+                              background: previewBg,
+                              transition: "background 0.3s ease",
+                              borderRadius: 6,
+                              padding: 20,
+                              overflow: "hidden",
+                              display: "flex",
+                              flexDirection: "column",
+                              justifyContent: "center",
+                              position: "relative",
+                            }}
+                          >
+                            <div style={{ display: "inline-block", maxWidth: "100%", overflow: "hidden" }} ref={(wrap) => {
+                              if (!wrap) return;
+                              const els = wrap.querySelectorAll(".preview-text");
+                              els.forEach((el) => {
+                                el.style.transform = "scaleX(1)";
+                                const cw = wrap.offsetWidth;
+                                const sw = el.scrollWidth;
+                                if (sw > cw && cw > 0) {
+                                  el.style.transform = `scaleX(${Math.max(0.5, cw / sw)})`;
+                                }
+                              });
+                            }}>
+                              <div
+                                className="preview-text"
+                                style={{
+                                  fontFamily: `"${s.font_family}", Arial, sans-serif`,
+                                  fontSize: s.font_size,
+                                  color: s.font_color,
+                                  textTransform: s.text_transform,
+                                  letterSpacing: `${s.letter_spacing}em`,
+                                  filter: shadowCss,
+                                  whiteSpace: "nowrap",
+                                  transformOrigin: "left center",
+                                }}
+                              >
+                                {previewArtist}
+                              </div>
+                              <div
+                                className="preview-text"
+                                style={{
+                                  fontFamily: `"${s.font_family}", Arial, sans-serif`,
+                                  fontSize: s.font_size,
+                                  color: s.font_color,
+                                  textTransform: s.text_transform,
+                                  letterSpacing: `${s.letter_spacing}em`,
+                                  filter: shadowCss,
+                                  whiteSpace: "nowrap",
+                                  transformOrigin: "left center",
+                                  marginTop: s.line_gap,
+                                }}
+                              >
+                                {previewTitle}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ marginTop: 8, ...font(9, 400), color: C.textMuted }}>
+                          Long text auto-shrinks to fit. Changes reflect in OBS within 2 seconds.
+                        </div>
+                      </div>
+
+                      {/* OBS Text Overlay URL */}
+                      <div style={{
+                        display: "flex", alignItems: "center", gap: 8,
+                        padding: "8px 12px", background: "rgba(6,6,10,0.6)",
+                        border: "1px solid rgba(255,255,255,0.05)", borderRadius: C.radiusSm,
+                        boxShadow: "inset 0 1px 4px rgba(0,0,0,0.4)",
+                      }}>
+                        <span style={{
+                          ...font(7, 600), letterSpacing: 1,
+                          color: `${C.cyan}aa`, background: "rgba(0,212,255,0.15)",
+                          border: "1px solid rgba(0,212,255,0.3)", borderRadius: 4,
+                          padding: "1px 6px",
+                        }}>OBS</span>
+                        <span style={{ ...font(10, 400), color: C.textDim, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {`${lanIp}:${apiPort}/trackr-current.html`}
+                        </span>
+                        <button
+                          disabled={!apiEnabled}
+                          onClick={() => {
+                            navigator.clipboard.writeText(`http://${lanIp}:${apiPort}/trackr-current.html`);
+                            addToast("OBS overlay URL copied to clipboard", "success");
+                          }}
+                          style={{
+                            ...font(8, 600), letterSpacing: 1.5, textTransform: "uppercase",
+                            color: !apiEnabled ? C.textMuted : `${C.cyan}b0`,
+                            background: "rgba(255,255,255,0.03)",
+                            border: `1px solid ${!apiEnabled ? C.glassBorder : "rgba(0,212,255,0.15)"}`,
+                            borderRadius: C.radiusSm, padding: "3px 10px",
+                            cursor: !apiEnabled ? "not-allowed" : "pointer",
+                            transition: "all 0.2s ease", opacity: !apiEnabled ? 0.4 : 1,
+                          }}
+                          onMouseEnter={(e) => { if (apiEnabled) { e.target.style.background = "rgba(0,212,255,0.06)"; e.target.style.borderColor = "rgba(0,212,255,0.25)"; } }}
+                          onMouseLeave={(e) => { e.target.style.background = "rgba(255,255,255,0.03)"; e.target.style.borderColor = apiEnabled ? "rgba(0,212,255,0.15)" : C.glassBorder; }}
+                        >
+                          COPY
+                        </button>
+                      </div>
+
+                      {/* Style Controls */}
+                      <div style={{ borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 14 }}>
+                        <span style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2.5, textTransform: "uppercase" }}>OVERLAY STYLE</span>
+                        <div style={{ marginTop: 10 }}>
+                          {/* Font Family */}
+                          <div style={{ display: "flex", alignItems: "center", padding: "6px 0", gap: 10 }}>
+                            <span style={{ ...font(11, 500), color: C.textDim, minWidth: 120 }}>Font</span>
+                            <select
+                              value={s.font_family}
+                              onChange={(e) => handleStyleChange("font_family", e.target.value)}
+                              style={{
+                                flex: 1,
+                                background: "rgba(10,10,16,0.5)",
+                                color: C.textPrimary,
+                                border: `1px solid ${C.glassBorder}`,
+                                borderRadius: C.radiusXs,
+                                padding: "6px 8px",
+                                ...font(11, 400),
+                                cursor: "pointer",
+                                outline: "none",
                               }}
-                              placeholder="!trackid, !song"
-                              style={{ ...inputStyle, padding: "4px 8px", flex: 1 }} />
+                            >
+                              {FONT_OPTIONS.map((f) => (
+                                <option key={f} value={f}>{f}</option>
+                              ))}
+                            </select>
                           </div>
-                          <span style={{ ...font(11, 500), color: C.textDim }}>Cooldown</span>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <input type="number" min="0" max="300" value={trig.chatCommandCooldown}
-                              onChange={(e) => updateOverlayTrigger("chatCommandCooldown", Math.max(0, parseInt(e.target.value) || 0))}
-                              style={{ ...inputStyle, width: 54 }} />
-                            <span style={{ ...font(8, 400), color: C.textDim }}>sec</span>
+
+                          {/* Uppercase */}
+                          <Toggle
+                            label="Uppercase"
+                            on={s.text_transform === "uppercase"}
+                            onChange={(on) => handleStyleChange("text_transform", on ? "uppercase" : "none")}
+                          />
+
+                          {/* Font Size */}
+                          <SliderControl
+                            label="Font Size"
+                            value={s.font_size}
+                            min={24} max={72} step={1} unit="px"
+                            onChange={(v) => handleStyleChange("font_size", v)}
+                          />
+
+                          {/* Letter Spacing */}
+                          <SliderControl
+                            label="Letter Spacing"
+                            value={s.letter_spacing}
+                            min={0} max={0.3} step={0.01} unit="em"
+                            onChange={(v) => handleStyleChange("letter_spacing", v)}
+                          />
+
+                          {/* Font Color */}
+                          <div style={{ display: "flex", alignItems: "center", padding: "6px 0", gap: 10 }}>
+                            <span style={{ ...font(11, 500), color: C.textDim, minWidth: 120 }}>Font Color</span>
+                            <input
+                              type="color"
+                              value={s.font_color}
+                              onChange={(e) => handleStyleChange("font_color", e.target.value)}
+                              style={{ width: 36, height: 28, border: `1px solid ${C.glassBorder}`, borderRadius: 4, background: "transparent", cursor: "pointer", padding: 0 }}
+                            />
+                            <span style={{ ...font(10, 500), color: C.textPrimary }}>{s.font_color}</span>
+                          </div>
+
+                          {/* Line Gap */}
+                          <SliderControl
+                            label="Line Gap"
+                            value={s.line_gap}
+                            min={0} max={30} step={1} unit="px"
+                            onChange={(v) => handleStyleChange("line_gap", v)}
+                          />
+
+                          {/* Drop Shadow section */}
+                          <div style={{ marginTop: 12, marginBottom: 4, borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 10 }}>
+                            <Toggle
+                              label="Drop Shadow"
+                              on={s.drop_shadow_on}
+                              onChange={(on) => handleStyleChange("drop_shadow_on", on)}
+                            />
+                          </div>
+                          {s.drop_shadow_on && (
+                            <div style={{ paddingLeft: 12 }}>
+                              <SliderControl label="Distance" value={s.drop_shadow_x} min={0} max={20} step={1} unit="px" onChange={(v) => {
+                                setOverlayStyle((prev) => ({ ...prev, drop_shadow_x: v, drop_shadow_y: v }));
+                                if (styleDebounceRef.current) clearTimeout(styleDebounceRef.current);
+                                styleDebounceRef.current = setTimeout(async () => {
+                                  const res = await callCore("set_style", { drop_shadow_x: v, drop_shadow_y: v });
+                                  if (!res?.ok) addToast("Style update failed", "error");
+                                }, 200);
+                              }} />
+                              <SliderControl label="Blur" value={s.drop_shadow_blur} min={0} max={20} step={1} unit="px" onChange={(v) => handleStyleChange("drop_shadow_blur", v)} />
+                              <div style={{ display: "flex", alignItems: "center", padding: "6px 0", gap: 10 }}>
+                                <span style={{ ...font(11, 500), color: C.textDim, minWidth: 120 }}>Shadow Color</span>
+                                <input
+                                  type="color"
+                                  value={s.drop_shadow_color}
+                                  onChange={(e) => handleStyleChange("drop_shadow_color", e.target.value)}
+                                  style={{ width: 36, height: 28, border: `1px solid ${C.glassBorder}`, borderRadius: 4, background: "transparent", cursor: "pointer", padding: 0 }}
+                                />
+                                <span style={{ ...font(10, 500), color: C.textPrimary }}>{s.drop_shadow_color}</span>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Reset */}
+                          <div style={{ marginTop: 16, borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 12 }}>
+                            <button
+                              onClick={handleResetStyle}
+                              style={{
+                                ...font(9, 600), letterSpacing: 1.5, textTransform: "uppercase",
+                                color: `${C.red}a0`, background: "rgba(255,255,255,0.03)",
+                                border: `1px solid ${C.red}28`, borderRadius: C.radiusSm,
+                                padding: "6px 14px", cursor: "pointer",
+                                transition: "all 0.2s ease",
+                              }}
+                              onMouseEnter={(e) => { e.target.style.background = `${C.red}0e`; e.target.style.borderColor = `${C.red}40`; }}
+                              onMouseLeave={(e) => { e.target.style.background = "rgba(255,255,255,0.03)"; e.target.style.borderColor = `${C.red}28`; }}
+                            >
+                              RESET DEFAULTS
+                            </button>
                           </div>
                         </div>
-                        {trig.chatCommand && !trig.twitchChannel && (
-                          <div style={{ ...font(8, 400), color: C.amber, marginTop: 6 }}>
-                            Enter your Twitch channel to enable chat commands
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ═══ VISUAL SUB-TAB ═══ */}
+                  {overlaySubTab === "visual" && overlaysConfig && (
+                    <div>
+                      <div style={{ ...font(9, 400), color: C.textMuted, marginBottom: 14 }}>
+                        Themed overlays with album art and animations for OBS browser sources
+                      </div>
+
+                      {/* ── Preview: 50/50 split, fixed height, matched panels ── */}
+                      <div style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: 8,
+                        marginBottom: 14,
+                        height: 360,
+                      }}>
+                        <style>{`
+                          .preview-viewport-v2::after {
+                            content: '';
+                            position: absolute;
+                            inset: 0;
+                            background: repeating-linear-gradient(
+                              0deg,
+                              transparent,
+                              transparent 2px,
+                              rgba(255,255,255,0.015) 2px,
+                              rgba(255,255,255,0.015) 4px
+                            );
+                            pointer-events: none;
+                            z-index: 2;
+                            border-radius: 8px;
+                          }
+                        `}</style>
+                        {/* Main preview (landscape) — fills panel, no aspect ratio constraint */}
+                        <div className="preview-viewport-v2" style={{
+                          position: "relative",
+                          background: "#050508",
+                          borderRadius: C.radiusSm,
+                          boxShadow: "inset 0 2px 8px rgba(0,0,0,0.6)",
+                          overflow: "hidden",
+                          display: "flex",
+                          flexDirection: "column",
+                          padding: 12,
+                        }}>
+                          <div style={{
+                            ...font(7, 700), letterSpacing: 2, textTransform: "uppercase",
+                            position: "absolute", top: 8, left: 10, zIndex: 3,
+                            color: C.bgDeep, background: `${C.cyan}cc`,
+                            padding: "1px 6px", borderRadius: 20,
+                          }}>MAIN</div>
+                          <div style={{ flex: 1, position: "relative", overflow: "hidden", borderRadius: 4, minHeight: 0 }}>
+                            {mainCfg && PreviewIframe({ canvas: "main", config: mainCfg })}
                           </div>
-                        )}
+                        </div>
+                        {/* TikTok preview (portrait) — 9:16 fills height, centered horizontally */}
+                        <div className="preview-viewport-v2" style={{
+                          position: "relative",
+                          background: "#050508",
+                          borderRadius: C.radiusSm,
+                          boxShadow: "inset 0 2px 8px rgba(0,0,0,0.6)",
+                          overflow: "hidden",
+                          display: "flex",
+                          flexDirection: "column",
+                          padding: 12,
+                        }}>
+                          <div style={{
+                            ...font(7, 700), letterSpacing: 2, textTransform: "uppercase",
+                            position: "absolute", top: 8, left: 10, zIndex: 3,
+                            color: C.bgDeep, background: `${C.cyan}cc`,
+                            padding: "1px 6px", borderRadius: 20,
+                          }}>TIKTOK</div>
+                          <div style={{ flex: 1, display: "flex", alignItems: "stretch", justifyContent: "center", minHeight: 0 }}>
+                            <div style={{ position: "relative", height: "100%", aspectRatio: "9/16", maxWidth: "100%", overflow: "hidden", borderRadius: 4 }}>
+                              {tikCfg && PreviewIframe({ canvas: "tiktok", config: tikCfg })}
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                    </div>
 
-                    {/* Right column — TikTok */}
-                    <div style={{
-                      background: C.bgCard,
-                      border: `1px solid ${C.borderRack}`,
-                      borderRadius: C.radiusSm, padding: 14,
-                      boxShadow: C.cardShadow,
-                    }}>
-                      <div style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${C.borderRack}` }}>
-                        TIKTOK CANVAS
+                      {/* ── Settings: two columns ── */}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+                        {/* Left column — Main + Twitch Chat */}
+                        <div style={{
+                          background: "linear-gradient(165deg, rgba(22,22,30,0.5) 0%, rgba(16,16,22,0.55) 100%)",
+                          backdropFilter: "blur(12px)",
+                          WebkitBackdropFilter: "blur(12px)",
+                          border: `1px solid ${C.glassBorder}`,
+                          borderRadius: C.radiusSm, padding: 14,
+                          boxShadow: C.cardShadow,
+                        }}>
+                          <div style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 12, paddingBottom: 8, borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                            MAIN CANVAS
+                          </div>
+                          {mainCfg && ControlsGrid({ canvas: "main", config: mainCfg, themeList: landscapeThemes })}
+
+                          {/* Twitch Chat */}
+                          {trig && (
+                            <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.04)" }}>
+                              <div style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 12 }}>
+                                TWITCH CHAT
+                              </div>
+                              <div style={{ display: "grid", gridTemplateColumns: "72px 1fr", gap: "8px 10px", alignItems: "center" }}>
+                                <span style={{ ...font(11, 500), color: C.textDim }}>Channel</span>
+                                <input type="text" value={trig.twitchChannel}
+                                  onChange={(e) => updateOverlayTrigger("twitchChannel", e.target.value)}
+                                  placeholder="your_channel" style={inputStyle} />
+                                <span style={{ ...font(11, 500), color: C.textDim }}>Commands</span>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                  <Checkbox checked={trig.chatCommand} onClick={() => updateOverlayTrigger("chatCommand", !trig.chatCommand)} />
+                                  <input type="text"
+                                    value={Array.isArray(trig.chatCommandNames) ? trig.chatCommandNames.join(", ") : (trig.chatCommandName || "!trackid")}
+                                    onChange={(e) => {
+                                      const names = e.target.value.split(",").map(s => s.trim()).filter(Boolean);
+                                      updateOverlayTrigger("chatCommandNames", names);
+                                    }}
+                                    placeholder="!trackid, !song"
+                                    style={{ ...inputStyle, padding: "4px 8px", flex: 1 }} />
+                                </div>
+                                <span style={{ ...font(11, 500), color: C.textDim }}>Cooldown</span>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                  <input type="number" min="0" max="300" value={trig.chatCommandCooldown}
+                                    onChange={(e) => updateOverlayTrigger("chatCommandCooldown", Math.max(0, parseInt(e.target.value) || 0))}
+                                    style={{ ...inputStyle, width: 54 }} />
+                                  <span style={{ ...font(8, 400), color: C.textDim }}>sec</span>
+                                </div>
+                              </div>
+                              {trig.chatCommand && !trig.twitchChannel && (
+                                <div style={{ ...font(8, 400), color: C.amber, marginTop: 6 }}>
+                                  Enter your Twitch channel to enable chat commands
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Right column — TikTok */}
+                        <div style={{
+                          background: "linear-gradient(165deg, rgba(22,22,30,0.5) 0%, rgba(16,16,22,0.55) 100%)",
+                          backdropFilter: "blur(12px)",
+                          WebkitBackdropFilter: "blur(12px)",
+                          border: `1px solid ${C.glassBorder}`,
+                          borderRadius: C.radiusSm, padding: 14,
+                          boxShadow: C.cardShadow,
+                        }}>
+                          <div style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 12, paddingBottom: 8, borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                            TIKTOK CANVAS
+                          </div>
+                          {tikCfg && ControlsGrid({ canvas: "tiktok", config: tikCfg, themeList: portraitThemes })}
+                        </div>
                       </div>
-                      {ControlsGrid({ canvas: "tiktok", config: tikCfg, themeList: portraitThemes })}
-                    </div>
-                  </div>
 
-                  {/* ── Footer: Auto-show + Test ── */}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <Checkbox checked={trig.autoShowOnTrackChange} label="Auto-show on track change"
-                      onClick={() => updateOverlayTrigger("autoShowOnTrackChange", !trig.autoShowOnTrackChange)} />
-                    <button
-                      onClick={testOverlay}
-                      style={{
-                        ...font(9, 600), letterSpacing: 1.5, textTransform: "uppercase",
-                        color: C.cyan, background: "transparent",
-                        border: `1px solid ${C.cyan}40`, borderRadius: C.radiusXs,
-                        padding: "5px 14px", cursor: "pointer",
-                        transition: "all 0.2s ease",
-                      }}
-                      onMouseEnter={(e) => { e.target.style.background = `${C.cyan}14`; }}
-                      onMouseLeave={(e) => { e.target.style.background = "transparent"; }}
-                    >
-                      TEST OVERLAY
-                    </button>
-                  </div>
+                      {/* ── Footer: Auto-show + Test ── */}
+                      {trig && (
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                          <Checkbox checked={trig.autoShowOnTrackChange} label="Auto-show on track change"
+                            onClick={() => updateOverlayTrigger("autoShowOnTrackChange", !trig.autoShowOnTrackChange)} />
+                          <button
+                            onClick={testOverlay}
+                            style={{
+                              ...font(9, 600), letterSpacing: 1.5, textTransform: "uppercase",
+                              color: `${C.cyan}b0`, background: "rgba(255,255,255,0.03)",
+                              border: `1px solid rgba(0,212,255,0.15)`, borderRadius: C.radiusSm,
+                              padding: "5px 14px", cursor: "pointer",
+                              transition: "all 0.2s ease",
+                            }}
+                            onMouseEnter={(e) => { e.target.style.background = "rgba(0,212,255,0.06)"; e.target.style.borderColor = "rgba(0,212,255,0.25)"; }}
+                            onMouseLeave={(e) => { e.target.style.background = "rgba(255,255,255,0.03)"; e.target.style.borderColor = "rgba(0,212,255,0.15)"; }}
+                          >
+                            TEST OVERLAY
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </RackPanel>
               );
             })()}
@@ -2462,7 +2664,7 @@ export default function TRACKR() {
 
                 {/* Startup */}
                 <div
-                  style={{ borderTop: `1px solid ${C.borderRack}`, paddingTop: 16, marginBottom: 20 }}
+                  style={{ borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 16, marginBottom: 20 }}
                 >
                   <span
                     style={{
@@ -2482,7 +2684,7 @@ export default function TRACKR() {
 
                 {/* API */}
                 <div
-                  style={{ borderTop: `1px solid ${C.borderRack}`, paddingTop: 16, marginBottom: 20 }}
+                  style={{ borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 16, marginBottom: 20 }}
                 >
                   <span
                     style={{
@@ -2501,66 +2703,31 @@ export default function TRACKR() {
                       When disabled, TRACKR does not expose local endpoints.
                     </div>
 
-                    {/* OBS Overlay URL */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                      <span style={{ ...font(7, 600), color: `${C.cyan}88`, letterSpacing: 1, minWidth: 32 }}>OBS</span>
-                      <div
-                        style={{
-                          flex: 1,
-                          ...font(10, 400),
-                          color: apiEnabled ? C.textDim : C.textMuted,
-                          background: C.bgDeep,
-                          border: `1px solid ${C.borderRack}`,
-                          borderRadius: C.radiusXs,
-                          padding: "7px 10px",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {`http://${lanIp}:${apiPort}/trackr-current.html`}
-                      </div>
-                      <button
-                        disabled={!apiEnabled}
-                        onClick={() => {
-                          navigator.clipboard.writeText(`http://${lanIp}:${apiPort}/trackr-current.html`);
-                          addToast("OBS overlay URL copied to clipboard", "success");
-                        }}
-                        style={{
-                          ...font(8, 600), letterSpacing: 1.5, textTransform: "uppercase",
-                          color: !apiEnabled ? C.textMuted : C.cyan,
-                          background: "transparent",
-                          border: `1px solid ${!apiEnabled ? C.borderRack : C.cyan + "40"}`,
-                          borderRadius: C.radiusXs, padding: "5px 12px",
-                          cursor: !apiEnabled ? "not-allowed" : "pointer",
-                          transition: "all 0.2s ease", opacity: !apiEnabled ? 0.4 : 1,
-                        }}
-                        onMouseEnter={(e) => { if (apiEnabled) e.target.style.background = `${C.cyan}18`; }}
-                        onMouseLeave={(e) => { e.target.style.background = "transparent"; }}
-                      >
-                        COPY
-                      </button>
-                    </div>
-
                     {/* API URL */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ ...font(7, 600), color: `${C.cyan}88`, letterSpacing: 1, minWidth: 32 }}>API</span>
-                      <div
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: 8,
+                      padding: "8px 12px", background: "rgba(6,6,10,0.6)",
+                      border: "1px solid rgba(255,255,255,0.05)", borderRadius: C.radiusSm,
+                      boxShadow: "inset 0 1px 4px rgba(0,0,0,0.4)",
+                    }}>
+                      <span style={{
+                        ...font(7, 600), letterSpacing: 1,
+                        color: `${C.cyan}aa`, background: "rgba(0,212,255,0.15)",
+                        border: "1px solid rgba(0,212,255,0.3)", borderRadius: 4,
+                        padding: "1px 6px",
+                      }}>API</span>
+                      <span
                         style={{
                           flex: 1,
                           ...font(10, 400),
                           color: apiEnabled ? C.textDim : C.textMuted,
-                          background: C.bgDeep,
-                          border: `1px solid ${C.borderRack}`,
-                          borderRadius: C.radiusXs,
-                          padding: "7px 10px",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap",
                         }}
                       >
                         {`http://${lanIp}:${apiPort}`}
-                      </div>
+                      </span>
                       <button
                         disabled={!apiEnabled}
                         onClick={() => {
@@ -2569,15 +2736,15 @@ export default function TRACKR() {
                         }}
                         style={{
                           ...font(8, 600), letterSpacing: 1.5, textTransform: "uppercase",
-                          color: !apiEnabled ? C.textMuted : C.cyan,
-                          background: "transparent",
-                          border: `1px solid ${!apiEnabled ? C.borderRack : C.cyan + "40"}`,
-                          borderRadius: C.radiusXs, padding: "5px 12px",
+                          color: !apiEnabled ? C.textMuted : `${C.cyan}b0`,
+                          background: "rgba(255,255,255,0.03)",
+                          border: `1px solid ${!apiEnabled ? C.glassBorder : "rgba(0,212,255,0.15)"}`,
+                          borderRadius: C.radiusSm, padding: "3px 10px",
                           cursor: !apiEnabled ? "not-allowed" : "pointer",
                           transition: "all 0.2s ease", opacity: !apiEnabled ? 0.4 : 1,
                         }}
-                        onMouseEnter={(e) => { if (apiEnabled) e.target.style.background = `${C.cyan}18`; }}
-                        onMouseLeave={(e) => { e.target.style.background = "transparent"; }}
+                        onMouseEnter={(e) => { if (apiEnabled) { e.target.style.background = "rgba(0,212,255,0.06)"; e.target.style.borderColor = "rgba(0,212,255,0.25)"; } }}
+                        onMouseLeave={(e) => { e.target.style.background = "rgba(255,255,255,0.03)"; e.target.style.borderColor = apiEnabled ? "rgba(0,212,255,0.15)" : C.glassBorder; }}
                       >
                         COPY
                       </button>
@@ -2587,7 +2754,7 @@ export default function TRACKR() {
 
                 {/* Beatport Enrichment */}
                 <div
-                  style={{ borderTop: `1px solid ${C.borderRack}`, paddingTop: 16, marginBottom: 20 }}
+                  style={{ borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 16, marginBottom: 20 }}
                 >
                   <span
                     style={{
@@ -2649,13 +2816,24 @@ export default function TRACKR() {
                         />
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4 }}>
-                        <Btn
-                          color={C.cyan}
+                        <button
                           disabled={!enrichmentEnabled || !beatportUsername || !beatportPassword || beatportConnStatus === "testing"}
                           onClick={handleTestBeatportConnection}
+                          style={{
+                            ...font(9, 600), letterSpacing: 1.5, textTransform: "uppercase",
+                            color: (!enrichmentEnabled || !beatportUsername || !beatportPassword) ? C.textMuted : `${C.cyan}b0`,
+                            background: "rgba(255,255,255,0.03)",
+                            border: `1px solid ${(!enrichmentEnabled || !beatportUsername || !beatportPassword) ? C.glassBorder : "rgba(0,212,255,0.15)"}`,
+                            borderRadius: C.radiusSm, padding: "6px 14px",
+                            cursor: (!enrichmentEnabled || !beatportUsername || !beatportPassword || beatportConnStatus === "testing") ? "not-allowed" : "pointer",
+                            transition: "all 0.2s ease",
+                            opacity: (!enrichmentEnabled || !beatportUsername || !beatportPassword) ? 0.4 : 1,
+                          }}
+                          onMouseEnter={(e) => { if (enrichmentEnabled && beatportUsername && beatportPassword) { e.target.style.background = "rgba(0,212,255,0.06)"; e.target.style.borderColor = "rgba(0,212,255,0.25)"; } }}
+                          onMouseLeave={(e) => { e.target.style.background = "rgba(255,255,255,0.03)"; e.target.style.borderColor = (enrichmentEnabled && beatportUsername && beatportPassword) ? "rgba(0,212,255,0.15)" : C.glassBorder; }}
                         >
                           {beatportConnStatus === "testing" ? "TESTING..." : "TEST CONNECTION"}
-                        </Btn>
+                        </button>
                         {beatportConnStatus && beatportConnStatus !== "testing" && (
                           <span style={{ ...font(9, 400), color: beatportConnStatus.ok ? C.green : C.red }}>
                             {beatportConnStatus.message}
@@ -2680,7 +2858,7 @@ export default function TRACKR() {
 
                 {/* Data */}
                 <div
-                  style={{ borderTop: `1px solid ${C.borderRack}`, paddingTop: 16, marginBottom: 20 }}
+                  style={{ borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 16, marginBottom: 20 }}
                 >
                   <span
                     style={{
@@ -2693,17 +2871,25 @@ export default function TRACKR() {
                     DATA
                   </span>
                   <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10 }}>
-                    <Btn
-                      color={C.red}
+                    <button
                       onClick={() =>
                         setConfirmDialog({
                           type: "reset-counts",
                           message: "ARE YOU SURE YOU WANT TO RESET ALL PLAY COUNTS?",
                         })
                       }
+                      style={{
+                        ...font(9, 600), letterSpacing: 1.5, textTransform: "uppercase",
+                        color: `${C.red}a0`, background: "rgba(255,255,255,0.03)",
+                        border: `1px solid ${C.red}28`, borderRadius: C.radiusSm,
+                        padding: "6px 14px", cursor: "pointer",
+                        transition: "all 0.2s ease",
+                      }}
+                      onMouseEnter={(e) => { e.target.style.background = `${C.red}0e`; e.target.style.borderColor = `${C.red}40`; }}
+                      onMouseLeave={(e) => { e.target.style.background = "rgba(255,255,255,0.03)"; e.target.style.borderColor = `${C.red}28`; }}
                     >
                       RESET PLAY COUNTS
-                    </Btn>
+                    </button>
                     <span style={{ ...font(9, 400), color: C.textMuted }}>
                       Resets all per-track play counts to zero
                     </span>
@@ -2711,7 +2897,7 @@ export default function TRACKR() {
                 </div>
 
                 {/* About */}
-                <div style={{ borderTop: `1px solid ${C.borderRack}`, paddingTop: 16 }}>
+                <div style={{ borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 16 }}>
                   <span
                     style={{
                       ...font(8, 700),
@@ -2771,9 +2957,9 @@ export default function TRACKR() {
         display: "flex",
         alignItems: "center",
         gap: 16,
-        padding: "6px 20px",
-        background: "#080808",
-        borderTop: "1px solid #1a1a1a",
+        padding: "6px 16px",
+        background: "rgba(6,6,10,0.5)",
+        borderTop: "1px solid rgba(255,255,255,0.03)",
         ...font(9, 400),
         color: C.textMuted,
       }}>
@@ -2792,8 +2978,8 @@ export default function TRACKR() {
             position: "fixed",
             inset: 0,
             background: "rgba(0,0,0,0.55)",
-            backdropFilter: "blur(8px)",
-            WebkitBackdropFilter: "blur(8px)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -2806,13 +2992,13 @@ export default function TRACKR() {
             style={{
               width: "100%",
               maxWidth: 620,
-              background: C.bgPanel,
-              border: `1px solid ${C.glassHighlight}`,
+              background: C.panelBg,
+              backdropFilter: C.panelBlur,
+              WebkitBackdropFilter: C.panelBlur,
+              border: `1px solid ${C.glassBorder}`,
               borderRadius: C.radius,
               padding: 24,
-              boxShadow: `0 10px 40px rgba(0,0,0,0.5), 0 0 30px rgba(0,0,0,0.3), 0 0 25px rgba(255,255,255,0.02), inset 0 1px 0 rgba(255,255,255,0.10)`,
-              backdropFilter: C.blur,
-              WebkitBackdropFilter: C.blur,
+              boxShadow: "0 10px 40px rgba(0,0,0,0.5), 0 0 30px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06)",
               animation: "slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
             }}
           >
@@ -2843,8 +3029,8 @@ export default function TRACKR() {
             position: "fixed",
             inset: 0,
             background: "rgba(0,0,0,0.55)",
-            backdropFilter: "blur(8px)",
-            WebkitBackdropFilter: "blur(8px)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -2857,13 +3043,13 @@ export default function TRACKR() {
             style={{
               width: "100%",
               maxWidth: 620,
-              background: C.bgPanel,
-              border: `1px solid ${C.glassHighlight}`,
+              background: C.panelBg,
+              backdropFilter: C.panelBlur,
+              WebkitBackdropFilter: C.panelBlur,
+              border: `1px solid ${C.glassBorder}`,
               borderRadius: C.radius,
               padding: 24,
-              boxShadow: `0 10px 40px rgba(0,0,0,0.5), 0 0 30px rgba(0,0,0,0.3), 0 0 25px rgba(255,255,255,0.02), inset 0 1px 0 rgba(255,255,255,0.10)`,
-              backdropFilter: C.blur,
-              WebkitBackdropFilter: C.blur,
+              boxShadow: "0 10px 40px rgba(0,0,0,0.5), 0 0 30px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06)",
               animation: "slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
             }}
           >

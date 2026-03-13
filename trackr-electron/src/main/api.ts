@@ -354,6 +354,11 @@ function buildApp(deps: ApiDeps): Express {
     if (!enrichment?.artFilename) { res.sendStatus(404); return; }
     const artPath = deps.getArtPath(enrichment.artFilename);
     if (!artPath) { res.sendStatus(404); return; }
+    res.set({
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+    });
     res.sendFile(artPath);
   });
 
@@ -363,6 +368,11 @@ function buildApp(deps: ApiDeps): Express {
     if (!filename || /[/\\]|\.\./.test(filename)) { res.sendStatus(400); return; }
     const artPath = deps.getArtPath(filename);
     if (!artPath) { res.sendStatus(404); return; }
+    res.set({
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+    });
     res.sendFile(artPath);
   });
 

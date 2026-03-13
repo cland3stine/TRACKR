@@ -16,6 +16,10 @@ export interface SharedOptions {
   showYear: boolean;
   showArt: boolean;
   preview: boolean;
+  /** Approximate card width in CSS px (used for preview zoom calculation). */
+  previewCardWidth: number;
+  /** Approximate card height in CSS px (used for preview zoom calculation). */
+  previewCardHeight: number;
 }
 
 /** Generate the shared JS block for overlay pages. */
@@ -34,8 +38,20 @@ export function buildSharedJS(opts: SharedOptions): string {
     const PREVIEW_MODE = ${opts.preview};
     const ENTER_TIME = ${enterTime};
     const EXIT_TIME = ${exitTime};
+    const PREVIEW_CARD_W = ${opts.previewCardWidth};
+    const PREVIEW_CARD_H = ${opts.previewCardHeight};
+
+    // ── Font-size stepping for long text ──
+    function fitText(el, sizes) {
+      if (!el || !sizes.length) return;
+      for (var i = 0; i < sizes.length; i++) {
+        el.style.fontSize = sizes[i] + 'px';
+        if (el.scrollWidth <= el.clientWidth || el.clientWidth === 0) return;
+      }
+    }
 
     let currentTrackKey = '';
+    let currentArtUrl = '';
     let displayTimer = null;
     let isVisible = false;
     let sseConnected = false;
@@ -99,8 +115,20 @@ export function buildSharedJS(opts: SharedOptions): string {
     // ── Track Change Handler ──
     function handleTrackChange(data) {
       const key = (data.artist || '') + '|' + (data.title || '');
-      if (key === currentTrackKey && isVisible) return;
+      const artUrl = data.artUrl || '';
+      const hasNewEnrichment = (artUrl && artUrl !== currentArtUrl) || data.label || data.year;
+
+      // Same track but enrichment arrived — update content silently (no re-entrance)
+      if (key === currentTrackKey && isVisible) {
+        if (hasNewEnrichment) {
+          currentArtUrl = artUrl;
+          updateContent(data);
+        }
+        return;
+      }
+
       currentTrackKey = key;
+      currentArtUrl = artUrl;
       updateContent(data);
       showOverlay();
     }
@@ -151,28 +179,64 @@ export function buildSharedJS(opts: SharedOptions): string {
     }
 
     // ── Preview Mode ──
+    let liveTrackData = null;
+
     function startPreview() {
-      const sampleTracks = [
-        { artist: 'Luca Abayan', title: 'Prisma (Tonaco Extended Remix)', label: 'Colorize', year: 2025, artUrl: '' },
-        { artist: 'Marsh', title: 'Eu Sei', label: 'Anjunadeep', year: 2024, artUrl: '' },
-        { artist: 'Ben Böhmer', title: 'Beyond Beliefs', label: 'Anjunadeep', year: 2023, artUrl: '' },
-      ];
-      let i = 0;
+      const placeholder = { artist: 'Artist Name', title: 'Track Title', label: 'Label', year: 2025, artUrl: '' };
+
+      // Connect SSE to receive real track data for preview
+      try {
+        const es = new EventSource(API_BASE + '/overlay/events');
+        es.addEventListener('track_change', (e) => {
+          liveTrackData = JSON.parse(e.data);
+        });
+        es.onerror = () => { es.close(); };
+      } catch (_) {}
+
+      // Also try to fetch current track immediately
+      fetch(API_BASE + '/trackr').then(r => r.json()).then(data => {
+        if (data.current && data.current !== '\\u2014') {
+          const sep = data.current.indexOf(' - ');
+          const parsed = sep > 0
+            ? { artist: data.current.substring(0, sep), title: data.current.substring(sep + 3) }
+            : { artist: data.current, title: '' };
+          if (data.enrichment) {
+            parsed.label = data.enrichment.label;
+            parsed.year = data.enrichment.year;
+            if (data.enrichment.art_url) parsed.artUrl = data.enrichment.art_url;
+          }
+          liveTrackData = parsed;
+        }
+      }).catch(() => {});
+
       function cycle() {
         currentTrackKey = '';  // reset so handleTrackChange doesn't skip
-        handleTrackChange(sampleTracks[i % sampleTracks.length]);
-        i++;
+        currentArtUrl = '';
+        handleTrackChange(liveTrackData || placeholder);
         setTimeout(() => {
           hideOverlay();
           setTimeout(cycle, 1500);
-        }, 3000);
+        }, 4000);
       }
       setTimeout(cycle, 500);
     }
 
     // ── Init ──
     if (PREVIEW_MODE) {
-      // Center overlay in preview viewport (ignore position setting)
+      // Dark background for preview panels (OBS pages stay transparent)
+      document.documentElement.style.background = '#050508';
+
+      // Dynamic zoom: scale the entire page so the card fits the iframe viewport
+      function fitPreview() {
+        var vw = window.innerWidth;
+        var vh = window.innerHeight;
+        var s = Math.min((vw * 0.85) / PREVIEW_CARD_W, (vh * 0.85) / PREVIEW_CARD_H, 1);
+        document.documentElement.style.zoom = String(s);
+      }
+      fitPreview();
+      window.addEventListener('resize', fitPreview);
+
+      // Center overlay in preview viewport
       const root = document.getElementById('overlay-root');
       if (root) {
         root.style.cssText += '; position: absolute !important; left: 50% !important; top: 50% !important; bottom: auto !important; right: auto !important; transform: translate(-50%, -50%) !important;';

@@ -2,7 +2,7 @@
  * TRACKR Overlay Theme — Minimal
  *
  * Text only, no background panel. Single line: Artist — Title.
- * Subtle text shadow for readability over video.
+ * Renders at 4K (3840×2160) canvas — OBS downscales for sharpness.
  */
 
 import { OverlayTheme, ThemeRenderOptions } from '../types';
@@ -21,7 +21,6 @@ export const minimal: OverlayTheme = {
   defaultTransition: 'blur',
 
   render(opts: ThemeRenderOptions): string {
-    const positionCSS = getPositionCSS(opts.position);
     const transitionCSS = buildTransitionCSS(RESTING_TRANSFORM, SUPPORTED_TRANSITIONS);
     const sharedJS = buildSharedJS({
       apiBaseUrl: opts.apiBaseUrl,
@@ -32,12 +31,15 @@ export const minimal: OverlayTheme = {
       showYear: opts.showYear,
       showArt: false,
       preview: opts.preview,
+      previewCardWidth: 700,
+      previewCardHeight: 50,
     });
 
     return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=3840, initial-scale=1">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -48,12 +50,16 @@ export const minimal: OverlayTheme = {
       background: transparent;
       overflow: hidden;
       font-family: 'JetBrains Mono', monospace;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: geometricPrecision;
     }
 
     #overlay-root {
       position: absolute;
-      ${positionCSS}
-      max-width: 600px;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      max-width: 1400px;
     }
 
     .track-card {
@@ -66,17 +72,17 @@ export const minimal: OverlayTheme = {
     .track-card.visible { opacity: 1; }
 
     .min-text {
-      font-size: 14px;
+      font-size: 32px;
       font-weight: 600;
       color: #ffffff;
-      text-shadow: 0 2px 8px rgba(0,0,0,0.8), 0 0 20px rgba(0,0,0,0.5);
+      text-shadow: 0 4px 16px rgba(0,0,0,0.8), 0 0 40px rgba(0,0,0,0.5);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
       line-height: 1.4;
     }
 
-    .min-sep { color: rgba(255,255,255,0.4); margin: 0 8px; }
+    .min-sep { color: rgba(255,255,255,0.4); margin: 0 18px; }
 
     ${transitionCSS}
   </style>
@@ -95,20 +101,10 @@ export const minimal: OverlayTheme = {
     function updateContent(data) {
       document.getElementById('artist').textContent = data.artist || '';
       document.getElementById('title').textContent = data.title || '';
+      fitText(document.querySelector('.min-text'), [32, 28, 24, 20]);
     }
   </script>
 </body>
 </html>`;
   },
 };
-
-function getPositionCSS(position: string): string {
-  switch (position) {
-    case 'bottom-right': return 'bottom: 30px; right: 40px;';
-    case 'top-left':     return 'top: 30px; left: 40px;';
-    case 'top-right':    return 'top: 30px; right: 40px;';
-    case 'bottom-center': return 'bottom: 30px; left: 50%; transform: translateX(-50%);';
-    case 'bottom-left':
-    default:             return 'bottom: 30px; left: 40px;';
-  }
-}

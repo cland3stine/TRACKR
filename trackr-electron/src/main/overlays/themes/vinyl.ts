@@ -2,7 +2,7 @@
  * TRACKR Overlay Theme — Vinyl
  *
  * Horizontal layout: circular album art (spinning) on left, track info on right.
- * Warm amber accent option.
+ * Renders at 4K (3840×2160) canvas — OBS downscales for sharpness.
  */
 
 import { OverlayTheme, ThemeRenderOptions } from '../types';
@@ -21,7 +21,6 @@ export const vinyl: OverlayTheme = {
   defaultTransition: 'slide',
 
   render(opts: ThemeRenderOptions): string {
-    const positionCSS = getPositionCSS(opts.position);
     const transitionCSS = buildTransitionCSS(RESTING_TRANSFORM, SUPPORTED_TRANSITIONS);
     const sharedJS = buildSharedJS({
       apiBaseUrl: opts.apiBaseUrl,
@@ -32,12 +31,15 @@ export const vinyl: OverlayTheme = {
       showYear: opts.showYear,
       showArt: opts.showArt,
       preview: opts.preview,
+      previewCardWidth: 1000,
+      previewCardHeight: 344,
     });
 
     return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=3840, initial-scale=1">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -48,18 +50,22 @@ export const vinyl: OverlayTheme = {
       background: transparent;
       overflow: hidden;
       font-family: 'JetBrains Mono', monospace;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: geometricPrecision;
     }
 
     #overlay-root {
       position: absolute;
-      ${positionCSS}
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
     }
 
     .track-card {
       position: relative;
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 36px;
       opacity: 0;
       pointer-events: none;
     }
@@ -73,17 +79,19 @@ export const vinyl: OverlayTheme = {
 
     @keyframes idleFloat {
       0%, 100% { transform: translateY(0px); }
-      50%      { transform: translateY(-3px); }
+      50%      { transform: translateY(-6px); }
     }
 
     /* ── Spinning Art ── */
     .vinyl-art-wrap {
-      width: 120px;
-      height: 120px;
+      width: 280px;
+      height: 280px;
       border-radius: 50%;
       overflow: hidden;
       flex-shrink: 0;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      box-shadow:
+        0 8px 40px rgba(0,0,0,0.5),
+        0 24px 80px rgba(0,0,0,0.3);
       ${opts.showArt ? '' : 'display: none;'}
     }
 
@@ -92,6 +100,7 @@ export const vinyl: OverlayTheme = {
       height: 100%;
       object-fit: cover;
       display: block;
+      transition: opacity 0.4s ease;
     }
 
     .vinyl-art-placeholder {
@@ -102,7 +111,7 @@ export const vinyl: OverlayTheme = {
       align-items: center;
       justify-content: center;
       color: rgba(255,255,255,0.15);
-      font-size: 36px;
+      font-size: 80px;
     }
 
     .track-card.visible .vinyl-art-wrap {
@@ -116,53 +125,61 @@ export const vinyl: OverlayTheme = {
 
     /* ── Info Panel ── */
     .vinyl-info {
-      padding: 10px 18px 10px 0;
+      padding: 22px 40px 22px 0;
       min-width: 0;
     }
 
     .vinyl-info-bg {
       display: flex;
       align-items: center;
-      gap: 16px;
-      padding: 14px 20px;
-      border-radius: 10px;
+      gap: 36px;
+      padding: 32px 44px;
+      border-radius: 22px;
       background: rgba(10, 10, 16, 0.75);
       backdrop-filter: blur(20px) saturate(1.3);
       -webkit-backdrop-filter: blur(20px) saturate(1.3);
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+      border: 2px solid rgba(255, 255, 255, 0.06);
+      box-shadow:
+        0 4px 8px rgba(0, 0, 0, 0.5),
+        0 16px 40px rgba(0, 0, 0, 0.5),
+        0 40px 100px rgba(0, 0, 0, 0.4),
+        0 80px 200px rgba(0, 0, 0, 0.3),
+        inset 0 2px 0 rgba(255, 255, 255, 0.06),
+        inset 0 -2px 0 rgba(0, 0, 0, 0.3);
     }
 
     .vinyl-artist {
-      font-size: 13px;
+      font-size: 28px;
       font-weight: 700;
       color: #ffffff;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-width: 260px;
+      max-width: 600px;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.5);
     }
 
     .vinyl-title {
-      font-size: 10px;
+      font-size: 22px;
       font-weight: 500;
       color: rgba(255,255,255,0.55);
-      margin-top: 2px;
+      margin-top: 4px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-width: 260px;
+      max-width: 600px;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.4);
     }
 
     .vinyl-meta {
-      font-size: 9px;
+      font-size: 18px;
       color: rgba(255,255,255,0.4);
-      margin-top: 5px;
+      margin-top: 10px;
       white-space: nowrap;
     }
 
     .vinyl-label { color: #ffb43c; font-weight: 600; }
-    .vinyl-meta-sep { color: rgba(255,255,255,0.15); margin: 0 4px; }
+    .vinyl-meta-sep { color: rgba(255,255,255,0.15); margin: 0 8px; }
 
     ${transitionCSS}
   </style>
@@ -191,14 +208,18 @@ export const vinyl: OverlayTheme = {
     ${sharedJS}
 
     function updateContent(data) {
-      document.getElementById('artist').textContent = data.artist || '';
-      document.getElementById('title').textContent = data.title || '';
+      var artistEl = document.getElementById('artist');
+      var titleEl = document.getElementById('title');
+      artistEl.textContent = data.artist || '';
+      titleEl.textContent = data.title || '';
+      fitText(artistEl, [28, 24, 21, 18]);
+      fitText(titleEl, [22, 19, 16, 14]);
 
       const artWrap = document.getElementById('artWrap');
       const artImg = document.getElementById('artImg');
       const artPlaceholder = document.getElementById('artPlaceholder');
       if (SHOW_ART && data.artUrl) {
-        artImg.src = API_BASE + data.artUrl;
+        artImg.src = API_BASE + data.artUrl + '?t=' + Date.now();
         artImg.style.display = 'block';
         artPlaceholder.style.display = 'none';
         artWrap.style.display = '';
@@ -229,14 +250,3 @@ export const vinyl: OverlayTheme = {
 </html>`;
   },
 };
-
-function getPositionCSS(position: string): string {
-  switch (position) {
-    case 'bottom-right': return 'bottom: 30px; right: 40px;';
-    case 'top-left':     return 'top: 30px; left: 40px;';
-    case 'top-right':    return 'top: 30px; right: 40px;';
-    case 'bottom-center': return 'bottom: 30px; left: 50%; transform: translateX(-50%);';
-    case 'bottom-left':
-    default:             return 'bottom: 30px; left: 40px;';
-  }
-}

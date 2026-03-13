@@ -88,6 +88,8 @@ export function registerOverlayRoutes(app: Express, deps: OverlayRouteDeps): voi
       year: 2025,
       artUrl: '',
     };
+    // Cache-bust art URL so overlay fetches the latest image
+    if (trackData.artUrl) trackData.artUrl += '?t=' + Date.now();
     emitTrackChange(trackData);
     res.json({ ok: true });
   });

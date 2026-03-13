@@ -4,6 +4,7 @@
  * All 6 transitions as CSS @keyframes strings.
  * Each theme imports and includes the transitions it supports.
  * Resting transform is injected per-theme via template parameter.
+ * Scaled for 4K canvas rendering (OBS downscales for sharpness).
  */
 
 export interface TransitionMeta {
@@ -40,12 +41,12 @@ export function buildTransitionCSS(rest: string, transitions: string[]): string 
         animation: slideOut 500ms cubic-bezier(0.55, 0, 1, 0.45) forwards;
       }
       @keyframes slideIn {
-        0%   { transform: ${rest} translateX(-100px) scale(0.88) rotateY(28deg); opacity: 0; filter: drop-shadow(0 0 0 transparent); }
+        0%   { transform: ${rest} translateX(-200px) scale(0.88) rotateY(28deg); opacity: 0; filter: drop-shadow(0 0 0 transparent); }
         100% { transform: ${rest} translateX(0) scale(1); opacity: 1; }
       }
       @keyframes slideOut {
         0%   { transform: ${rest} translateX(0) scale(1); opacity: 1; }
-        100% { transform: ${rest} translateX(80px) scale(0.92); opacity: 0; }
+        100% { transform: ${rest} translateX(160px) scale(0.92); opacity: 0; }
       }
     `);
   }
@@ -60,28 +61,28 @@ export function buildTransitionCSS(rest: string, transitions: string[]): string 
         animation: digitalOut 350ms steps(1) forwards;
       }
       @keyframes digitalIn {
-        0%    { transform: ${rest} translateX(-15px); opacity: 0; }
-        10%   { transform: ${rest} translateX(-12px); opacity: 0.85; }
-        20%   { transform: ${rest} translateX(-9px);  opacity: 0.15; }
-        35%   { transform: ${rest} translateX(-6px);  opacity: 0.9; }
-        50%   { transform: ${rest} translateX(-3px);  opacity: 0.3; }
-        70%   { transform: ${rest} translateX(-1px);  opacity: 0.85; }
+        0%    { transform: ${rest} translateX(-30px); opacity: 0; }
+        10%   { transform: ${rest} translateX(-24px); opacity: 0.85; }
+        20%   { transform: ${rest} translateX(-18px);  opacity: 0.15; }
+        35%   { transform: ${rest} translateX(-12px);  opacity: 0.9; }
+        50%   { transform: ${rest} translateX(-6px);  opacity: 0.3; }
+        70%   { transform: ${rest} translateX(-2px);  opacity: 0.85; }
         85%   { transform: ${rest} translateX(0);     opacity: 0.88; }
         100%  { transform: ${rest} translateX(0);     opacity: 1; }
       }
       @keyframes digitalOut {
         0%    { transform: ${rest} translateX(0);    opacity: 1; }
-        15%   { transform: ${rest} translateX(3px);  opacity: 0.85; }
-        30%   { transform: ${rest} translateX(6px);  opacity: 0.15; }
-        50%   { transform: ${rest} translateX(9px);  opacity: 0.9; }
-        70%   { transform: ${rest} translateX(12px); opacity: 0.3; }
-        85%   { transform: ${rest} translateX(14px); opacity: 0.1; }
-        100%  { transform: ${rest} translateX(15px); opacity: 0; }
+        15%   { transform: ${rest} translateX(6px);  opacity: 0.85; }
+        30%   { transform: ${rest} translateX(12px);  opacity: 0.15; }
+        50%   { transform: ${rest} translateX(18px);  opacity: 0.9; }
+        70%   { transform: ${rest} translateX(24px); opacity: 0.3; }
+        85%   { transform: ${rest} translateX(28px); opacity: 0.1; }
+        100%  { transform: ${rest} translateX(30px); opacity: 0; }
       }
       .digital-in::after, .digital-out::after {
         content: '';
         position: absolute;
-        inset: -4px;
+        inset: -8px;
         background: radial-gradient(ellipse at center, rgba(0,212,255,0.15) 0%, transparent 70%);
         border-radius: inherit;
         pointer-events: none;
@@ -116,9 +117,9 @@ export function buildTransitionCSS(rest: string, transitions: string[]): string 
         content: '';
         position: absolute;
         left: 0; right: 0;
-        top: 50%; height: 2px;
+        top: 50%; height: 4px;
         background: #00d4ff;
-        box-shadow: 0 0 8px #00d4ff, 0 0 20px rgba(0,212,255,0.4);
+        box-shadow: 0 0 16px #00d4ff, 0 0 40px rgba(0,212,255,0.4);
         transform: translateY(-50%);
         pointer-events: none;
         animation: matLine 600ms ease-out forwards;
@@ -152,15 +153,15 @@ export function buildTransitionCSS(rest: string, transitions: string[]): string 
       .scale-pop-in::after {
         content: '';
         position: absolute;
-        inset: 10px;
-        border: 1px solid rgba(0,212,255,0.3);
+        inset: 20px;
+        border: 2px solid rgba(0,212,255,0.3);
         border-radius: inherit;
         pointer-events: none;
         animation: shockwave 500ms ease-out forwards;
       }
       @keyframes shockwave {
-        0%   { inset: 10px; opacity: 0.6; border-color: rgba(0,212,255,0.4); }
-        100% { inset: -14px; opacity: 0; border-color: rgba(0,212,255,0); }
+        0%   { inset: 20px; opacity: 0.6; border-color: rgba(0,212,255,0.4); }
+        100% { inset: -28px; opacity: 0; border-color: rgba(0,212,255,0); }
       }
     `);
   }
@@ -212,9 +213,9 @@ export function buildTransitionCSS(rest: string, transitions: string[]): string 
         content: '';
         position: absolute;
         top: 0; bottom: 0;
-        width: 2px;
+        width: 4px;
         background: #00d4ff;
-        box-shadow: 0 0 8px #00d4ff, 0 0 20px rgba(0,212,255,0.4);
+        box-shadow: 0 0 16px #00d4ff, 0 0 40px rgba(0,212,255,0.4);
         pointer-events: none;
         z-index: 10;
       }

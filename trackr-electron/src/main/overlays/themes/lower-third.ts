@@ -1,8 +1,8 @@
 /**
  * TRACKR Overlay Theme — Lower Third
  *
- * Horizontal bar (~420px wide, ~80px tall) anchored to bottom.
- * Glass material, cyan accent line, no album art.
+ * Horizontal bar with glass material, cyan accent line, no album art.
+ * Renders at 4K (3840×2160) canvas — OBS downscales for sharpness.
  */
 
 import { OverlayTheme, ThemeRenderOptions } from '../types';
@@ -21,7 +21,6 @@ export const lowerThird: OverlayTheme = {
   defaultTransition: 'slide',
 
   render(opts: ThemeRenderOptions): string {
-    const positionCSS = getPositionCSS(opts.position);
     const transitionCSS = buildTransitionCSS(RESTING_TRANSFORM, SUPPORTED_TRANSITIONS);
     const sharedJS = buildSharedJS({
       apiBaseUrl: opts.apiBaseUrl,
@@ -32,12 +31,15 @@ export const lowerThird: OverlayTheme = {
       showYear: opts.showYear,
       showArt: false,
       preview: opts.preview,
+      previewCardWidth: 960,
+      previewCardHeight: 140,
     });
 
     return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=3840, initial-scale=1">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -48,16 +50,20 @@ export const lowerThird: OverlayTheme = {
       background: transparent;
       overflow: hidden;
       font-family: 'JetBrains Mono', monospace;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: geometricPrecision;
     }
 
     #overlay-root {
       position: absolute;
-      ${positionCSS}
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
     }
 
     .track-card {
       position: relative;
-      width: 420px;
+      width: 960px;
       opacity: 0;
       pointer-events: none;
     }
@@ -71,21 +77,25 @@ export const lowerThird: OverlayTheme = {
 
     @keyframes idleFloat {
       0%, 100% { transform: translateY(0px); }
-      50%      { transform: translateY(-3px); }
+      50%      { transform: translateY(-6px); }
     }
 
     .lt-bar {
       position: relative;
-      padding: 14px 20px;
-      border-radius: 8px;
+      padding: 32px 44px;
+      border-radius: 18px;
       background: rgba(10, 10, 16, 0.78);
       backdrop-filter: blur(24px) saturate(1.4);
       -webkit-backdrop-filter: blur(24px) saturate(1.4);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-top: 2px solid #00d4ff;
+      border: 2px solid rgba(255, 255, 255, 0.08);
+      border-top: 4px solid #00d4ff;
       box-shadow:
-        0 4px 12px rgba(0, 0, 0, 0.4),
-        0 12px 28px rgba(0, 0, 0, 0.3);
+        0 4px 8px rgba(0, 0, 0, 0.5),
+        0 16px 40px rgba(0, 0, 0, 0.5),
+        0 40px 100px rgba(0, 0, 0, 0.4),
+        0 80px 200px rgba(0, 0, 0, 0.3),
+        inset 0 2px 0 rgba(255, 255, 255, 0.06),
+        inset 0 -2px 0 rgba(0, 0, 0, 0.3);
       overflow: hidden;
     }
 
@@ -99,29 +109,30 @@ export const lowerThird: OverlayTheme = {
     }
 
     .lt-main {
-      font-size: 13px;
+      font-size: 28px;
       font-weight: 600;
       color: #ffffff;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
       line-height: 1.3;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.5);
     }
 
-    .lt-sep { color: rgba(255,255,255,0.3); margin: 0 6px; }
+    .lt-sep { color: rgba(255,255,255,0.3); margin: 0 14px; }
 
     .lt-meta {
-      font-size: 9px;
+      font-size: 18px;
       font-weight: 500;
       color: rgba(255,255,255,0.4);
-      margin-top: 4px;
+      margin-top: 8px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
     .lt-label { color: #00d4ff; }
-    .lt-meta-sep { color: rgba(255,255,255,0.15); margin: 0 4px; }
+    .lt-meta-sep { color: rgba(255,255,255,0.15); margin: 0 8px; }
 
     ${transitionCSS}
   </style>
@@ -147,6 +158,7 @@ export const lowerThird: OverlayTheme = {
     function updateContent(data) {
       document.getElementById('artist').textContent = data.artist || '';
       document.getElementById('title').textContent = data.title || '';
+      fitText(document.querySelector('.lt-main'), [28, 24, 21, 18]);
       const hasLabel = SHOW_LABEL && data.label;
       const hasYear = SHOW_YEAR && data.year;
       const meta = document.getElementById('meta');
@@ -166,14 +178,3 @@ export const lowerThird: OverlayTheme = {
 </html>`;
   },
 };
-
-function getPositionCSS(position: string): string {
-  switch (position) {
-    case 'bottom-right': return 'bottom: 30px; right: 40px;';
-    case 'top-left':     return 'top: 30px; left: 40px;';
-    case 'top-right':    return 'top: 30px; right: 40px;';
-    case 'bottom-center': return 'bottom: 30px; left: 50%; transform: translateX(-50%);';
-    case 'bottom-left':
-    default:             return 'bottom: 30px; left: 40px;';
-  }
-}

@@ -1,8 +1,8 @@
 /**
  * TRACKR Overlay Theme — TikTok Card
  *
- * Smaller Glass Card optimized for 9:16 portrait.
- * 170px wide, art 170x170, info below.
+ * Glass Card optimized for 9:16 portrait.
+ * Renders at 4K portrait (2160×3840) canvas — OBS downscales for sharpness.
  */
 
 import { OverlayTheme, ThemeRenderOptions } from '../types';
@@ -31,12 +31,15 @@ export const tiktokCard: OverlayTheme = {
       showYear: opts.showYear,
       showArt: opts.showArt,
       preview: opts.preview,
+      previewCardWidth: 400,
+      previewCardHeight: 590,
     });
 
     return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=2160, initial-scale=1">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -47,19 +50,21 @@ export const tiktokCard: OverlayTheme = {
       background: transparent;
       overflow: hidden;
       font-family: 'JetBrains Mono', monospace;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: geometricPrecision;
     }
 
     #overlay-root {
       position: absolute;
-      bottom: 60px;
-      left: 50%;
-      transform: translateX(-50%);
-      perspective: 600px;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      perspective: 1400px;
     }
 
     .track-card {
       position: relative;
-      width: 170px;
+      width: 400px;
       transform: ${RESTING_TRANSFORM};
       transform-style: preserve-3d;
       opacity: 0;
@@ -76,29 +81,32 @@ export const tiktokCard: OverlayTheme = {
 
     @keyframes idleFloat {
       0%, 100% { transform: ${RESTING_TRANSFORM} translateY(0px); }
-      50%      { transform: ${RESTING_TRANSFORM} translateY(-4px); }
+      50%      { transform: ${RESTING_TRANSFORM} translateY(-10px); }
     }
 
     .card-inner {
       position: relative;
-      border-radius: 10px;
+      border-radius: 24px;
       background: rgba(10, 10, 16, 0.82);
       backdrop-filter: blur(20px) saturate(1.3);
       -webkit-backdrop-filter: blur(20px) saturate(1.3);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border: 2px solid rgba(255, 255, 255, 0.1);
       overflow: hidden;
       box-shadow:
-        0 4px 10px rgba(0, 0, 0, 0.4),
-        0 10px 24px rgba(0, 0, 0, 0.3),
-        0 24px 50px rgba(0, 0, 0, 0.2);
+        0 4px 8px rgba(0, 0, 0, 0.5),
+        0 16px 40px rgba(0, 0, 0, 0.5),
+        0 40px 100px rgba(0, 0, 0, 0.4),
+        0 80px 200px rgba(0, 0, 0, 0.3),
+        inset 0 2px 0 rgba(255, 255, 255, 0.06),
+        inset 0 -2px 0 rgba(0, 0, 0, 0.3);
     }
 
     .card-inner::after {
       content: '';
       position: absolute;
       inset: 0;
-      border-radius: 10px;
-      border: 1px solid transparent;
+      border-radius: 24px;
+      border: 2px solid transparent;
       background: linear-gradient(160deg, rgba(255,255,255,0.1), rgba(255,255,255,0.02) 40%, rgba(0,212,255,0.05)) border-box;
       -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
       -webkit-mask-composite: xor;
@@ -108,8 +116,8 @@ export const tiktokCard: OverlayTheme = {
 
     .card-art-wrap {
       position: relative;
-      width: 170px;
-      height: 170px;
+      width: 400px;
+      height: 400px;
       overflow: hidden;
       ${opts.showArt ? '' : 'display: none;'}
     }
@@ -119,6 +127,7 @@ export const tiktokCard: OverlayTheme = {
       height: 100%;
       object-fit: cover;
       display: block;
+      transition: opacity 0.4s ease;
     }
 
     .card-art-placeholder {
@@ -129,7 +138,7 @@ export const tiktokCard: OverlayTheme = {
       align-items: center;
       justify-content: center;
       color: rgba(255,255,255,0.15);
-      font-size: 36px;
+      font-size: 80px;
     }
 
     .card-art-wrap::after {
@@ -142,7 +151,7 @@ export const tiktokCard: OverlayTheme = {
     }
 
     .card-info {
-      padding: 10px 12px 12px;
+      padding: 24px 28px 28px;
       position: relative;
       z-index: 2;
     }
@@ -150,63 +159,65 @@ export const tiktokCard: OverlayTheme = {
     .card-badge {
       display: inline-flex;
       align-items: center;
-      gap: 4px;
-      font-size: 6px;
+      gap: 8px;
+      font-size: 13px;
       font-weight: 700;
-      letter-spacing: 0.15em;
+      letter-spacing: 0.2em;
       text-transform: uppercase;
       color: rgba(255,255,255,0.5);
-      margin-bottom: 6px;
+      margin-bottom: 14px;
     }
 
     .card-badge-dot {
-      width: 4px; height: 4px;
+      width: 9px; height: 9px;
       border-radius: 50%;
       background: #00d4ff;
       animation: ledPulse 2s ease-in-out infinite;
     }
 
     @keyframes ledPulse {
-      0%, 100% { opacity: 1; box-shadow: 0 0 3px #00d4ff; }
-      50%      { opacity: 0.4; box-shadow: 0 0 1px #00d4ff; }
+      0%, 100% { opacity: 1; box-shadow: 0 0 7px #00d4ff; }
+      50%      { opacity: 0.4; box-shadow: 0 0 3px #00d4ff; }
     }
 
     .card-artist {
-      font-size: 11px;
+      font-size: 26px;
       font-weight: 700;
       color: #ffffff;
       line-height: 1.2;
-      margin-bottom: 2px;
+      margin-bottom: 5px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.5);
     }
 
     .card-title {
-      font-size: 9px;
+      font-size: 20px;
       font-weight: 500;
       color: rgba(255,255,255,0.55);
       line-height: 1.3;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.4);
     }
 
     .card-divider {
       width: 100%;
-      height: 1px;
+      height: 2px;
       background: rgba(255,255,255,0.08);
-      margin: 6px 0;
+      margin: 14px 0;
     }
 
     .card-meta {
       display: flex;
       align-items: center;
-      gap: 4px;
-      font-size: 7px;
+      gap: 10px;
+      font-size: 15px;
     }
 
-    .card-label { color: #00d4ff; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 110px; }
+    .card-label { color: #00d4ff; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
     .card-year { color: rgba(255,255,255,0.35); font-weight: 500; }
     .card-meta-sep { color: rgba(255,255,255,0.15); }
 
@@ -242,14 +253,18 @@ export const tiktokCard: OverlayTheme = {
     ${sharedJS}
 
     function updateContent(data) {
-      document.getElementById('artist').textContent = data.artist || '';
-      document.getElementById('title').textContent = data.title || '';
+      var artistEl = document.getElementById('artist');
+      var titleEl = document.getElementById('title');
+      artistEl.textContent = data.artist || '';
+      titleEl.textContent = data.title || '';
+      fitText(artistEl, [26, 22, 19, 16]);
+      fitText(titleEl, [20, 17, 15, 13]);
 
       const artWrap = document.getElementById('artWrap');
       const artImg = document.getElementById('artImg');
       const artPlaceholder = document.getElementById('artPlaceholder');
       if (SHOW_ART && data.artUrl) {
-        artImg.src = API_BASE + data.artUrl;
+        artImg.src = API_BASE + data.artUrl + '?t=' + Date.now();
         artImg.style.display = 'block';
         artPlaceholder.style.display = 'none';
         artWrap.style.display = '';

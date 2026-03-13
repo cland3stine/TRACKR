@@ -325,6 +325,9 @@ function initModules(outputRoot: string): void {
   console.log(`[main] Initialized — output root: ${outputRoot}`);
 }
 
+/** Max time (ms) to wait for enrichment before showing overlay with available data. */
+const ENRICHMENT_WAIT_MS = 5000;
+
 /** Called by prolink.ts when a track passes all gates and the timer fires. */
 function handlePublish(line: string, deviceId: number, publishedAt: number): void {
   if (!_isRunning || !outputWriter || !db) {
@@ -354,22 +357,38 @@ function handlePublish(line: string, deviceId: number, publishedAt: number): voi
       if (!artCache.copyToOverlay(artist, title)) artCache.clearOverlay();
     }
 
-    // Emit SSE track_change to overlay clients (if auto-show enabled)
-    if (getConfig().overlays.triggers.autoShowOnTrackChange) {
-      emitTrackChange({ artist, title, deck: deviceId });
-    }
+    // Set _lastPublishedLine early — needed by fireSSE staleness check and getEnrichment()
+    _lastPublishedLine = line;
 
-    // Fire enrichment asynchronously — never blocks publishing
+    // SSE overlay emission — wait for enrichment to complete so card appears fully loaded.
+    // Text files, NOW bar, sidebar all update immediately above. Only the visual overlay waits.
+    const autoShow = getConfig().overlays.triggers.autoShowOnTrackChange;
+    let sseFired = false;
+
+    const fireSSE = (result?: { label?: string; year?: number; artFilename?: string }) => {
+      if (sseFired) return;
+      // Stale check: if a newer track published while we waited, skip this one
+      if (_lastPublishedLine !== line) return;
+      sseFired = true;
+
+      if (autoShow) {
+        const payload: Record<string, unknown> = { artist, title, deck: deviceId };
+        if (result?.label) payload.label = result.label;
+        if (result?.year) payload.year = result.year;
+        if (result?.artFilename) payload.artUrl = '/art/current?t=' + Date.now();
+        emitTrackChange(payload as { artist: string; title: string });
+      }
+    };
+
+    // Timeout: if enrichment takes too long, fire SSE with whatever we have
+    const timeout = setTimeout(() => fireSSE(), ENRICHMENT_WAIT_MS);
+
+    // Fire enrichment asynchronously
     enrichTrack(db, line, artCache, (result) => {
       emit('trackr:enrichment-update', { line, ...result });
-      // Update SSE overlays with enrichment data
-      if (getConfig().overlays.triggers.autoShowOnTrackChange) {
-        const enrichedData: Record<string, unknown> = { artist, title, deck: deviceId };
-        if (result.label) enrichedData.label = result.label;
-        if (result.year) enrichedData.year = result.year;
-        if (result.artFilename) enrichedData.artUrl = '/art/current';
-        emitTrackChange(enrichedData as { artist: string; title: string });
-      }
+      // Enrichment done — fire SSE with full data and cancel timeout
+      clearTimeout(timeout);
+      fireSSE(result);
       // Art may have just been downloaded — copy to overlay
       if (artOverlay && artCache && result.artFilename) {
         artCache.copyToOverlay(artist, title);
@@ -380,7 +399,12 @@ function handlePublish(line: string, deviceId: number, publishedAt: number): voi
         const cleanLine = `${artist} - ${title}`;
         outputWriter.appendTrackSuffix(cleanLine, suffix);
       }
-    }).catch(err => console.warn('[main] enrichTrack error:', err));
+    }).catch(err => {
+      console.warn('[main] enrichTrack error:', err);
+      // On error, fire SSE immediately with basic data
+      clearTimeout(timeout);
+      fireSSE();
+    });
   }
 
   _lastTrackPlayCount = playCount;
@@ -571,6 +595,8 @@ function registerIpc(): void {
       year: 2025,
       artUrl: '',
     };
+    // Cache-bust art URL so overlay fetches the latest image
+    if (trackData.artUrl) trackData.artUrl += '?t=' + Date.now();
     emitTrackChange(trackData);
     return { ok: true };
   });

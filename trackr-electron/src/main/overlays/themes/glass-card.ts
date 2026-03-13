@@ -2,7 +2,7 @@
  * TRACKR Overlay Theme — Glass Card
  *
  * 3D angled vertical card with liquid glass material.
- * 210px wide, album art on top, track info below.
+ * Renders at 4K (3840×2160) canvas — OBS downscales for sharpness.
  * Supports all 6 transitions.
  */
 
@@ -22,7 +22,6 @@ export const glassCard: OverlayTheme = {
   defaultTransition: 'slide',
 
   render(opts: ThemeRenderOptions): string {
-    const positionCSS = getPositionCSS(opts.position);
     const transitionCSS = buildTransitionCSS(RESTING_TRANSFORM, ALL_TRANSITIONS);
     const sharedJS = buildSharedJS({
       apiBaseUrl: opts.apiBaseUrl,
@@ -33,12 +32,15 @@ export const glassCard: OverlayTheme = {
       showYear: opts.showYear,
       showArt: opts.showArt,
       preview: opts.preview,
+      previewCardWidth: 580,
+      previewCardHeight: 840,
     });
 
     return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=3840, initial-scale=1">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -49,17 +51,21 @@ export const glassCard: OverlayTheme = {
       background: transparent;
       overflow: hidden;
       font-family: 'JetBrains Mono', monospace;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: geometricPrecision;
     }
 
     #overlay-root {
       position: absolute;
-      ${positionCSS}
-      perspective: 800px;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      perspective: 1800px;
     }
 
     .track-card {
       position: relative;
-      width: 210px;
+      width: 580px;
       transform: ${RESTING_TRANSFORM};
       transform-style: preserve-3d;
       opacity: 0;
@@ -78,23 +84,25 @@ export const glassCard: OverlayTheme = {
 
     @keyframes idleFloat {
       0%, 100% { transform: ${RESTING_TRANSFORM} translateY(0px); }
-      50%      { transform: ${RESTING_TRANSFORM} translateY(-5px); }
+      50%      { transform: ${RESTING_TRANSFORM} translateY(-10px); }
     }
 
     /* ── Glass Panel ── */
     .card-inner {
       position: relative;
-      border-radius: 12px;
+      border-radius: 32px;
       background: rgba(10, 10, 16, 0.78);
       backdrop-filter: blur(24px) saturate(1.4);
       -webkit-backdrop-filter: blur(24px) saturate(1.4);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      border: 2px solid rgba(255, 255, 255, 0.08);
       overflow: hidden;
       box-shadow:
-        0 4px 12px rgba(0, 0, 0, 0.4),
-        0 12px 28px rgba(0, 0, 0, 0.35),
-        0 28px 60px rgba(0, 0, 0, 0.25),
-        0 60px 100px rgba(0, 0, 0, 0.15);
+        0 4px 8px rgba(0, 0, 0, 0.5),
+        0 16px 40px rgba(0, 0, 0, 0.5),
+        0 40px 100px rgba(0, 0, 0, 0.4),
+        0 80px 200px rgba(0, 0, 0, 0.3),
+        inset 0 2px 0 rgba(255, 255, 255, 0.06),
+        inset 0 -2px 0 rgba(0, 0, 0, 0.3);
     }
 
     /* Specular highlight */
@@ -125,8 +133,8 @@ export const glassCard: OverlayTheme = {
       content: '';
       position: absolute;
       inset: 0;
-      border-radius: 12px;
-      border: 1px solid transparent;
+      border-radius: 32px;
+      border: 2px solid transparent;
       background: linear-gradient(
         160deg,
         rgba(255,255,255,0.12),
@@ -143,8 +151,8 @@ export const glassCard: OverlayTheme = {
     /* ── Album Art ── */
     .card-art-wrap {
       position: relative;
-      width: 210px;
-      height: 210px;
+      width: 580px;
+      height: 580px;
       overflow: hidden;
       ${opts.showArt ? '' : 'display: none;'}
     }
@@ -154,6 +162,7 @@ export const glassCard: OverlayTheme = {
       height: 100%;
       object-fit: cover;
       display: block;
+      transition: opacity 0.4s ease;
     }
 
     .card-art-placeholder {
@@ -164,7 +173,7 @@ export const glassCard: OverlayTheme = {
       align-items: center;
       justify-content: center;
       color: rgba(255,255,255,0.15);
-      font-size: 48px;
+      font-size: 128px;
     }
 
     /* Art-to-info gradient blend */
@@ -179,7 +188,7 @@ export const glassCard: OverlayTheme = {
 
     /* ── Track Info ── */
     .card-info {
-      padding: 12px 14px 14px;
+      padding: 32px 38px 40px;
       position: relative;
       z-index: 2;
     }
@@ -187,60 +196,62 @@ export const glassCard: OverlayTheme = {
     .card-badge {
       display: inline-flex;
       align-items: center;
-      gap: 5px;
-      font-size: 7px;
+      gap: 12px;
+      font-size: 17px;
       font-weight: 700;
-      letter-spacing: 0.15em;
+      letter-spacing: 0.2em;
       text-transform: uppercase;
       color: rgba(255,255,255,0.5);
-      margin-bottom: 8px;
+      margin-bottom: 21px;
     }
 
     .card-badge-dot {
-      width: 5px; height: 5px;
+      width: 12px; height: 12px;
       border-radius: 50%;
       background: #00d4ff;
       animation: ledPulse 2s ease-in-out infinite;
     }
 
     @keyframes ledPulse {
-      0%, 100% { opacity: 1; box-shadow: 0 0 4px #00d4ff; }
-      50%      { opacity: 0.4; box-shadow: 0 0 2px #00d4ff; }
+      0%, 100% { opacity: 1; box-shadow: 0 0 10px #00d4ff; }
+      50%      { opacity: 0.4; box-shadow: 0 0 5px #00d4ff; }
     }
 
     .card-artist {
-      font-size: 13px;
+      font-size: 35px;
       font-weight: 700;
       color: #ffffff;
       line-height: 1.2;
-      margin-bottom: 3px;
+      margin-bottom: 7px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.5);
     }
 
     .card-title {
-      font-size: 10px;
+      font-size: 26px;
       font-weight: 500;
       color: rgba(255,255,255,0.55);
       line-height: 1.3;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.4);
     }
 
     .card-divider {
       width: 100%;
-      height: 1px;
+      height: 2px;
       background: rgba(255,255,255,0.08);
-      margin: 8px 0;
+      margin: 21px 0;
     }
 
     .card-meta {
       display: flex;
       align-items: center;
-      gap: 6px;
-      font-size: 8px;
+      gap: 14px;
+      font-size: 20px;
     }
 
     .card-label {
@@ -249,7 +260,7 @@ export const glassCard: OverlayTheme = {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      max-width: 140px;
+      max-width: 400px;
     }
 
     .card-year {
@@ -294,15 +305,19 @@ export const glassCard: OverlayTheme = {
     ${sharedJS}
 
     function updateContent(data) {
-      document.getElementById('artist').textContent = data.artist || '';
-      document.getElementById('title').textContent = data.title || '';
+      var artistEl = document.getElementById('artist');
+      var titleEl = document.getElementById('title');
+      artistEl.textContent = data.artist || '';
+      titleEl.textContent = data.title || '';
+      fitText(artistEl, [35, 30, 26, 22]);
+      fitText(titleEl, [26, 22, 19, 16]);
 
       // Art
       const artWrap = document.getElementById('artWrap');
       const artImg = document.getElementById('artImg');
       const artPlaceholder = document.getElementById('artPlaceholder');
       if (SHOW_ART && data.artUrl) {
-        artImg.src = API_BASE + data.artUrl;
+        artImg.src = API_BASE + data.artUrl + '?t=' + Date.now();
         artImg.style.display = 'block';
         artPlaceholder.style.display = 'none';
         artWrap.style.display = '';
@@ -338,14 +353,3 @@ export const glassCard: OverlayTheme = {
 </html>`;
   },
 };
-
-function getPositionCSS(position: string): string {
-  switch (position) {
-    case 'bottom-right': return 'bottom: 40px; right: 40px;';
-    case 'top-left':     return 'top: 40px; left: 40px;';
-    case 'top-right':    return 'top: 40px; right: 40px;';
-    case 'bottom-center': return 'bottom: 40px; left: 50%; transform: translateX(-50%);';
-    case 'bottom-left':
-    default:             return 'bottom: 40px; left: 40px;';
-  }
-}

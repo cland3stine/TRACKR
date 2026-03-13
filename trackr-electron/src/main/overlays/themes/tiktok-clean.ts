@@ -3,6 +3,7 @@
  *
  * Pill-shaped bar for 9:16 portrait canvas.
  * Single line: Artist · Title. Maximum compactness.
+ * Renders at 4K portrait (2160×3840) canvas — OBS downscales for sharpness.
  */
 
 import { OverlayTheme, ThemeRenderOptions } from '../types';
@@ -31,12 +32,15 @@ export const tiktokClean: OverlayTheme = {
       showYear: false,
       showArt: false,
       preview: opts.preview,
+      previewCardWidth: 500,
+      previewCardHeight: 62,
     });
 
     return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=2160, initial-scale=1">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -47,13 +51,15 @@ export const tiktokClean: OverlayTheme = {
       background: transparent;
       overflow: hidden;
       font-family: 'JetBrains Mono', monospace;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: geometricPrecision;
     }
 
     #overlay-root {
       position: absolute;
-      bottom: 25%;
-      left: 50%;
-      transform: translateX(-50%);
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
     }
 
     .track-card {
@@ -67,28 +73,34 @@ export const tiktokClean: OverlayTheme = {
 
     .tt-pill {
       display: inline-block;
-      padding: 8px 18px;
-      border-radius: 18px;
+      padding: 18px 40px;
+      border-radius: 40px;
       background: rgba(10, 10, 16, 0.75);
       backdrop-filter: blur(16px) saturate(1.3);
       -webkit-backdrop-filter: blur(16px) saturate(1.3);
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+      border: 2px solid rgba(255, 255, 255, 0.06);
+      box-shadow:
+        0 4px 8px rgba(0, 0, 0, 0.5),
+        0 16px 40px rgba(0, 0, 0, 0.5),
+        0 40px 100px rgba(0, 0, 0, 0.4),
+        inset 0 2px 0 rgba(255, 255, 255, 0.06),
+        inset 0 -2px 0 rgba(0, 0, 0, 0.3);
       white-space: nowrap;
-      max-width: 280px;
+      max-width: 640px;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
     .tt-text {
-      font-size: 10px;
+      font-size: 22px;
       font-weight: 500;
       color: #ffffff;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.4);
     }
 
     .tt-sep {
       color: rgba(255,255,255,0.3);
-      margin: 0 5px;
+      margin: 0 12px;
     }
 
     ${transitionCSS}
@@ -110,6 +122,7 @@ export const tiktokClean: OverlayTheme = {
     function updateContent(data) {
       document.getElementById('artist').textContent = data.artist || '';
       document.getElementById('title').textContent = data.title || '';
+      fitText(document.querySelector('.tt-pill'), [22, 19, 16, 14]);
     }
   </script>
 </body>
