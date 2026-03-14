@@ -1,5 +1,6 @@
-import { app, BrowserWindow, ipcMain, dialog, Menu, Tray, nativeImage } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, Menu, Tray, nativeImage, screen } from 'electron';
 import path from 'path';
+import Store from 'electron-store';
 
 // ─── global safety net ──────────────────────────────────────────────────────
 // prolink-connect's internal UDP socket handler throws on malformed packets
@@ -422,6 +423,20 @@ function handlePublish(line: string, deviceId: number, publishedAt: number): voi
 
 // ─── window ──────────────────────────────────────────────────────────────────
 
+// ── Window state persistence ──
+const _winStore = new Store<{ windowState?: { x: number; y: number; width: number; height: number; isMinimized: boolean } }>({ name: 'window-state' });
+
+function _isVisibleOnAnyDisplay(bounds: { x: number; y: number; width: number; height: number }): boolean {
+  const displays = screen.getAllDisplays();
+  // Check if at least 100px of the window overlaps any display
+  return displays.some(d => {
+    const db = d.bounds;
+    const overlapX = Math.max(0, Math.min(bounds.x + bounds.width, db.x + db.width) - Math.max(bounds.x, db.x));
+    const overlapY = Math.max(0, Math.min(bounds.y + bounds.height, db.y + db.height) - Math.max(bounds.y, db.y));
+    return overlapX > 100 && overlapY > 50;
+  });
+}
+
 function createWindow(): void {
   const startHidden = process.argv.includes('--hidden') || getConfig().startInTray;
 
@@ -429,8 +444,16 @@ function createWindow(): void {
     ? path.join(process.resourcesPath, 'icon.ico')
     : path.join(__dirname, '../../assets/icon.ico');
 
+  // Restore saved window bounds (or use defaults)
+  const saved = _winStore.get('windowState');
+  const defaults = { width: 1200, height: 900 };
+  let winOpts: { x?: number; y?: number; width: number; height: number } = defaults;
+  if (saved && _isVisibleOnAnyDisplay(saved)) {
+    winOpts = { x: saved.x, y: saved.y, width: saved.width, height: saved.height };
+  }
+
   mainWindow = new BrowserWindow({
-    width: 1200, height: 900, minWidth: 1200, minHeight: 900,
+    ...winOpts, minWidth: 1200, minHeight: 900,
     title: 'TRACKR',
     icon: nativeImage.createFromPath(iconPath),
     backgroundColor: '#0a0a0a',
@@ -443,11 +466,36 @@ function createWindow(): void {
   });
 
   mainWindow.once('ready-to-show', () => {
-    if (!startHidden) mainWindow?.show();
+    if (startHidden) return;
+    if (saved?.isMinimized) {
+      mainWindow?.minimize();
+      mainWindow?.show();
+    } else {
+      mainWindow?.show();
+    }
   });
+
+  // Save window state on move/resize (debounced)
+  let _saveTimer: ReturnType<typeof setTimeout> | null = null;
+  const saveState = () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (_saveTimer) clearTimeout(_saveTimer);
+    _saveTimer = setTimeout(() => {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      const isMin = mainWindow.isMinimized();
+      // Use saved bounds when minimized (getBounds returns pre-minimize position)
+      const bounds = isMin ? (mainWindow.getNormalBounds?.() || mainWindow.getBounds()) : mainWindow.getBounds();
+      _winStore.set('windowState', { ...bounds, isMinimized: isMin });
+    }, 500);
+  };
+  mainWindow.on('resize', saveState);
+  mainWindow.on('move', saveState);
+  mainWindow.on('minimize', saveState);
+  mainWindow.on('restore', saveState);
 
   // Close to tray — X hides the window, tray "Quit" does the real exit.
   mainWindow.on('close', (e) => {
+    saveState();
     if (!_forceQuit) {
       e.preventDefault();
       mainWindow?.hide();
@@ -659,7 +707,8 @@ function registerIpc(): void {
     });
     autoUpdater.on('update-downloaded', () => {
       send({ state: 'ready' });
-      // Install on next quit (already set via autoInstallOnAppQuit)
+      // Quit and install after a short delay so the renderer can show "Restarting..."
+      setTimeout(() => autoUpdater.quitAndInstall(), 1500);
     });
     autoUpdater.on('error', (err) => {
       send({ state: 'error', message: err?.message || String(err) });
