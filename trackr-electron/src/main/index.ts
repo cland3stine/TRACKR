@@ -530,6 +530,19 @@ function registerIpc(): void {
     return result.canceled ? null : result.filePaths[0] ?? null;
   });
 
+  ipcMain.handle('dialog:save-file', async (_event, params: { defaultName: string; content: string }) => {
+    if (!mainWindow) return { ok: false };
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: 'Export Session',
+      defaultPath: params.defaultName,
+      filters: [{ name: 'Text Files', extensions: ['txt'] }],
+    });
+    if (result.canceled || !result.filePath) return { ok: false };
+    const { writeFileSync } = await import('fs');
+    writeFileSync(result.filePath, params.content, 'utf-8');
+    return { ok: true, path: result.filePath };
+  });
+
   // ── Phase 3: stats / tracklist ────────────────────────────────────────────
   ipcMain.handle('db:get-play-count',              () => db?.getPlayCount() ?? 0);
   ipcMain.handle('tracklist:get-running-entries',  () => outputWriter?.getRunningEntries() ?? []);
@@ -565,6 +578,21 @@ function registerIpc(): void {
   });
   ipcMain.handle('db:get-session-tracks', (_event, params: { sessionId: number }) => {
     return db?.getSessionTracks(params.sessionId) ?? [];
+  });
+
+  ipcMain.handle('db:delete-session', (_event, params: { sessionId: number }) => {
+    if (!db) return { ok: false };
+    // Don't allow deleting the active session
+    if (_currentSessionId !== null && params.sessionId === _currentSessionId) {
+      return { ok: false, reason: 'Cannot delete the active session' };
+    }
+    // Decrement play counts for each track in this session, then delete
+    const tracks = db.getSessionTracks(params.sessionId);
+    for (const t of tracks) {
+      db.decrementTrackPlayCount(t.artist, t.title);
+    }
+    db.deleteSession(params.sessionId);
+    return { ok: true };
   });
 
   // ── Overlays ─────────────────────────────────────────────────────────────────

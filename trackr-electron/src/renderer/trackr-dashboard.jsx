@@ -407,6 +407,14 @@ export default function TRACKR() {
   const [overlayThemes, setOverlayThemes] = useState([]);
   const [overlayCopied, setOverlayCopied] = useState(null);  // "main" | "tiktok" | null
   const [keyCamelot, setKeyCamelot] = useState(() => localStorage.getItem("trackr-key-camelot") === "1");
+  const [exportOpen, setExportOpen] = useState(false);
+  const [detailCollapsed, setDetailCollapsed] = useState(false);
+  useEffect(() => {
+    if (!exportOpen) return;
+    const onKey = (e) => { if (e.key === "Escape") setExportOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [exportOpen]);
   const [overlaySubTab, setOverlaySubTab] = useState("visual"); // "text" | "visual"
   const [selectedSession, setSelectedSession] = useState(null);
   const [selectedSessionTracks, setSelectedSessionTracks] = useState([]);
@@ -723,6 +731,23 @@ export default function TRACKR() {
         addToast("All play counts reset", "success");
       } else {
         addToast("Failed to reset play counts", "error");
+      }
+    }
+    if (nextAction === "delete-session") {
+      const sid = confirmDialog.sessionId;
+      const res = await window.electronAPI.invoke("db:delete-session", { sessionId: sid });
+      if (res?.ok) {
+        addToast("Session deleted", "success");
+        setSelectedSession(null);
+        setSelectedSessionTrack(null);
+        setSelectedSessionTracks([]);
+        // Reload session list
+        try {
+          const r = await window.electronAPI.invoke("db:search-sessions", { limit: 50, offset: sessionPage * 50 });
+          setSessionRows(r.rows); setSessionTotal(r.total);
+        } catch (_) {}
+      } else {
+        addToast(res?.reason || "Failed to delete session", "error");
       }
     }
   }, [confirmDialog, performStop, performRefresh, callCore, addToast]);
@@ -1429,7 +1454,7 @@ export default function TRACKR() {
                 </div>
               ) : null}
 
-              <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 10px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "58px 1fr", gap: "4px 10px" }}>
                 {(liveEnrichment?.label) && (
                   <>
                     <span style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Label</span>
@@ -1766,7 +1791,23 @@ export default function TRACKR() {
                       </RackPanel>
                     </div>
                     {selectedTrack && (
-                      <div style={{ width: 300, flexShrink: 0, animation: "fadeIn 0.3s ease" }}>
+                      <div style={{ display: "flex", flexShrink: 0, transition: "width 0.25s ease", width: detailCollapsed ? 20 : 300, overflow: "hidden" }}>
+                        {/* Fold toggle tab */}
+                        <div
+                          onClick={() => setDetailCollapsed(c => !c)}
+                          style={{
+                            width: 20, flexShrink: 0, cursor: "pointer",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            color: C.textMuted, transition: "color 0.15s",
+                            borderRight: detailCollapsed ? "none" : `1px solid ${C.borderRack}30`,
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.color = C.cyan; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.color = C.textMuted; }}
+                          title={detailCollapsed ? "Show track detail" : "Hide track detail"}
+                        >
+                          <span style={{ ...font(11, 400), userSelect: "none" }}>{detailCollapsed ? "\u25C0" : "\u25B6"}</span>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0, opacity: detailCollapsed ? 0 : 1, transition: "opacity 0.2s ease", pointerEvents: detailCollapsed ? "none" : "auto" }}>
                         <RackPanel label="TRACK DETAIL" style={{ position: "sticky", top: 0 }}>
                           {selectedTrack.art_filename && (
                             <div style={{ position: "relative", marginBottom: 14 }}>
@@ -1790,7 +1831,7 @@ export default function TRACKR() {
                           )}
                           <div style={{ ...font(13, 600), color: C.textPrimary, marginBottom: 2 }}>{selectedTrack.artist}</div>
                           <div style={{ ...font(12, 300), color: C.textDim, marginBottom: 14 }}>{selectedTrack.title}</div>
-                          <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "6px 12px" }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "58px 1fr", gap: "6px 12px" }}>
                             {selectedTrack.label && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Label</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedTrack.label}</span></>)}
                             {selectedTrack.year && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Year</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedTrack.year}</span></>)}
                             {selectedTrack.genre && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Genre</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedTrack.genre}</span></>)}
@@ -1809,6 +1850,7 @@ export default function TRACKR() {
                             </div>
                           </div>
                         </RackPanel>
+                      </div>
                       </div>
                     )}
                   </div>
@@ -1913,12 +1955,122 @@ export default function TRACKR() {
                             })}
                           </div>
                         </RackPanel>
+
+                        {/* ── Session Actions: Export + Delete ── */}
+                        <div style={{ display: "flex", gap: 6, marginTop: 6, position: "relative" }}>
+                          <button
+                            onClick={() => setExportOpen(!exportOpen)}
+                            style={{
+                              ...font(8, 700), letterSpacing: 2, textTransform: "uppercase",
+                              flex: 1, padding: "7px 0", cursor: "pointer",
+                              color: C.cyan, background: "transparent",
+                              border: `1px solid ${C.cyan}40`, borderRadius: C.radiusXs,
+                              transition: "all 0.15s",
+                            }}
+                            onMouseEnter={(e) => { e.target.style.background = `${C.cyan}10`; }}
+                            onMouseLeave={(e) => { e.target.style.background = "transparent"; }}
+                          >EXPORT</button>
+                          <button
+                            onClick={() => setConfirmDialog({ type: "delete-session", sessionId: selectedSession.id, message: `DELETE SESSION (${selectedSession.track_count} TRACKS)?` })}
+                            style={{
+                              ...font(8, 700), letterSpacing: 2, textTransform: "uppercase",
+                              padding: "7px 12px", cursor: "pointer",
+                              color: C.red, background: "transparent",
+                              border: `1px solid ${C.red}40`, borderRadius: C.radiusXs,
+                              transition: "all 0.15s",
+                            }}
+                            onMouseEnter={(e) => { e.target.style.background = `${C.red}10`; }}
+                            onMouseLeave={(e) => { e.target.style.background = "transparent"; }}
+                          >DELETE</button>
+
+                          {/* Export popover + click-outside backdrop */}
+                          {exportOpen && <div style={{ position: "fixed", inset: 0, zIndex: 9 }} onClick={() => setExportOpen(false)} />}
+                          {exportOpen && (() => {
+                            const fields = [
+                              { key: "artist", label: "Artist", default: true },
+                              { key: "title", label: "Title", default: true },
+                              { key: "label", label: "Label", default: true },
+                              { key: "year", label: "Year", default: true },
+                              { key: "key_name", label: "Key", default: false },
+                            ];
+                            const stored = JSON.parse(localStorage.getItem("trackr-export-fields") || "null");
+                            const initial = stored || Object.fromEntries(fields.map(f => [f.key, f.default]));
+                            return (
+                              <div style={{
+                                position: "absolute", bottom: "100%", left: 0, marginBottom: 4, zIndex: 10,
+                                background: C.bgCard, border: `1px solid ${C.glassBorder}`,
+                                borderRadius: C.radiusSm, padding: 12, minWidth: 220,
+                                boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+                              }}>
+                                <div style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2, textTransform: "uppercase", marginBottom: 8 }}>EXPORT FIELDS</div>
+                                {fields.map(f => {
+                                  const checked = initial[f.key] !== false;
+                                  return (
+                                    <label key={f.key} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "3px 0" }}>
+                                      <input type="checkbox" defaultChecked={checked} onChange={(e) => {
+                                        initial[f.key] = e.target.checked;
+                                        localStorage.setItem("trackr-export-fields", JSON.stringify(initial));
+                                      }} style={{ accentColor: C.cyan }} />
+                                      <span style={{ ...font(9, 400), color: C.textPrimary }}>{f.label}</span>
+                                    </label>
+                                  );
+                                })}
+                                <button
+                                  onClick={async () => {
+                                    const ef = JSON.parse(localStorage.getItem("trackr-export-fields") || "null") || initial;
+                                    const lines = selectedSessionTracks.map((t, i) => {
+                                      const parts = [];
+                                      if (ef.artist !== false) parts.push(t.artist);
+                                      if (ef.title !== false) parts.push(t.title);
+                                      const meta = [];
+                                      if (ef.label !== false && t.label) meta.push(t.label);
+                                      if (ef.year !== false && t.year) meta.push(String(t.year));
+                                      if (ef.key_name !== false && t.key_name) meta.push(keyCamelot ? toCamelot(t.key_name) : t.key_name);
+                                      let line = `${i + 1}. ${parts.join(" - ")}`;
+                                      if (meta.length) line += ` [${meta.join(", ")}]`;
+                                      return line;
+                                    });
+                                    const dateStr = selectedSession.started_at ? new Date(selectedSession.started_at).toISOString().slice(0, 10) : "session";
+                                    const defaultName = `TRACKR-Session-${dateStr}.txt`;
+                                    const res = await window.electronAPI.invoke("dialog:save-file", { defaultName, content: lines.join("\r\n") });
+                                    if (res?.ok) {
+                                      addToast("Session exported", "success");
+                                    }
+                                    setExportOpen(false);
+                                  }}
+                                  style={{
+                                    ...font(8, 700), letterSpacing: 2, textTransform: "uppercase",
+                                    width: "100%", marginTop: 10, padding: "7px 0", cursor: "pointer",
+                                    color: "#fff", background: `${C.cyan}30`,
+                                    border: `1px solid ${C.cyan}60`, borderRadius: C.radiusXs,
+                                  }}
+                                >EXPORT AS TXT</button>
+                              </div>
+                            );
+                          })()}
+                        </div>
                       </div>
                     )}
 
                     {/* ── Right: Track Detail (appears on track click) ── */}
                     {selectedSessionTrack && (
-                      <div style={{ width: 300, flexShrink: 0, animation: "fadeIn 0.3s ease" }}>
+                      <div style={{ display: "flex", flexShrink: 0, transition: "width 0.25s ease", width: detailCollapsed ? 20 : 300, overflow: "hidden" }}>
+                        {/* Fold toggle tab */}
+                        <div
+                          onClick={() => setDetailCollapsed(c => !c)}
+                          style={{
+                            width: 20, flexShrink: 0, cursor: "pointer",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            color: C.textMuted, transition: "color 0.15s",
+                            borderRight: detailCollapsed ? "none" : `1px solid ${C.borderRack}30`,
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.color = C.cyan; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.color = C.textMuted; }}
+                          title={detailCollapsed ? "Show track detail" : "Hide track detail"}
+                        >
+                          <span style={{ ...font(11, 400), userSelect: "none" }}>{detailCollapsed ? "\u25C0" : "\u25B6"}</span>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0, opacity: detailCollapsed ? 0 : 1, transition: "opacity 0.2s ease", pointerEvents: detailCollapsed ? "none" : "auto" }}>
                         <RackPanel label="TRACK DETAIL" style={{ position: "sticky", top: 0 }}>
                           {selectedSessionTrack.art_filename && (
                             <div style={{ position: "relative", marginBottom: 14 }}>
@@ -1942,7 +2094,7 @@ export default function TRACKR() {
                           )}
                           <div style={{ ...font(13, 600), color: C.textPrimary, marginBottom: 2 }}>{selectedSessionTrack.artist}</div>
                           <div style={{ ...font(12, 300), color: C.textDim, marginBottom: 14 }}>{selectedSessionTrack.title}</div>
-                          <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "6px 12px" }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "58px 1fr", gap: "6px 12px" }}>
                             {selectedSessionTrack.label && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Label</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedSessionTrack.label}</span></>)}
                             {selectedSessionTrack.year && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Year</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedSessionTrack.year}</span></>)}
                             {selectedSessionTrack.genre && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Genre</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedSessionTrack.genre}</span></>)}
@@ -1961,6 +2113,7 @@ export default function TRACKR() {
                             </div>
                           )}
                         </RackPanel>
+                      </div>
                       </div>
                     )}
                   </div>
@@ -2682,6 +2835,25 @@ export default function TRACKR() {
                   </div>
                 </div>
 
+                {/* Display */}
+                <div
+                  style={{ borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 16, marginBottom: 20 }}
+                >
+                  <span
+                    style={{
+                      ...font(8, 700),
+                      color: C.textMuted,
+                      letterSpacing: 2.5,
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    DISPLAY
+                  </span>
+                  <div style={{ marginTop: 8 }}>
+                    <Toggle label="Show key as Camelot (e.g. 5A instead of C Minor)" on={keyCamelot} onChange={(v) => { setKeyCamelot(v); localStorage.setItem("trackr-key-camelot", v ? "1" : "0"); }} />
+                  </div>
+                </div>
+
                 {/* API */}
                 <div
                   style={{ borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 16, marginBottom: 20 }}
@@ -3003,12 +3175,14 @@ export default function TRACKR() {
             }}
           >
             <div style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 2.2, textTransform: "uppercase" }}>
-              {confirmDialog.type === "reset-counts" ? "DATA RESET" : "SESSION CONFIRMATION"}
+              {confirmDialog.type === "reset-counts" ? "DATA RESET" : confirmDialog.type === "delete-session" ? "DELETE SESSION" : "SESSION CONFIRMATION"}
             </div>
             <div style={{ ...font(14, 600), color: C.textPrimary, marginTop: 8 }}>{confirmDialog.message}</div>
             <div style={{ ...font(11, 400), color: C.textDim, marginTop: 8 }}>
               {confirmDialog.type === "reset-counts"
                 ? "This permanently deletes all per-track play counts. This cannot be undone."
+                : confirmDialog.type === "delete-session"
+                ? "This removes the session and decrements play counts for its tracks. Cannot be undone."
                 : "This action clears the running session tracklist view for the current session."}
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 16 }}>

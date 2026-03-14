@@ -8,7 +8,7 @@
  */
 
 import Database from 'better-sqlite3';
-import { mkdirSync } from 'fs';
+import { mkdirSync, unlinkSync } from 'fs';
 import { dirname } from 'path';
 
 export interface TrackRow {
@@ -212,11 +212,12 @@ export class TrackrDatabase {
   }
 
   /** Purge all sessions with fewer than `threshold` tracks, excluding the given ID.
-   *  Also decrements per-track play counts for tracks in purged sessions. */
+   *  Also decrements per-track play counts for tracks in purged sessions
+   *  and deletes associated tracklist .txt files. */
   purgeShortSessions(threshold: number, excludeId?: number): number {
     const rows = this._db.prepare(
-      'SELECT id FROM sessions WHERE track_count < ? AND (? IS NULL OR id != ?)'
-    ).all(threshold, excludeId ?? null, excludeId ?? null) as { id: number }[];
+      'SELECT id, session_file FROM sessions WHERE track_count < ? AND (? IS NULL OR id != ?)'
+    ).all(threshold, excludeId ?? null, excludeId ?? null) as { id: number; session_file: string | null }[];
     for (const row of rows) {
       // Decrement play counts for tracks in this session before deleting
       const tracks = this._db.prepare(
@@ -224,6 +225,10 @@ export class TrackrDatabase {
       ).all(row.id) as { artist: string; title: string }[];
       for (const t of tracks) {
         this.decrementTrackPlayCount(t.artist, t.title);
+      }
+      // Delete the tracklist .txt file if it exists
+      if (row.session_file) {
+        try { unlinkSync(row.session_file); } catch (_) {}
       }
       this.deleteSession(row.id);
     }
