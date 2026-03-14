@@ -506,8 +506,12 @@ function createWindow(): void {
       mainWindow?.hide();
       refreshTray(buildTrayCallbacks());
     } else {
-      // Real quit (tray Quit or quitAndInstall) — save current visible state
-      saveState();
+      // Real quit (tray Quit or quitAndInstall) — save synchronously (no debounce)
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        const isMin = mainWindow.isMinimized();
+        const bounds = isMin ? (mainWindow.getNormalBounds?.() || mainWindow.getBounds()) : mainWindow.getBounds();
+        _winStore.set('windowState', { ...bounds, isMinimized: isMin, isVisible: mainWindow.isVisible() });
+      }
     }
   });
 
