@@ -516,6 +516,8 @@ function createWindow(): void {
 // ─── IPC ─────────────────────────────────────────────────────────────────────
 
 function registerIpc(): void {
+  ipcMain.handle('app:version', () => app.getVersion());
+
   // ── Phase 2: prolink ──────────────────────────────────────────────────────
   ipcMain.handle('prolink:get-device-count',     () => getDeviceCount());
   ipcMain.handle('prolink:get-device-summaries', () => getDeviceSummaries());

@@ -375,6 +375,7 @@ export default function TRACKR() {
   const [previewBg, setPreviewBg] = useState("#000000");
   const [apiPort] = useState(8755);
   const [lanIp, setLanIp] = useState("127.0.0.1");
+  const [appVersion, setAppVersion] = useState("");
   const [toasts, setToasts] = useState([]);
   const [publishedAgo, setPublishedAgo] = useState(0);
   const [playbackActive, setPlaybackActive] = useState(false);
@@ -487,6 +488,7 @@ export default function TRACKR() {
     if (typeof status.api_enabled === "boolean") setApiEnabled(status.api_enabled);
     if (typeof status.strip_mix_labels === "boolean") setStripMixLabels(status.strip_mix_labels);
     if (status.lan_ip) setLanIp(status.lan_ip);
+    window.electronAPI.invoke("app:version").then(v => { if (v) setAppVersion(String(v)); }).catch(() => {});
     if (typeof status.share_play_count_via_api === "boolean") setSharePlayCount(status.share_play_count_via_api);
     if (typeof status.migration_prompt_seen === "boolean") setMigrationPromptSeen(status.migration_prompt_seen);
     if (typeof status.start_with_windows === "boolean") setStartWithWindows(status.start_with_windows);
@@ -1138,7 +1140,7 @@ export default function TRACKR() {
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
             }}>TRACKR</span>
-            <span style={{ ...font(9, 300), color: C.textMuted, letterSpacing: 1 }}>v1.0</span>
+            <span style={{ ...font(9, 300), color: C.textMuted, letterSpacing: 1 }}>{appVersion ? `v${appVersion}` : ""}</span>
           </div>
 
           {/* Spacer */}
