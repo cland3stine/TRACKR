@@ -93,17 +93,20 @@ function connect(): void {
 }
 
 export function startChatListener(channel: string, commandNames: string[], cooldownSeconds: number): void {
-  _channel = channel.replace(/^#/, '').toLowerCase();
+  const newChannel = channel.replace(/^#/, '').toLowerCase();
   _commandNames = commandNames.length ? commandNames : ['!trackid'];
   _cooldownMs = (cooldownSeconds || 30) * 1000;
   _enabled = true;
 
-  if (!_channel) {
+  if (!newChannel) {
     console.log('[chat] No Twitch channel configured — chat listener disabled');
     return;
   }
 
-  connect();
+  // Only reconnect if channel changed or not connected
+  const needsConnect = newChannel !== _channel || !_ws || _ws.readyState !== WebSocket.OPEN;
+  _channel = newChannel;
+  if (needsConnect) connect();
 }
 
 export function stopChatListener(): void {

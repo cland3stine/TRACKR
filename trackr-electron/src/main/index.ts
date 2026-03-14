@@ -267,7 +267,7 @@ function buildApiDeps(): ApiDeps {
       const updated = getConfig().overlays;
       // Sync chat listener with trigger config changes
       if (updated.triggers.chatCommand && updated.triggers.twitchChannel) {
-        updateChatConfig(updated.triggers.twitchChannel, updated.triggers.chatCommandNames, updated.triggers.chatCommandCooldown);
+        startChatListener(updated.triggers.twitchChannel, updated.triggers.chatCommandNames, updated.triggers.chatCommandCooldown);
       } else {
         stopChatListener();
       }
@@ -665,11 +665,15 @@ function registerIpc(): void {
     const updated = getConfig().overlays;
     // Sync chat listener
     if (updated.triggers.chatCommand && updated.triggers.twitchChannel) {
-      updateChatConfig(updated.triggers.twitchChannel, updated.triggers.chatCommandNames, updated.triggers.chatCommandCooldown);
+      startChatListener(updated.triggers.twitchChannel, updated.triggers.chatCommandNames, updated.triggers.chatCommandCooldown);
     } else {
       stopChatListener();
     }
     return updated;
+  });
+  ipcMain.handle('overlays:chat-status', () => {
+    const { isChatConnected } = require('./overlays/chat');
+    return { connected: isChatConnected(), enabled: getConfig().overlays.triggers.chatCommand, channel: getConfig().overlays.triggers.twitchChannel };
   });
   ipcMain.handle('overlays:get-themes', () => {
     const { getThemeList } = require('./overlays/themes/registry');
