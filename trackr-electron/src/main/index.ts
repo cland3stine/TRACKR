@@ -424,7 +424,7 @@ function handlePublish(line: string, deviceId: number, publishedAt: number): voi
 // ─── window ──────────────────────────────────────────────────────────────────
 
 // ── Window state persistence ──
-const _winStore = new Store<{ windowState?: { x: number; y: number; width: number; height: number; isMinimized: boolean } }>({ name: 'window-state' });
+const _winStore = new Store<{ windowState?: { x: number; y: number; width: number; height: number; isMinimized: boolean; isVisible: boolean } }>({ name: 'window-state' });
 
 function _isVisibleOnAnyDisplay(bounds: { x: number; y: number; width: number; height: number }): boolean {
   const displays = screen.getAllDisplays();
@@ -466,7 +466,10 @@ function createWindow(): void {
   });
 
   mainWindow.once('ready-to-show', () => {
-    if (startHidden) return;
+    // Restore last state: if window was visible before shutdown, show it in the same state.
+    // startInTray only applies when there's no saved state (first launch / boot start).
+    const wasVisible = saved?.isVisible ?? !startHidden;
+    if (!wasVisible) return;
     if (saved?.isMinimized) {
       mainWindow?.minimize();
       mainWindow?.show();
@@ -485,7 +488,7 @@ function createWindow(): void {
       const isMin = mainWindow.isMinimized();
       // Use saved bounds when minimized (getBounds returns pre-minimize position)
       const bounds = isMin ? (mainWindow.getNormalBounds?.() || mainWindow.getBounds()) : mainWindow.getBounds();
-      _winStore.set('windowState', { ...bounds, isMinimized: isMin });
+      _winStore.set('windowState', { ...bounds, isMinimized: isMin, isVisible: mainWindow.isVisible() });
     }, 500);
   };
   mainWindow.on('resize', saveState);
@@ -495,11 +498,16 @@ function createWindow(): void {
 
   // Close to tray — X hides the window, tray "Quit" does the real exit.
   mainWindow.on('close', (e) => {
-    saveState();
     if (!_forceQuit) {
+      // Hiding to tray — save state with isVisible: false so next launch stays hidden
       e.preventDefault();
+      const bounds = mainWindow?.getNormalBounds?.() || mainWindow?.getBounds();
+      if (bounds) _winStore.set('windowState', { ...bounds, isMinimized: false, isVisible: false });
       mainWindow?.hide();
       refreshTray(buildTrayCallbacks());
+    } else {
+      // Real quit (tray Quit or quitAndInstall) — save current visible state
+      saveState();
     }
   });
 
