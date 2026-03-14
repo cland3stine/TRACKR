@@ -363,6 +363,8 @@ export default function TRACKR() {
   const [timestamps, setTimestamps] = useState(true);
   const [stripMixLabels, setStripMixLabels] = useState(true);
   const [sharePlayCount, setSharePlayCount] = useState(false);
+  const [apiSendLabel, setApiSendLabel] = useState(true);
+  const [apiSendYear, setApiSendYear] = useState(true);
   const [delay, setDelay] = useState(3);
   const [overlayStyle, setOverlayStyle] = useState({ ...DEFAULT_STYLE });
   const [startInTray, setStartInTray] = useState(false);
@@ -556,6 +558,10 @@ export default function TRACKR() {
           setBeatportUsername(cfg.enrichment.beatportUsername || "");
           setBeatportPassword(cfg.enrichment.beatportPassword || "");
           setArtOverlayEnabled(cfg.enrichment.artOverlayEnabled || false);
+        }
+        if (cfg?.apiEnrichment) {
+          setApiSendLabel(cfg.apiEnrichment.sendLabel !== false);
+          setApiSendYear(cfg.apiEnrichment.sendYear !== false);
         }
       } catch (_) { /* non-critical */ }
 
@@ -834,6 +840,15 @@ export default function TRACKR() {
     },
     [isRunning, addToast]
   );
+
+  const handleApiSendLabelChange = useCallback(async (next) => {
+    setApiSendLabel(next);
+    await window.electronAPI.invoke("config:set", { apiEnrichment: { sendLabel: next } });
+  }, []);
+  const handleApiSendYearChange = useCallback(async (next) => {
+    setApiSendYear(next);
+    await window.electronAPI.invoke("config:set", { apiEnrichment: { sendYear: next } });
+  }, []);
 
   const handleEnrichmentToggle = useCallback(async (next) => {
     setEnrichmentEnabled(next);
@@ -2873,6 +2888,8 @@ export default function TRACKR() {
                   <div style={{ marginTop: 8 }}>
                     <Toggle label="Enable local API" on={apiEnabled} onChange={handleApiEnabledChange} />
                     <Toggle label="Share play count via API" on={sharePlayCount} onChange={handleSharePlayCountChange} disabled={!apiEnabled} />
+                    <Toggle label="Share label via API" on={apiSendLabel} onChange={handleApiSendLabelChange} disabled={!apiEnabled} />
+                    <Toggle label="Share year via API" on={apiSendYear} onChange={handleApiSendYearChange} disabled={!apiEnabled} />
                     <div style={{ ...font(9, 400), color: C.textMuted, marginTop: 2, marginBottom: 14 }}>
                       When disabled, TRACKR does not expose local endpoints.
                     </div>
