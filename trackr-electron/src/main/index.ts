@@ -718,7 +718,7 @@ function registerIpc(): void {
     autoUpdater.on('update-downloaded', () => {
       send({ state: 'ready' });
       // Quit and install after a short delay so the renderer can show "Restarting..."
-      setTimeout(() => autoUpdater.quitAndInstall(), 1500);
+      setTimeout(() => { _forceQuit = true; autoUpdater.quitAndInstall(); }, 1500);
     });
     autoUpdater.on('error', (err) => {
       send({ state: 'error', message: err?.message || String(err) });
