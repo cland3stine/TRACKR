@@ -246,7 +246,7 @@ function buildApiDeps(): ApiDeps {
       const parts = splitTrackLine(_lastPublishedLine);
       if (!parts) return null;
       const row = db.getTrack(parts[0], parts[1]);
-      if (!row || row.enrichment_status !== 'complete') return null;
+      if (!row) return null;
       return rowToResult(row);
     },
 

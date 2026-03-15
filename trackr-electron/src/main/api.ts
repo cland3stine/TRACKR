@@ -232,16 +232,19 @@ function buildApp(deps: ApiDeps): Express {
     };
     payload.play_count = deps.playCount();
 
-    // Enrichment data — filtered by apiEnrichment send flags
+    // Enrichment data — always include status so consumers can re-poll on 'pending'
     const enrichment = deps.getEnrichment();
-    if (enrichment && enrichment.status === 'complete') {
-      const e: Record<string, unknown> = { source: enrichment.source, status: enrichment.status };
-      if (cfg.apiEnrichment.sendYear  && enrichment.year)   e.year  = enrichment.year;
-      if (cfg.apiEnrichment.sendLabel && enrichment.label)  e.label = enrichment.label;
-      if (cfg.apiEnrichment.sendArt   && enrichment.artFilename) e.art_url = '/art/current';
-      if (enrichment.genre) e.genre = enrichment.genre;
-      if (enrichment.bpm)   e.bpm   = enrichment.bpm;
-      if (enrichment.key)   e.key   = enrichment.key;
+    if (enrichment) {
+      const e: Record<string, unknown> = { status: enrichment.status };
+      if (enrichment.status === 'complete') {
+        e.source = enrichment.source;
+        if (cfg.apiEnrichment.sendYear  && enrichment.year)   e.year  = enrichment.year;
+        if (cfg.apiEnrichment.sendLabel && enrichment.label)  e.label = enrichment.label;
+        if (cfg.apiEnrichment.sendArt   && enrichment.artFilename) e.art_url = '/art/current';
+        if (enrichment.genre) e.genre = enrichment.genre;
+        if (enrichment.bpm)   e.bpm   = enrichment.bpm;
+        if (enrichment.key)   e.key   = enrichment.key;
+      }
       payload.enrichment = e;
     }
 
