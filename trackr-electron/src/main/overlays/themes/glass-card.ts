@@ -329,9 +329,10 @@ export const glassCard: OverlayTheme = {
         artWrap.style.display = 'none';
       }
 
-      // Meta (label + year)
+      // Meta (label + release date)
       const hasLabel = SHOW_LABEL && data.label;
-      const hasYear = SHOW_YEAR && data.year;
+      const dateStr = data.releaseDate || (data.year ? String(data.year) : '');
+      const hasYear = SHOW_YEAR && dateStr;
       const divider = document.getElementById('divider');
       const meta = document.getElementById('meta');
 
@@ -340,7 +341,7 @@ export const glassCard: OverlayTheme = {
         meta.style.display = '';
         document.getElementById('label').textContent = hasLabel ? data.label : '';
         document.getElementById('label').style.display = hasLabel ? '' : 'none';
-        document.getElementById('year').textContent = hasYear ? data.year : '';
+        document.getElementById('year').textContent = hasYear ? fmtDate(dateStr) : '';
         document.getElementById('year').style.display = hasYear ? '' : 'none';
         document.getElementById('metaSep').style.display = (hasLabel && hasYear) ? '' : 'none';
       } else {

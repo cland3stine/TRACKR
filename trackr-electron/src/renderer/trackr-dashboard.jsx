@@ -1,6 +1,17 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { checkForUpdate } from "./updater";
 
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+/** Format "2025-03-15" → "Mar 15 '25". Falls back to raw string (e.g. just "2025"). */
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function fmtDate(d) {
+  if (!d) return '\u2014';
+  const s = String(d);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return s;
+  return MONTHS[parseInt(m[2],10)-1] + ' ' + parseInt(m[3],10) + " \u2019" + m[1].slice(2);
+}
+
 // ─── DESIGN TOKENS ───────────────────────────────────────────────────────────
 const C = {
   bgDeep: "#0a0a0a",
@@ -76,7 +87,7 @@ const Led = ({ color, size = 8, pulse = false, style = {} }) => (
       height: size,
       borderRadius: "50%",
       backgroundColor: color,
-      boxShadow: `0 0 ${size * 0.5}px ${color}, 0 0 ${size}px ${color}70, 0 0 ${size * 2.5}px ${color}25`,
+      boxShadow: `0 0 ${size * 0.5}px ${color}, 0 0 ${size}px ${color}70, 0 0 ${size * 2.5}px ${color}25, 0 0 ${size * 4}px ${color}0a`,
       animation: pulse ? "ledPulse 3s ease-in-out infinite" : "none",
       flexShrink: 0,
       ...style,
@@ -87,6 +98,7 @@ const Led = ({ color, size = 8, pulse = false, style = {} }) => (
 // ─── RACK PANEL ──────────────────────────────────────────────────────────────
 const RackPanel = ({ label, labelRight, children, style = {} }) => (
   <div
+    className="rack-panel"
     style={{
       background: C.panelBg,
       backdropFilter: C.panelBlur,
@@ -96,7 +108,7 @@ const RackPanel = ({ label, labelRight, children, style = {} }) => (
       padding: 16,
       position: "relative",
       boxShadow: C.panelShadow,
-      transition: "box-shadow 0.3s ease, border-color 0.3s ease",
+      transition: "box-shadow 0.3s ease, border-color 0.3s ease, background 0.3s ease",
       ...style,
     }}
   >
@@ -108,7 +120,11 @@ const RackPanel = ({ label, labelRight, children, style = {} }) => (
           alignItems: "center",
           marginBottom: 14,
           paddingBottom: 10,
-          borderBottom: "1px solid rgba(255,255,255,0.04)",
+          borderBottom: "1px solid transparent",
+          backgroundImage: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 20%, rgba(255,255,255,0.06) 80%, transparent 100%)",
+          backgroundSize: "100% 1px",
+          backgroundPosition: "bottom",
+          backgroundRepeat: "no-repeat",
         }}
       >
         <span
@@ -409,6 +425,7 @@ export default function TRACKR() {
   const [overlaysConfig, setOverlaysConfig] = useState(null);
   const [overlayThemes, setOverlayThemes] = useState([]);
   const [overlayCopied, setOverlayCopied] = useState(null);  // "main" | "tiktok" | null
+  const [hotkeyRecording, setHotkeyRecording] = useState(false);
   const [keyCamelot, setKeyCamelot] = useState(() => localStorage.getItem("trackr-key-camelot") === "1");
   const [exportOpen, setExportOpen] = useState(false);
   const [detailCollapsed, setDetailCollapsed] = useState(false);
@@ -1005,7 +1022,6 @@ export default function TRACKR() {
         width: "100%",
         minHeight: "100vh",
         background: C.bgDeep,
-        backgroundImage: "radial-gradient(ellipse at 20% 50%, rgba(0,212,255,0.015) 0%, transparent 60%), radial-gradient(ellipse at 80% 80%, rgba(0,212,255,0.008) 0%, transparent 50%)",
         color: C.textPrimary,
         display: "flex",
         flexDirection: "column",
@@ -1014,10 +1030,34 @@ export default function TRACKR() {
         position: "relative",
       }}
     >
-      {/* Noise texture removed — clean glass surfaces */}
+      {/* ═══ BACKGROUND LAYERS: grain + aurora ═══ */}
+      <div className="grain-layer" />
+
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
+
+        /* Film grain — barely perceptible analog warmth */
+        .grain-layer {
+          position: fixed;
+          inset: 0;
+          opacity: 0.02;
+          background-image: url('data:image/svg+xml,%3Csvg viewBox=%220 0 256 256%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22n%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.9%22 numOctaves=%224%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23n)%22/%3E%3C/svg%3E');
+          background-size: 256px 256px;
+          pointer-events: none;
+          z-index: 0;
+        }
         * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        /* ─── MICRO-INTERACTIONS ─── */
+
+        /* Button press feedback */
+        button { transition: transform 0.1s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease; }
+        button:active:not(:disabled) { transform: scale(0.97); }
+
+        /* Focus rings — accessible cyan glow */
+        *:focus-visible { outline: none !important; box-shadow: 0 0 0 2px rgba(0,212,255,0.2) !important; }
+        input[type="range"]:focus-visible { box-shadow: none !important; }
+        input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px rgba(0,212,255,0.15), 0 1px 4px rgba(0,0,0,0.4); }
 
         /* Scrollbar — thin glass */
         ::-webkit-scrollbar { width: 6px; }
@@ -1069,8 +1109,11 @@ export default function TRACKR() {
           transition: box-shadow 0.2s ease, transform 0.2s ease;
         }
         input[type="range"]::-webkit-slider-thumb:hover {
-          box-shadow: 0 1px 6px rgba(0,0,0,0.5), 0 0 8px rgba(0,212,255,0.2);
+          box-shadow: 0 0 0 4px rgba(0,212,255,0.1), 0 1px 6px rgba(0,0,0,0.5), 0 0 8px rgba(0,212,255,0.2);
           transform: scale(1.1);
+        }
+        input[type="range"]:hover::-webkit-slider-runnable-track {
+          background: rgba(255,255,255,0.09);
         }
         select {
           appearance: none;
@@ -1086,8 +1129,43 @@ export default function TRACKR() {
           outline: none;
         }
 
+        /* Panel hover glow */
+        .rack-panel {
+          transition: box-shadow 0.3s ease, border-color 0.3s ease, background 0.3s ease;
+        }
+        .rack-panel:hover {
+          border-color: rgba(255,255,255,0.10);
+        }
+
+        /* Enrichment shimmer bars */
+        .shimmer-bar {
+          background: linear-gradient(90deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.05) 50%, rgba(255,255,255,0.02) 100%);
+          background-size: 200% 100%;
+          animation: shimmer 1.5s ease-in-out infinite;
+          border-radius: 4px;
+          height: 13px;
+        }
+
+        /* Album art inset shadow overlay */
+        .art-inset { position: relative; border-radius: 8px; overflow: hidden; }
+        .art-inset::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: 8px;
+          box-shadow: inset 0 2px 6px rgba(0,0,0,0.4);
+          pointer-events: none;
+        }
+
+        /* Gradient divider */
+        .divider-gradient {
+          height: 1px;
+          background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 20%, rgba(255,255,255,0.06) 80%, transparent 100%);
+          border: none;
+        }
+
         /* ─── KEYFRAMES ─── */
-        @keyframes ledPulse {
+@keyframes ledPulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.35; }
         }
@@ -1130,7 +1208,7 @@ export default function TRACKR() {
       `}</style>
 
       {/* ═══ TOP BAR ═══ */}
-      <div style={{ flexShrink: 0, zIndex: 10 }}>
+      <div style={{ flexShrink: 0, zIndex: 1, position: "relative" }}>
         {/* Row 1: Status bar */}
         <div
           style={{
@@ -1320,7 +1398,7 @@ export default function TRACKR() {
       </div>
 
       {/* ═══ MAIN AREA ═══ */}
-      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+      <div style={{ display: "flex", flex: 1, overflow: "hidden", position: "relative", zIndex: 1 }}>
         {/* ─── LEFT SIDEBAR ─── */}
         <div
           style={{
@@ -1394,7 +1472,7 @@ export default function TRACKR() {
             </div>
 
             {/* Parameters — compact */}
-            <div style={{ borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 10, marginTop: 2 }}>
+            <div style={{ borderTop: "none", backgroundImage: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 20%, rgba(255,255,255,0.06) 80%, transparent 100%)", backgroundSize: "100% 1px", backgroundPosition: "top", backgroundRepeat: "no-repeat", paddingTop: 10, marginTop: 2 }}>
               <div
                 style={{
                   display: "flex",
@@ -1431,7 +1509,7 @@ export default function TRACKR() {
           {currentTrack && (
             <RackPanel label="NOW PLAYING" style={{ flex: 0, animation: "fadeIn 0.4s ease" }}>
               {liveEnrichment?.art_filename ? (
-                <div style={{ position: "relative", marginBottom: 10 }}>
+                <div className="art-inset" style={{ position: "relative", marginBottom: 10 }}>
                   <img
                     src={`http://127.0.0.1:${apiPort}/art/cache/${liveEnrichment.art_filename}`}
                     alt=""
@@ -1447,11 +1525,11 @@ export default function TRACKR() {
                     position: "absolute", bottom: -4, left: "10%", right: "10%",
                     height: 16, borderRadius: "50%",
                     background: `radial-gradient(ellipse, rgba(110,231,192,0.08), transparent 70%)`,
-                    filter: "blur(8px)", pointerEvents: "none",
+                    filter: "blur(8px)", pointerEvents: "none", zIndex: 1,
                   }} />
                 </div>
               ) : liveEnrichment?.artFilename ? (
-                <div style={{ position: "relative", marginBottom: 10 }}>
+                <div className="art-inset" style={{ position: "relative", marginBottom: 10 }}>
                   <img
                     src={`http://127.0.0.1:${apiPort}/art/cache/${liveEnrichment.artFilename}`}
                     alt=""
@@ -1466,22 +1544,22 @@ export default function TRACKR() {
                     position: "absolute", bottom: -4, left: "10%", right: "10%",
                     height: 16, borderRadius: "50%",
                     background: `radial-gradient(ellipse, rgba(110,231,192,0.08), transparent 70%)`,
-                    filter: "blur(8px)", pointerEvents: "none",
+                    filter: "blur(8px)", pointerEvents: "none", zIndex: 1,
                   }} />
                 </div>
               ) : null}
 
-              <div style={{ display: "grid", gridTemplateColumns: "58px 1fr", gap: "4px 10px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "58px 1fr", gap: "4px 10px", animation: "fadeIn 0.3s ease" }}>
                 {(liveEnrichment?.label) && (
                   <>
                     <span style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Label</span>
                     <span style={{ ...font(10, 400), color: C.textPrimary }}>{liveEnrichment.label}</span>
                   </>
                 )}
-                {(liveEnrichment?.year) && (
+                {(liveEnrichment?.release_date || liveEnrichment?.year) && (
                   <>
-                    <span style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Year</span>
-                    <span style={{ ...font(10, 400), color: C.textPrimary }}>{liveEnrichment.year}</span>
+                    <span style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Released</span>
+                    <span style={{ ...font(10, 400), color: C.textPrimary }}>{fmtDate(liveEnrichment.release_date || liveEnrichment.year)}</span>
                   </>
                 )}
                 {(liveEnrichment?.genre) && (
@@ -1511,8 +1589,17 @@ export default function TRACKR() {
               </div>
 
               {!liveEnrichment && enrichmentEnabled && (
-                <div style={{ ...font(9, 300), color: C.textMuted, textAlign: "center", padding: "8px 0", letterSpacing: 1 }}>
-                  Enriching...
+                <div style={{ display: "grid", gridTemplateColumns: "58px 1fr", gap: "6px 10px", animation: "fadeIn 0.3s ease" }}>
+                  <span style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Label</span>
+                  <div className="shimmer-bar" style={{ width: 120 }} />
+                  <span style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Released</span>
+                  <div className="shimmer-bar" style={{ width: 80 }} />
+                  <span style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Genre</span>
+                  <div className="shimmer-bar" style={{ width: 100 }} />
+                  <span style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>BPM</span>
+                  <div className="shimmer-bar" style={{ width: 40 }} />
+                  <span style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Key</span>
+                  <div className="shimmer-bar" style={{ width: 60 }} />
                 </div>
               )}
               {!liveEnrichment && !enrichmentEnabled && (
@@ -1750,13 +1837,13 @@ export default function TRACKR() {
                         <div
                           style={{
                             display: "grid",
-                            gridTemplateColumns: "2fr 2fr 1.5fr 50px 50px 60px",
+                            gridTemplateColumns: "2fr 2fr 1.5fr 90px 42px 68px",
                             gap: 8,
                             padding: "0 4px 8px",
                             borderBottom: `1px solid ${C.borderRack}`,
                           }}
                         >
-                          {["ARTIST", "TITLE", "LABEL", "YEAR", "PLAYS", "LAST"].map((h) => (
+                          {["ARTIST", "TITLE", "LABEL", "RELEASED", "PLAYS", "LAST"].map((h) => (
                             <span key={h} style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2, textTransform: "uppercase" }}>
                               {h}
                             </span>
@@ -1776,7 +1863,7 @@ export default function TRACKR() {
                                 onClick={() => setSelectedTrack(isSelected ? null : row)}
                                 style={{
                                   display: "grid",
-                                  gridTemplateColumns: "2fr 2fr 1.5fr 50px 50px 60px",
+                                  gridTemplateColumns: "2fr 2fr 1.5fr 90px 42px 68px",
                                   gap: 8,
                                   padding: "6px 4px",
                                   cursor: "pointer",
@@ -1791,7 +1878,7 @@ export default function TRACKR() {
                                 <span style={{ ...font(10, 500), color: C.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.artist}</span>
                                 <span style={{ ...font(10, 400), color: C.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.title}</span>
                                 <span style={{ ...font(10, 400), color: C.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.label || "\u2014"}</span>
-                                <span style={{ ...font(10, 400), color: C.textDim }}>{row.year || "\u2014"}</span>
+                                <span style={{ ...font(10, 400), color: C.textDim }}>{fmtDate(row.release_date || row.year)}</span>
                                 <span style={{ ...font(10, 600), color: row.play_count > 1 ? C.cyan : C.textDim }}>{row.play_count}</span>
                                 <span style={{ ...font(9, 400), color: C.textMuted }}>{formatDate(row.last_played)}</span>
                               </div>
@@ -1827,7 +1914,7 @@ export default function TRACKR() {
                         <div style={{ flex: 1, minWidth: 0, opacity: detailCollapsed ? 0 : 1, transition: "opacity 0.2s ease", pointerEvents: detailCollapsed ? "none" : "auto" }}>
                         <RackPanel label="TRACK DETAIL" style={{ position: "sticky", top: 0 }}>
                           {selectedTrack.art_filename && (
-                            <div style={{ position: "relative", marginBottom: 14 }}>
+                            <div className="art-inset" style={{ position: "relative", marginBottom: 14 }}>
                               <img
                                 src={`http://127.0.0.1:${apiPort}/art/cache/${selectedTrack.art_filename}`}
                                 alt="Album art"
@@ -1850,7 +1937,7 @@ export default function TRACKR() {
                           <div style={{ ...font(12, 300), color: C.textDim, marginBottom: 14 }}>{selectedTrack.title}</div>
                           <div style={{ display: "grid", gridTemplateColumns: "58px 1fr", gap: "6px 12px" }}>
                             {selectedTrack.label && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Label</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedTrack.label}</span></>)}
-                            {selectedTrack.year && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Year</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedTrack.year}</span></>)}
+                            {(selectedTrack.release_date || selectedTrack.year) && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Released</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{fmtDate(selectedTrack.release_date || selectedTrack.year)}</span></>)}
                             {selectedTrack.genre && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Genre</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedTrack.genre}</span></>)}
                             {selectedTrack.bpm && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>BPM</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedTrack.bpm}</span></>)}
                             {selectedTrack.key_name && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer", transition: "color 0.15s" }} onClick={() => { const next = !keyCamelot; setKeyCamelot(next); localStorage.setItem("trackr-key-camelot", next ? "1" : "0"); }} onMouseEnter={(e) => { e.target.style.color = C.cyan; }} onMouseLeave={(e) => { e.target.style.color = C.textMuted; }} title="Click to toggle Classic / Camelot">{keyCamelot ? "Camelot" : "Key"}</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{keyCamelot ? toCamelot(selectedTrack.key_name) : selectedTrack.key_name}</span></>)}
@@ -1961,9 +2048,9 @@ export default function TRACKR() {
                                     <div style={{ ...font(10, 500), color: C.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                       {t.artist} - {t.title}
                                     </div>
-                                    {(t.label || t.year) && (
+                                    {(t.label || t.release_date || t.year) && (
                                       <div style={{ ...font(9, 400), color: C.textMuted, marginTop: 1 }}>
-                                        {[t.label, t.year].filter(Boolean).join(" \u00B7 ")}
+                                        {[t.label, t.release_date ? fmtDate(t.release_date) : t.year].filter(Boolean).join(" \u00B7 ")}
                                       </div>
                                     )}
                                   </div>
@@ -2007,7 +2094,7 @@ export default function TRACKR() {
                               { key: "artist", label: "Artist", default: true },
                               { key: "title", label: "Title", default: true },
                               { key: "label", label: "Label", default: true },
-                              { key: "year", label: "Year", default: true },
+                              { key: "year", label: "Release Date", default: true },
                               { key: "key_name", label: "Key", default: false },
                             ];
                             const stored = JSON.parse(localStorage.getItem("trackr-export-fields") || "null");
@@ -2041,7 +2128,7 @@ export default function TRACKR() {
                                       if (ef.title !== false) parts.push(t.title);
                                       const meta = [];
                                       if (ef.label !== false && t.label) meta.push(t.label);
-                                      if (ef.year !== false && t.year) meta.push(String(t.year));
+                                      if (ef.year !== false && (t.release_date || t.year)) meta.push(t.release_date || String(t.year));
                                       if (ef.key_name !== false && t.key_name) meta.push(keyCamelot ? toCamelot(t.key_name) : t.key_name);
                                       let line = `${i + 1}. ${parts.join(" - ")}`;
                                       if (meta.length) line += ` [${meta.join(", ")}]`;
@@ -2090,7 +2177,7 @@ export default function TRACKR() {
                         <div style={{ flex: 1, minWidth: 0, opacity: detailCollapsed ? 0 : 1, transition: "opacity 0.2s ease", pointerEvents: detailCollapsed ? "none" : "auto" }}>
                         <RackPanel label="TRACK DETAIL" style={{ position: "sticky", top: 0 }}>
                           {selectedSessionTrack.art_filename && (
-                            <div style={{ position: "relative", marginBottom: 14 }}>
+                            <div className="art-inset" style={{ position: "relative", marginBottom: 14 }}>
                               <img
                                 src={`http://127.0.0.1:${apiPort}/art/cache/${selectedSessionTrack.art_filename}`}
                                 alt="Album art"
@@ -2113,7 +2200,7 @@ export default function TRACKR() {
                           <div style={{ ...font(12, 300), color: C.textDim, marginBottom: 14 }}>{selectedSessionTrack.title}</div>
                           <div style={{ display: "grid", gridTemplateColumns: "58px 1fr", gap: "6px 12px" }}>
                             {selectedSessionTrack.label && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Label</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedSessionTrack.label}</span></>)}
-                            {selectedSessionTrack.year && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Year</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedSessionTrack.year}</span></>)}
+                            {(selectedSessionTrack.release_date || selectedSessionTrack.year) && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Released</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{fmtDate(selectedSessionTrack.release_date || selectedSessionTrack.year)}</span></>)}
                             {selectedSessionTrack.genre && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Genre</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedSessionTrack.genre}</span></>)}
                             {selectedSessionTrack.bpm && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>BPM</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedSessionTrack.bpm}</span></>)}
                             {selectedSessionTrack.key_name && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer", transition: "color 0.15s" }} onClick={() => { const next = !keyCamelot; setKeyCamelot(next); localStorage.setItem("trackr-key-camelot", next ? "1" : "0"); }} onMouseEnter={(e) => { e.target.style.color = C.cyan; }} onMouseLeave={(e) => { e.target.style.color = C.textMuted; }} title="Click to toggle Classic / Camelot">{keyCamelot ? "Camelot" : "Key"}</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{keyCamelot ? toCamelot(selectedSessionTrack.key_name) : selectedSessionTrack.key_name}</span></>)}
@@ -2338,7 +2425,7 @@ export default function TRACKR() {
                       );
                     })}
                   </div>
-                  <div style={{ borderBottom: "1px solid #1a1a1e", marginBottom: 12, paddingTop: 12 }} />
+                  <div className="divider-gradient" style={{ marginBottom: 12, marginTop: 12 }} />
 
                   {/* ═══ TEXT SUB-TAB ═══ */}
                   {overlaySubTab === "text" && (
@@ -2492,7 +2579,7 @@ export default function TRACKR() {
                       </div>
 
                       {/* Style Controls */}
-                      <div style={{ borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 14 }}>
+                      <div style={{ borderTop: "none", backgroundImage: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 20%, rgba(255,255,255,0.06) 80%, transparent 100%)", backgroundSize: "100% 1px", backgroundPosition: "top", backgroundRepeat: "no-repeat", paddingTop: 14 }}>
                         <span style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2.5, textTransform: "uppercase" }}>OVERLAY STYLE</span>
                         <div style={{ marginTop: 10 }}>
                           {/* Font Family */}
@@ -2563,7 +2650,7 @@ export default function TRACKR() {
                           />
 
                           {/* Drop Shadow section */}
-                          <div style={{ marginTop: 12, marginBottom: 4, borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 10 }}>
+                          <div style={{ marginTop: 12, marginBottom: 4, borderTop: "none", backgroundImage: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 20%, rgba(255,255,255,0.06) 80%, transparent 100%)", backgroundSize: "100% 1px", backgroundPosition: "top", backgroundRepeat: "no-repeat", paddingTop: 10 }}>
                             <Toggle
                               label="Drop Shadow"
                               on={s.drop_shadow_on}
@@ -2595,7 +2682,7 @@ export default function TRACKR() {
                           )}
 
                           {/* Reset */}
-                          <div style={{ marginTop: 16, borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 12 }}>
+                          <div style={{ marginTop: 16, borderTop: "none", backgroundImage: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 20%, rgba(255,255,255,0.06) 80%, transparent 100%)", backgroundSize: "100% 1px", backgroundPosition: "top", backgroundRepeat: "no-repeat", paddingTop: 12 }}>
                             <button
                               onClick={handleResetStyle}
                               style={{
@@ -2624,71 +2711,91 @@ export default function TRACKR() {
                       </div>
 
                       {/* ── Preview: 50/50 split, fixed height, matched panels ── */}
-                      <div style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr",
-                        gap: 8,
-                        marginBottom: 14,
-                        height: 360,
-                      }}>
-                        <style>{`
-                          .preview-viewport-v2::after {
-                            content: '';
-                            position: absolute;
-                            inset: 0;
-                            background: repeating-linear-gradient(
-                              0deg,
-                              transparent,
-                              transparent 2px,
-                              rgba(255,255,255,0.015) 2px,
-                              rgba(255,255,255,0.015) 4px
-                            );
-                            pointer-events: none;
-                            z-index: 2;
-                            border-radius: 8px;
-                          }
-                        `}</style>
-                        {/* Main preview (landscape) — fills panel, no aspect ratio constraint */}
-                        <div className="preview-viewport-v2" style={{
-                          position: "relative",
-                          background: "#050508",
-                          borderRadius: C.radiusSm,
-                          boxShadow: "inset 0 2px 8px rgba(0,0,0,0.6)",
-                          overflow: "hidden",
-                          display: "flex",
-                          flexDirection: "column",
-                          padding: 12,
-                        }}>
-                          <div style={{
-                            ...font(7, 700), letterSpacing: 2, textTransform: "uppercase",
-                            position: "absolute", top: 8, left: 10, zIndex: 3,
-                            color: C.bgDeep, background: `${C.cyan}cc`,
-                            padding: "1px 6px", borderRadius: 20,
-                          }}>MAIN</div>
-                          <div style={{ flex: 1, position: "relative", overflow: "hidden", borderRadius: 4, minHeight: 0 }}>
-                            {mainCfg && PreviewIframe({ canvas: "main", config: mainCfg })}
+                      <style>{`
+                        .preview-viewport-v2::after {
+                          content: '';
+                          position: absolute;
+                          inset: 0;
+                          background: repeating-linear-gradient(
+                            0deg,
+                            transparent,
+                            transparent 2px,
+                            rgba(255,255,255,0.015) 2px,
+                            rgba(255,255,255,0.015) 4px
+                          );
+                          pointer-events: none;
+                          z-index: 2;
+                          border-radius: 8px;
+                        }
+                      `}</style>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
+                        {/* ── Main column ── */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2, textTransform: "uppercase" }}>MAIN</span>
+                            <button
+                              onClick={() => updateOverlayCanvas("main", "enabled", !(mainCfg?.enabled !== false))}
+                              style={{
+                                ...font(7, 700), letterSpacing: 1.5, textTransform: "uppercase",
+                                color: mainCfg?.enabled !== false ? C.green : C.textMuted,
+                                background: mainCfg?.enabled !== false ? `${C.green}12` : "rgba(255,255,255,0.03)",
+                                border: `1px solid ${mainCfg?.enabled !== false ? `${C.green}30` : C.glassBorder}`,
+                                borderRadius: 20, padding: "2px 10px", cursor: "pointer",
+                                transition: "all 0.2s ease",
+                              }}
+                            >{mainCfg?.enabled !== false ? "ENABLED" : "DISABLED"}</button>
+                          </div>
+                          <div className="preview-viewport-v2" style={{
+                            position: "relative",
+                            background: "#050508",
+                            borderRadius: C.radiusSm,
+                            boxShadow: "inset 0 2px 8px rgba(0,0,0,0.6)",
+                            overflow: "hidden",
+                            display: "flex",
+                            flexDirection: "column",
+                            padding: 12,
+                            height: 340,
+                            opacity: mainCfg?.enabled !== false ? 1 : 0.3,
+                            transition: "opacity 0.3s ease",
+                          }}>
+                            <div style={{ flex: 1, position: "relative", overflow: "hidden", borderRadius: 4, minHeight: 0 }}>
+                              {mainCfg?.enabled !== false && mainCfg && PreviewIframe({ canvas: "main", config: mainCfg })}
+                            </div>
                           </div>
                         </div>
-                        {/* TikTok preview (portrait) — 9:16 fills height, centered horizontally */}
-                        <div className="preview-viewport-v2" style={{
-                          position: "relative",
-                          background: "#050508",
-                          borderRadius: C.radiusSm,
-                          boxShadow: "inset 0 2px 8px rgba(0,0,0,0.6)",
-                          overflow: "hidden",
-                          display: "flex",
-                          flexDirection: "column",
-                          padding: 12,
-                        }}>
-                          <div style={{
-                            ...font(7, 700), letterSpacing: 2, textTransform: "uppercase",
-                            position: "absolute", top: 8, left: 10, zIndex: 3,
-                            color: C.bgDeep, background: `${C.cyan}cc`,
-                            padding: "1px 6px", borderRadius: 20,
-                          }}>TIKTOK</div>
-                          <div style={{ flex: 1, display: "flex", alignItems: "stretch", justifyContent: "center", minHeight: 0 }}>
-                            <div style={{ position: "relative", height: "100%", aspectRatio: "9/16", maxWidth: "100%", overflow: "hidden", borderRadius: 4 }}>
-                              {tikCfg && PreviewIframe({ canvas: "tiktok", config: tikCfg })}
+                        {/* ── TikTok column ── */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2, textTransform: "uppercase" }}>TIKTOK</span>
+                            <button
+                              onClick={() => updateOverlayCanvas("tiktok", "enabled", !(tikCfg?.enabled !== false))}
+                              style={{
+                                ...font(7, 700), letterSpacing: 1.5, textTransform: "uppercase",
+                                color: tikCfg?.enabled !== false ? C.green : C.textMuted,
+                                background: tikCfg?.enabled !== false ? `${C.green}12` : "rgba(255,255,255,0.03)",
+                                border: `1px solid ${tikCfg?.enabled !== false ? `${C.green}30` : C.glassBorder}`,
+                                borderRadius: 20, padding: "2px 10px", cursor: "pointer",
+                                transition: "all 0.2s ease",
+                              }}
+                            >{tikCfg?.enabled !== false ? "ENABLED" : "DISABLED"}</button>
+                          </div>
+                          <div className="preview-viewport-v2" style={{
+                            position: "relative",
+                            background: "#050508",
+                            borderRadius: C.radiusSm,
+                            boxShadow: "inset 0 2px 8px rgba(0,0,0,0.6)",
+                            overflow: "hidden",
+                            display: "flex",
+                            flexDirection: "column",
+                            padding: 12,
+                            height: 340,
+                            opacity: tikCfg?.enabled !== false ? 1 : 0.3,
+                            transition: "opacity 0.3s ease",
+                          }}>
+                            <div style={{ flex: 1, display: "flex", alignItems: "stretch", justifyContent: "center", minHeight: 0 }}>
+                              <div style={{ position: "relative", height: "100%", aspectRatio: "9/16", maxWidth: "100%", overflow: "hidden", borderRadius: 4 }}>
+                                {tikCfg?.enabled !== false && tikCfg && PreviewIframe({ canvas: "tiktok", config: tikCfg })}
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -2705,14 +2812,16 @@ export default function TRACKR() {
                           borderRadius: C.radiusSm, padding: 14,
                           boxShadow: C.cardShadow,
                         }}>
-                          <div style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 12, paddingBottom: 8, borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                          <div style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 12, paddingBottom: 8, borderBottom: "none", backgroundImage: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 20%, rgba(255,255,255,0.06) 80%, transparent 100%)", backgroundSize: "100% 1px", backgroundPosition: "bottom", backgroundRepeat: "no-repeat" }}>
                             MAIN CANVAS
                           </div>
-                          {mainCfg && ControlsGrid({ canvas: "main", config: mainCfg, themeList: landscapeThemes })}
+                          <div style={{ opacity: mainCfg?.enabled !== false ? 1 : 0.35, pointerEvents: mainCfg?.enabled !== false ? "auto" : "none", transition: "opacity 0.3s ease" }}>
+                            {mainCfg && ControlsGrid({ canvas: "main", config: mainCfg, themeList: landscapeThemes })}
+                          </div>
 
                           {/* Twitch Chat */}
                           {trig && (
-                            <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.04)" }}>
+                            <div style={{ marginTop: 16, paddingTop: 12, borderTop: "none", backgroundImage: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 20%, rgba(255,255,255,0.06) 80%, transparent 100%)", backgroundSize: "100% 1px", backgroundPosition: "top", backgroundRepeat: "no-repeat" }}>
                               <div style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 12 }}>
                                 TWITCH CHAT
                               </div>
@@ -2746,6 +2855,100 @@ export default function TRACKR() {
                                   Enter your Twitch channel to enable chat commands
                                 </div>
                               )}
+
+                              {/* Hotkey */}
+                              <div style={{ marginTop: 14, paddingTop: 12, borderTop: "none", backgroundImage: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 20%, rgba(255,255,255,0.06) 80%, transparent 100%)", backgroundSize: "100% 1px", backgroundPosition: "top", backgroundRepeat: "no-repeat" }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "72px 1fr", gap: "8px 10px", alignItems: "center" }}>
+                                  <span style={{ ...font(11, 500), color: C.textDim }}>Hotkey</span>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                    {trig.hotkey && !hotkeyRecording && (
+                                      <span style={{
+                                        ...font(10, 600), color: C.textPrimary,
+                                        background: "rgba(10,10,16,0.5)", border: `1px solid ${C.glassBorder}`,
+                                        borderRadius: C.radiusXs, padding: "4px 10px",
+                                      }}>{trig.hotkey}</span>
+                                    )}
+                                    {hotkeyRecording ? (
+                                      <span
+                                        tabIndex={0}
+                                        autoFocus
+                                        ref={(el) => el && el.focus()}
+                                        style={{
+                                          ...font(10, 500), color: C.cyan,
+                                          background: `${C.cyan}0a`, border: `1px solid ${C.cyan}40`,
+                                          borderRadius: C.radiusXs, padding: "4px 10px",
+                                          outline: "none", animation: "pulseGlow 1.5s ease-in-out infinite",
+                                        }}
+                                        onKeyDown={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          if (["Control", "Alt", "Shift", "Meta"].includes(e.key)) return;
+                                          const parts = [];
+                                          if (e.ctrlKey) parts.push("Control");
+                                          if (e.altKey) parts.push("Alt");
+                                          if (e.shiftKey) parts.push("Shift");
+                                          if (e.metaKey) parts.push("Super");
+                                          if (/^F\d+$/.test(e.key)) { parts.push(e.key); }
+                                          else if (e.code.startsWith("Key")) { parts.push(e.code.slice(3)); }
+                                          else if (e.code.startsWith("Digit")) { parts.push(e.code.slice(5)); }
+                                          else if (e.key === " ") { parts.push("Space"); }
+                                          else { parts.push(e.key.length === 1 ? e.key.toUpperCase() : e.key); }
+                                          const accelerator = parts.join("+");
+                                          setHotkeyRecording(false);
+                                          window.electronAPI.invoke("overlays:set-hotkey", accelerator).then((res) => {
+                                            if (res?.ok) {
+                                              setOverlaysConfig((prev) => ({
+                                                ...prev,
+                                                triggers: { ...prev.triggers, hotkey: res.hotkey },
+                                              }));
+                                            } else {
+                                              addToast(res?.error || "Failed to register hotkey", "error");
+                                            }
+                                          });
+                                        }}
+                                        onBlur={() => setHotkeyRecording(false)}
+                                      >PRESS A KEY...</span>
+                                    ) : (
+                                      <button
+                                        onClick={() => setHotkeyRecording(true)}
+                                        style={{
+                                          ...font(8, 600), letterSpacing: 1.5, textTransform: "uppercase",
+                                          color: `${C.cyan}b0`, background: "rgba(255,255,255,0.03)",
+                                          border: `1px solid rgba(0,212,255,0.15)`, borderRadius: C.radiusSm,
+                                          padding: "4px 10px", cursor: "pointer",
+                                          transition: "all 0.2s ease",
+                                        }}
+                                        onMouseEnter={(e) => { e.target.style.background = "rgba(0,212,255,0.06)"; e.target.style.borderColor = "rgba(0,212,255,0.25)"; }}
+                                        onMouseLeave={(e) => { e.target.style.background = "rgba(255,255,255,0.03)"; e.target.style.borderColor = "rgba(0,212,255,0.15)"; }}
+                                      >RECORD</button>
+                                    )}
+                                    {trig.hotkey && !hotkeyRecording && (
+                                      <button
+                                        onClick={() => {
+                                          window.electronAPI.invoke("overlays:clear-hotkey").then(() => {
+                                            setOverlaysConfig((prev) => ({
+                                              ...prev,
+                                              triggers: { ...prev.triggers, hotkey: "" },
+                                            }));
+                                          });
+                                        }}
+                                        style={{
+                                          ...font(8, 600), letterSpacing: 1.5, textTransform: "uppercase",
+                                          color: `${C.red}a0`, background: "rgba(255,255,255,0.03)",
+                                          border: `1px solid ${C.red}28`, borderRadius: C.radiusSm,
+                                          padding: "4px 10px", cursor: "pointer",
+                                          transition: "all 0.2s ease",
+                                        }}
+                                        onMouseEnter={(e) => { e.target.style.background = `${C.red}0e`; e.target.style.borderColor = `${C.red}40`; }}
+                                        onMouseLeave={(e) => { e.target.style.background = "rgba(255,255,255,0.03)"; e.target.style.borderColor = `${C.red}28`; }}
+                                      >CLEAR</button>
+                                    )}
+                                  </div>
+                                </div>
+                                <div style={{ ...font(8, 400), color: C.textMuted, marginTop: 6 }}>
+                                  Triggers overlay via keyboard or Stream Deck (works when TRACKR is in background)
+                                </div>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -2759,10 +2962,12 @@ export default function TRACKR() {
                           borderRadius: C.radiusSm, padding: 14,
                           boxShadow: C.cardShadow,
                         }}>
-                          <div style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 12, paddingBottom: 8, borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                          <div style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 12, paddingBottom: 8, borderBottom: "none", backgroundImage: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 20%, rgba(255,255,255,0.06) 80%, transparent 100%)", backgroundSize: "100% 1px", backgroundPosition: "bottom", backgroundRepeat: "no-repeat" }}>
                             TIKTOK CANVAS
                           </div>
-                          {tikCfg && ControlsGrid({ canvas: "tiktok", config: tikCfg, themeList: portraitThemes })}
+                          <div style={{ opacity: tikCfg?.enabled !== false ? 1 : 0.35, pointerEvents: tikCfg?.enabled !== false ? "auto" : "none", transition: "opacity 0.3s ease" }}>
+                            {tikCfg && ControlsGrid({ canvas: "tiktok", config: tikCfg, themeList: portraitThemes })}
+                          </div>
                         </div>
                       </div>
 
@@ -2834,7 +3039,7 @@ export default function TRACKR() {
 
                 {/* Startup */}
                 <div
-                  style={{ borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 16, marginBottom: 20 }}
+                  style={{ borderTop: "none", backgroundImage: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 20%, rgba(255,255,255,0.06) 80%, transparent 100%)", backgroundSize: "100% 1px", backgroundPosition: "top", backgroundRepeat: "no-repeat", paddingTop: 16, marginBottom: 20 }}
                 >
                   <span
                     style={{
@@ -2854,7 +3059,7 @@ export default function TRACKR() {
 
                 {/* Display */}
                 <div
-                  style={{ borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 16, marginBottom: 20 }}
+                  style={{ borderTop: "none", backgroundImage: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 20%, rgba(255,255,255,0.06) 80%, transparent 100%)", backgroundSize: "100% 1px", backgroundPosition: "top", backgroundRepeat: "no-repeat", paddingTop: 16, marginBottom: 20 }}
                 >
                   <span
                     style={{
@@ -2873,7 +3078,7 @@ export default function TRACKR() {
 
                 {/* API */}
                 <div
-                  style={{ borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 16, marginBottom: 20 }}
+                  style={{ borderTop: "none", backgroundImage: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 20%, rgba(255,255,255,0.06) 80%, transparent 100%)", backgroundSize: "100% 1px", backgroundPosition: "top", backgroundRepeat: "no-repeat", paddingTop: 16, marginBottom: 20 }}
                 >
                   <span
                     style={{
@@ -2889,7 +3094,7 @@ export default function TRACKR() {
                     <Toggle label="Enable local API" on={apiEnabled} onChange={handleApiEnabledChange} />
                     <Toggle label="Share play count via API" on={sharePlayCount} onChange={handleSharePlayCountChange} disabled={!apiEnabled} />
                     <Toggle label="Share label via API" on={apiSendLabel} onChange={handleApiSendLabelChange} disabled={!apiEnabled} />
-                    <Toggle label="Share year via API" on={apiSendYear} onChange={handleApiSendYearChange} disabled={!apiEnabled} />
+                    <Toggle label="Share release date via API" on={apiSendYear} onChange={handleApiSendYearChange} disabled={!apiEnabled} />
                     <div style={{ ...font(9, 400), color: C.textMuted, marginTop: 2, marginBottom: 14 }}>
                       When disabled, TRACKR does not expose local endpoints.
                     </div>
@@ -2945,7 +3150,7 @@ export default function TRACKR() {
 
                 {/* Beatport Enrichment */}
                 <div
-                  style={{ borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 16, marginBottom: 20 }}
+                  style={{ borderTop: "none", backgroundImage: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 20%, rgba(255,255,255,0.06) 80%, transparent 100%)", backgroundSize: "100% 1px", backgroundPosition: "top", backgroundRepeat: "no-repeat", paddingTop: 16, marginBottom: 20 }}
                 >
                   <span
                     style={{
@@ -3049,7 +3254,7 @@ export default function TRACKR() {
 
                 {/* Data */}
                 <div
-                  style={{ borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 16, marginBottom: 20 }}
+                  style={{ borderTop: "none", backgroundImage: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 20%, rgba(255,255,255,0.06) 80%, transparent 100%)", backgroundSize: "100% 1px", backgroundPosition: "top", backgroundRepeat: "no-repeat", paddingTop: 16, marginBottom: 20 }}
                 >
                   <span
                     style={{
@@ -3088,7 +3293,7 @@ export default function TRACKR() {
                 </div>
 
                 {/* About */}
-                <div style={{ borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 16 }}>
+                <div style={{ borderTop: "none", backgroundImage: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 20%, rgba(255,255,255,0.06) 80%, transparent 100%)", backgroundSize: "100% 1px", backgroundPosition: "top", backgroundRepeat: "no-repeat", paddingTop: 16 }}>
                   <span
                     style={{
                       ...font(8, 700),

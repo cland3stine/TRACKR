@@ -24,6 +24,7 @@ export interface ThemeRenderOptions {
 }
 
 export interface OverlayCanvasConfig {
+  enabled: boolean;
   theme: string;
   transition: string;
   position: string;
@@ -39,6 +40,7 @@ export interface OverlayTriggerConfig {
   chatCommandNames: string[];
   chatCommandCooldown: number;
   twitchChannel: string;
+  hotkey: string;
 }
 
 export interface OverlaysConfig {

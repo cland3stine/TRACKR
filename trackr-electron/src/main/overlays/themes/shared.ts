@@ -56,6 +56,15 @@ export function buildSharedJS(opts: SharedOptions): string {
     let isVisible = false;
     let sseConnected = false;
 
+    // ── Date formatter — "2025-03-15" → "Mar 15, 2025", fallback to raw string ──
+    function fmtDate(d) {
+      if (!d) return '';
+      const m = String(d).match(/^(\\d{4})-(\\d{2})-(\\d{2})/);
+      if (!m) return d;
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return months[parseInt(m[2],10)-1] + ' ' + parseInt(m[3],10) + ', ' + m[1];
+    }
+
     // ── SSE Connection ──
     function connectSSE() {
       const es = new EventSource(API_BASE + '/overlay/events');
@@ -102,6 +111,7 @@ export function buildSharedJS(opts: SharedOptions): string {
                 : { artist: data.current, title: '' };
               if (data.enrichment) {
                 parsed.label = data.enrichment.label;
+                parsed.releaseDate = data.enrichment.release_date || data.enrichment.releaseDate;
                 parsed.year = data.enrichment.year;
                 if (data.enrichment.art_url) parsed.artUrl = data.enrichment.art_url;
               }
@@ -116,7 +126,7 @@ export function buildSharedJS(opts: SharedOptions): string {
     function handleTrackChange(data) {
       const key = (data.artist || '') + '|' + (data.title || '');
       const artUrl = data.artUrl || '';
-      const hasNewEnrichment = (artUrl && artUrl !== currentArtUrl) || data.label || data.year;
+      const hasNewEnrichment = (artUrl && artUrl !== currentArtUrl) || data.label || data.releaseDate || data.year;
 
       // Same track but enrichment arrived — update content silently (no re-entrance)
       if (key === currentTrackKey && isVisible) {
@@ -182,7 +192,7 @@ export function buildSharedJS(opts: SharedOptions): string {
     let liveTrackData = null;
 
     function startPreview() {
-      const placeholder = { artist: 'Artist Name', title: 'Track Title', label: 'Label', year: 2025, artUrl: '' };
+      const placeholder = { artist: 'Artist Name', title: 'Track Title', label: 'Label', year: 2025, releaseDate: '2025-06-13', artUrl: '' };
 
       // Connect SSE to receive real track data for preview
       try {
@@ -202,7 +212,8 @@ export function buildSharedJS(opts: SharedOptions): string {
             : { artist: data.current, title: '' };
           if (data.enrichment) {
             parsed.label = data.enrichment.label;
-            parsed.year = data.enrichment.year;
+            parsed.releaseDate = data.enrichment.release_date || data.enrichment.releaseDate;
+                parsed.year = data.enrichment.year;
             if (data.enrichment.art_url) parsed.artUrl = data.enrichment.art_url;
           }
           liveTrackData = parsed;

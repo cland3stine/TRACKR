@@ -16,6 +16,7 @@ export interface TrackRow {
   artist: string;
   title: string;
   year: number | null;
+  release_date: string | null;
   label: string | null;
   genre: string | null;
   bpm: number | null;
@@ -57,6 +58,7 @@ export class TrackrDatabase {
     this._db = new Database(dbPath);
     this._db.pragma('foreign_keys = ON');
     this._initSchema();
+    this._migrateReleaseDate();
     this._migrateSessionTracking();
   }
 
@@ -143,6 +145,7 @@ export class TrackrDatabase {
     title: string,
     fields: {
       year?: number;
+      release_date?: string;
       label?: string;
       genre?: string;
       bpm?: number;
@@ -254,6 +257,7 @@ export class TrackrDatabase {
   getSessionTracks(sessionId: number): (SessionTrackRow & {
     label?: string | null;
     year?: number | null;
+    release_date?: string | null;
     genre?: string | null;
     bpm?: number | null;
     key_name?: string | null;
@@ -262,7 +266,7 @@ export class TrackrDatabase {
     play_count?: number;
   })[] {
     return this._db.prepare(`
-      SELECT st.*, t.label, t.year, t.genre, t.bpm, t.key_name, t.art_filename,
+      SELECT st.*, t.label, t.year, t.release_date, t.genre, t.bpm, t.key_name, t.art_filename,
              t.enrichment_status, t.play_count
       FROM session_tracks st
       LEFT JOIN tracks t ON st.artist = t.artist AND st.title = t.title
@@ -317,6 +321,23 @@ export class TrackrDatabase {
   // ─── migrations ─────────────────────────────────────────────────────────────
 
   /** One-time cleanup: remove tracks with no session_tracks references (transition artifact). */
+  /** Add release_date column + force re-enrichment (v1.1.8 migration). */
+  private _migrateReleaseDate(): void {
+    const cols = this._db.pragma('table_info(tracks)') as Array<{ name: string }>;
+    if (!cols.some(c => c.name === 'release_date')) {
+      this._db.exec('ALTER TABLE tracks ADD COLUMN release_date TEXT');
+      console.log('[db] Migration: added release_date column');
+    }
+    // Force re-enrichment for tracks missing a full YYYY-MM-DD release_date
+    if (!this.getPref('release_date_migrated')) {
+      const reset = this._db.prepare(
+        "UPDATE tracks SET enrichment_status = 'pending' WHERE enrichment_status = 'complete' AND (release_date IS NULL OR release_date NOT LIKE '____-__-__')"
+      ).run();
+      if (reset.changes > 0) console.log(`[db] Migration: reset ${reset.changes} track(s) for release_date re-enrichment`);
+      this.setPref('release_date_migrated', '1');
+    }
+  }
+
   private _migrateSessionTracking(): void {
     if (this.getPref('session_tracking_migrated')) return;
     const result = this._db.prepare(`
@@ -347,6 +368,7 @@ export class TrackrDatabase {
         artist            TEXT NOT NULL,
         title             TEXT NOT NULL,
         year              INTEGER,
+        release_date      TEXT,
         label             TEXT,
         genre             TEXT,
         bpm               REAL,

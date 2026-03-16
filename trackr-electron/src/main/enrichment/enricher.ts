@@ -194,7 +194,8 @@ export async function enrichTrack(
       label = await fetchReleaseLabel(token, track.releaseId, cfg.enrichment.timeoutMs) || undefined;
     }
 
-    const year = track.publishDate ? parseInt(track.publishDate.substring(0, 4)) : undefined;
+    const releaseDate = track.publishDate || undefined;   // full "YYYY-MM-DD"
+    const year = releaseDate ? parseInt(releaseDate.substring(0, 4)) : undefined;
     const artUrl = track.artDynamicUri
       ? track.artDynamicUri.replace('{w}', '500').replace('{h}', '500')
       : track.artUri;
@@ -207,6 +208,7 @@ export async function enrichTrack(
 
     db.updateEnrichment(artist, title, {
       year: year || undefined,
+      release_date: releaseDate,
       label: label || undefined,
       genre: track.genre || undefined,
       bpm: track.bpm || undefined,
@@ -232,6 +234,7 @@ export async function enrichTrack(
 export function rowToResult(row: TrackRow): EnrichmentResult {
   return {
     year: row.year ?? undefined,
+    releaseDate: row.release_date ?? undefined,
     label: row.label ?? undefined,
     genre: row.genre ?? undefined,
     bpm: row.bpm ?? undefined,

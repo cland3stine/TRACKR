@@ -160,13 +160,14 @@ export const lowerThird: OverlayTheme = {
       document.getElementById('title').textContent = data.title || '';
       fitText(document.querySelector('.lt-main'), [28, 24, 21, 18]);
       const hasLabel = SHOW_LABEL && data.label;
-      const hasYear = SHOW_YEAR && data.year;
+      const dateStr = data.releaseDate || (data.year ? String(data.year) : '');
+      const hasYear = SHOW_YEAR && dateStr;
       const meta = document.getElementById('meta');
       if (hasLabel || hasYear) {
         meta.style.display = '';
         document.getElementById('label').textContent = hasLabel ? data.label : '';
         document.getElementById('label').style.display = hasLabel ? '' : 'none';
-        document.getElementById('year').textContent = hasYear ? data.year : '';
+        document.getElementById('year').textContent = hasYear ? fmtDate(dateStr) : '';
         document.getElementById('year').style.display = hasYear ? '' : 'none';
         document.getElementById('metaSep').style.display = (hasLabel && hasYear) ? '' : 'none';
       } else {

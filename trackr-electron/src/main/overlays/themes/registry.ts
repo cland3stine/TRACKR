@@ -9,6 +9,10 @@ import { minimal } from './minimal';
 import { vinyl } from './vinyl';
 import { tiktokClean } from './tiktok-clean';
 import { tiktokCard } from './tiktok-card';
+import { hologram } from './hologram';
+import { prism } from './prism';
+import { liquid } from './liquid';
+import { signal } from './signal';
 
 export const themes: Record<string, OverlayTheme> = {
   'glass-card': glassCard,
@@ -17,6 +21,10 @@ export const themes: Record<string, OverlayTheme> = {
   'vinyl': vinyl,
   'tiktok-clean': tiktokClean,
   'tiktok-card': tiktokCard,
+  'hologram': hologram,
+  'prism': prism,
+  'liquid': liquid,
+  'signal': signal,
 };
 
 export function getTheme(id: string): OverlayTheme | undefined {

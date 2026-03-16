@@ -65,6 +65,7 @@ export interface ApiEnrichmentConfig {
 }
 
 export interface OverlayCanvasConfig {
+  enabled:         boolean;
   theme:           string;
   transition:      string;
   position:        string;
@@ -80,6 +81,7 @@ export interface OverlayTriggerConfig {
   chatCommandNames:      string[];
   chatCommandCooldown:   number;  // seconds
   twitchChannel:         string;
+  hotkey:                string;  // Electron accelerator string, '' = disabled
 }
 
 export interface OverlaysConfig {
@@ -113,6 +115,7 @@ export const DEFAULT_API_ENRICHMENT: ApiEnrichmentConfig = {
 
 export const DEFAULT_OVERLAYS: OverlaysConfig = {
   main: {
+    enabled:         true,
     theme:           'glass-card',
     transition:      'slide',
     position:        'bottom-left',
@@ -122,6 +125,7 @@ export const DEFAULT_OVERLAYS: OverlaysConfig = {
     showArt:         true,
   },
   tiktok: {
+    enabled:         false,
     theme:           'glass-card',
     transition:      'digital',
     position:        'bottom-center',
@@ -136,6 +140,7 @@ export const DEFAULT_OVERLAYS: OverlaysConfig = {
     chatCommandNames:      ['!trackid', '!id', '!track', '!song'],
     chatCommandCooldown:   30,
     twitchChannel:         '',
+    hotkey:                '',
   },
 };
 

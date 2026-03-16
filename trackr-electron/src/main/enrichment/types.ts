@@ -5,6 +5,7 @@
 /** Result from a Beatport search or SQLite cache hit. */
 export interface EnrichmentResult {
   year?: number;
+  releaseDate?: string;    // full "YYYY-MM-DD" from Beatport
   label?: string;
   genre?: string;
   bpm?: number;

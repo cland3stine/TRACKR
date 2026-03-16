@@ -64,7 +64,7 @@ export interface ApiDeps {
   getOverlaysConfig: () => OverlaysConfig;
   setOverlaysConfig: (partial: Partial<OverlaysConfig>) => OverlaysConfig;
   getApiBaseUrl:     () => string;
-  getLastTrack:      () => { artist: string; title: string; label?: string; year?: number; artUrl?: string } | null;
+  getLastTrack:      () => { artist: string; title: string; label?: string; year?: number; releaseDate?: string; artUrl?: string } | null;
 }
 
 // ─── module state ────────────────────────────────────────────────────────────
@@ -239,6 +239,7 @@ function buildApp(deps: ApiDeps): Express {
       if (enrichment.status === 'complete') {
         e.source = enrichment.source;
         if (cfg.apiEnrichment.sendYear  && enrichment.year)   e.year  = enrichment.year;
+        if (cfg.apiEnrichment.sendYear  && enrichment.releaseDate) e.release_date = enrichment.releaseDate;
         if (cfg.apiEnrichment.sendLabel && enrichment.label)  e.label = enrichment.label;
         if (cfg.apiEnrichment.sendArt   && enrichment.artFilename) e.art_url = '/art/current';
         if (enrichment.genre) e.genre = enrichment.genre;

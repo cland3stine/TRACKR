@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, Menu, Tray, nativeImage, screen } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, Menu, Tray, nativeImage, screen, globalShortcut } from 'electron';
 import path from 'path';
 import Store from 'electron-store';
 
@@ -103,13 +103,13 @@ function rotateDbSession(sessionFile: string | null): void {
   if (purged > 0) console.log(`[main] Purged ${purged} short session(s) from DB`);
 }
 
-/** Build a tracklist suffix like " [Label, 2024]" from enrichment data. */
+/** Build a tracklist suffix like " [Label, 2025-03-15]" from enrichment data. */
 function buildTracklistSuffix(result: EnrichmentResult): string {
   const fmt = getConfig().tracklistFormat;
   if (!fmt.includeYear && !fmt.includeLabel) return '';
   const parts: string[] = [];
   if (fmt.includeLabel && result.label) parts.push(result.label);
-  if (fmt.includeYear && result.year) parts.push(String(result.year));
+  if (fmt.includeYear && (result.releaseDate || result.year)) parts.push(result.releaseDate || String(result.year));
   return parts.length > 0 ? ` [${parts.join(', ')}]` : '';
 }
 
@@ -283,10 +283,11 @@ function buildApiDeps(): ApiDeps {
       if (!parts) return null;
       const [artist, title] = parts;
       const row = db.getTrack(artist, title);
-      const result: { artist: string; title: string; label?: string; year?: number; artUrl?: string } = { artist, title };
+      const result: { artist: string; title: string; label?: string; year?: number; releaseDate?: string; artUrl?: string } = { artist, title };
       if (row?.enrichment_status === 'complete') {
         if (row.label) result.label = row.label;
         if (row.year) result.year = row.year;
+        if (row.release_date) result.releaseDate = row.release_date;
         if (row.art_filename) result.artUrl = '/art/current';
       }
       return result;
@@ -366,7 +367,7 @@ function handlePublish(line: string, deviceId: number, publishedAt: number): voi
     const autoShow = getConfig().overlays.triggers.autoShowOnTrackChange;
     let sseFired = false;
 
-    const fireSSE = (result?: { label?: string; year?: number; artFilename?: string }) => {
+    const fireSSE = (result?: { label?: string; year?: number; releaseDate?: string; artFilename?: string }) => {
       if (sseFired) return;
       // Stale check: if a newer track published while we waited, skip this one
       if (_lastPublishedLine !== line) return;
@@ -375,7 +376,8 @@ function handlePublish(line: string, deviceId: number, publishedAt: number): voi
       if (autoShow) {
         const payload: Record<string, unknown> = { artist, title, deck: deviceId };
         if (result?.label) payload.label = result.label;
-        if (result?.year) payload.year = result.year;
+        if (result?.releaseDate) payload.releaseDate = result.releaseDate;
+        else if (result?.year) payload.releaseDate = String(result.year);
         if (result?.artFilename) payload.artUrl = '/art/current?t=' + Date.now();
         emitTrackChange(payload as { artist: string; title: string });
       }
@@ -687,6 +689,7 @@ function registerIpc(): void {
       title: 'Prisma (Tonaco Extended Remix)',
       label: 'Colorize',
       year: 2025,
+      releaseDate: '2025-06-13',
       artUrl: '',
     };
     // Cache-bust art URL so overlay fetches the latest image
@@ -699,6 +702,62 @@ function registerIpc(): void {
     emitHideCard();
     return { ok: true };
   });
+
+  // ── Hotkey (global shortcut to trigger overlay) ───────────────────────────
+
+  const triggerOverlayViaHotkey = () => {
+    const deps = buildApiDeps();
+    const lastTrack = deps.getLastTrack();
+    if (!lastTrack) return; // nothing playing — ignore
+    const trackData = { ...lastTrack };
+    if (trackData.artUrl) trackData.artUrl += '?t=' + Date.now();
+    emitTrackChange(trackData);
+    console.log('[hotkey] Overlay triggered');
+  };
+
+  const registerOverlayHotkey = (accelerator: string): boolean => {
+    if (!accelerator) return false;
+    try {
+      globalShortcut.unregisterAll();
+      const ok = globalShortcut.register(accelerator, triggerOverlayViaHotkey);
+      if (ok) {
+        console.log(`[hotkey] Registered: ${accelerator}`);
+      } else {
+        console.warn(`[hotkey] Failed to register: ${accelerator}`);
+      }
+      return ok;
+    } catch (err) {
+      console.warn(`[hotkey] Error registering "${accelerator}":`, err);
+      return false;
+    }
+  };
+
+  ipcMain.handle('overlays:set-hotkey', (_e, accelerator: string) => {
+    globalShortcut.unregisterAll();
+    if (!accelerator) {
+      setConfig({ overlays: { triggers: { hotkey: '' } } } as any);
+      return { ok: true, hotkey: '' };
+    }
+    const ok = registerOverlayHotkey(accelerator);
+    if (ok) {
+      setConfig({ overlays: { triggers: { hotkey: accelerator } } } as any);
+      return { ok: true, hotkey: accelerator };
+    }
+    // Restore previous hotkey if new one failed
+    const prev = getConfig().overlays.triggers.hotkey;
+    if (prev) registerOverlayHotkey(prev);
+    return { ok: false, error: `Could not register "${accelerator}" — may be in use by another app` };
+  });
+
+  ipcMain.handle('overlays:clear-hotkey', () => {
+    globalShortcut.unregisterAll();
+    setConfig({ overlays: { triggers: { hotkey: '' } } } as any);
+    return { ok: true };
+  });
+
+  // Register saved hotkey on startup
+  const savedHotkey = getConfig().overlays.triggers.hotkey;
+  if (savedHotkey) registerOverlayHotkey(savedHotkey);
 
   // ── Enrichment ─────────────────────────────────────────────────────────────
   ipcMain.handle('enrichment:test-connection', () => testConnection());

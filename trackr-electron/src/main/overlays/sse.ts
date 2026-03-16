@@ -14,6 +14,7 @@ export interface TrackChangeData {
   title: string;
   label?: string;
   year?: number;
+  releaseDate?: string;
   artUrl?: string;
   deck?: number;
 }

@@ -17,7 +17,7 @@ import { OverlaysConfig } from './types';
 interface OverlayRouteDeps {
   getOverlaysConfig: () => OverlaysConfig;
   getApiBaseUrl: () => string;
-  getLastTrack: () => { artist: string; title: string; label?: string; year?: number; artUrl?: string } | null;
+  getLastTrack: () => { artist: string; title: string; label?: string; year?: number; releaseDate?: string; artUrl?: string } | null;
 }
 
 export function registerOverlayRoutes(app: Express, deps: OverlayRouteDeps): void {
@@ -30,9 +30,12 @@ export function registerOverlayRoutes(app: Express, deps: OverlayRouteDeps): voi
     res.json(getThemeList());
   });
 
+  const BLANK_PAGE = '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="background:transparent;"></body></html>';
+
   // ── GET /overlay/main — landscape overlay page ──
   app.get('/overlay/main', (req: Request, res: Response) => {
     const config = deps.getOverlaysConfig();
+    if (config.main.enabled === false && req.query['preview'] !== 'true') { res.type('html').send(BLANK_PAGE); return; }
     const theme = getTheme(config.main.theme);
     if (!theme) { res.status(404).send('Theme not found'); return; }
 
@@ -57,6 +60,7 @@ export function registerOverlayRoutes(app: Express, deps: OverlayRouteDeps): voi
   // ── GET /overlay/tiktok — portrait overlay page ──
   app.get('/overlay/tiktok', (req: Request, res: Response) => {
     const config = deps.getOverlaysConfig();
+    if (config.tiktok.enabled === false && req.query['preview'] !== 'true') { res.type('html').send(BLANK_PAGE); return; }
     const theme = getTheme(config.tiktok.theme);
     if (!theme) { res.status(404).send('Theme not found'); return; }
 
