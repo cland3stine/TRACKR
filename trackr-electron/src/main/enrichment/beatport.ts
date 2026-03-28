@@ -145,6 +145,34 @@ export async function authenticate(
   };
 }
 
+/** Refresh an expired token using the refresh_token grant. */
+export async function refreshToken(
+  refreshTok: string,
+  clientId: string,
+  timeoutMs = 15_000,
+): Promise<BeatportTokenData> {
+  const tokenUrl = `${API_BASE}/auth/o/token/?grant_type=refresh_token&refresh_token=${encodeURIComponent(refreshTok)}&client_id=${clientId}`;
+  const res = await fetch(tokenUrl, {
+    method: 'POST',
+    headers: { 'User-Agent': USER_AGENT },
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Beatport token refresh failed (HTTP ${res.status})`);
+  }
+  const data = await res.json() as Record<string, unknown>;
+  if (!data.access_token) {
+    throw new Error('Beatport token refresh: no access_token');
+  }
+
+  return {
+    accessToken: data.access_token as string,
+    refreshToken: (data.refresh_token as string) || refreshTok,
+    expiresAt: Date.now() + ((data.expires_in as number) || 3600) * 1000,
+  };
+}
+
 /** Search Beatport for a track by artist + title. Returns null if not found. */
 export async function searchTrack(
   token: string,

@@ -8,7 +8,7 @@
 import { TrackrDatabase, TrackRow } from '../database';
 import { getConfig, setConfig, EnrichmentConfig } from '../store';
 import {
-  scrapeClientId, authenticate, searchTrack, fetchReleaseLabel,
+  scrapeClientId, authenticate, refreshToken, searchTrack, fetchReleaseLabel,
   BeatportTokenData,
 } from './beatport';
 import { ArtCache } from './art-cache';
@@ -19,6 +19,7 @@ import { EnrichmentResult } from './types';
 let _token: string | null = null;
 let _tokenExpiresAt = 0;
 let _clientId: string | null = null;
+let _refreshToken: string | null = null;
 const _failedThisSession = new Set<string>(); // "artist|title" keys — don't retry in same session
 
 // ─── helpers ───────────────────────────────────────────────────────────────
@@ -37,7 +38,23 @@ export function splitTrackLine(line: string): [string, string] | null {
   return [artist, title];
 }
 
-/** Ensure we have a valid Beatport token. Re-authenticates if expired. */
+/** Persist token data to in-memory state and electron-store. */
+function _saveToken(cfg: EnrichmentConfig, tokenData: BeatportTokenData): void {
+  _token = tokenData.accessToken;
+  _tokenExpiresAt = tokenData.expiresAt;
+  _refreshToken = tokenData.refreshToken || _refreshToken;
+  setConfig({
+    enrichment: {
+      ...cfg,
+      beatportToken: tokenData.accessToken,
+      beatportRefreshToken: tokenData.refreshToken || cfg.beatportRefreshToken,
+      beatportTokenExpiresAt: tokenData.expiresAt,
+      beatportClientId: _clientId || cfg.beatportClientId,
+    },
+  });
+}
+
+/** Ensure we have a valid Beatport token. Tries refresh first, falls back to full auth. */
 async function ensureToken(cfg: EnrichmentConfig): Promise<string | null> {
   // Check if current token is still valid (30s buffer)
   if (_token && Date.now() + 30_000 < _tokenExpiresAt) {
@@ -56,26 +73,30 @@ async function ensureToken(cfg: EnrichmentConfig): Promise<string | null> {
     }
   }
 
+  // Try refresh token first (1 HTTP call vs 3 for full auth)
+  const storedRefresh = _refreshToken || cfg.beatportRefreshToken;
+  if (storedRefresh && _clientId) {
+    try {
+      const t0 = Date.now();
+      console.log('[enricher] Refreshing Beatport token...');
+      const tokenData = await refreshToken(storedRefresh, _clientId);
+      _saveToken(cfg, tokenData);
+      console.log(`[enricher] Token refreshed (${Date.now() - t0}ms)`);
+      return _token;
+    } catch (err) {
+      console.warn('[enricher] Token refresh failed, falling back to full auth:', err);
+    }
+  }
+
+  // Full re-authentication
   try {
+    const t0 = Date.now();
     console.log('[enricher] Authenticating with Beatport...');
     const tokenData: BeatportTokenData = await authenticate(
       cfg.beatportUsername, cfg.beatportPassword, _clientId,
     );
-    _token = tokenData.accessToken;
-    _tokenExpiresAt = tokenData.expiresAt;
-
-    // Persist token to store
-    setConfig({
-      enrichment: {
-        ...cfg,
-        beatportToken: tokenData.accessToken,
-        beatportRefreshToken: tokenData.refreshToken,
-        beatportTokenExpiresAt: tokenData.expiresAt,
-        beatportClientId: _clientId,
-      },
-    });
-
-    console.log('[enricher] Beatport authenticated');
+    _saveToken(cfg, tokenData);
+    console.log(`[enricher] Beatport authenticated (${Date.now() - t0}ms)`);
     return _token;
   } catch (err) {
     console.warn('[enricher] Beatport auth failed:', err);
@@ -97,11 +118,14 @@ export function resetEnrichmentSession(): void {
  */
 export function initEnrichment(): void {
   const cfg = getConfig().enrichment;
+  _refreshToken = cfg.beatportRefreshToken || null;
+  _clientId = cfg.beatportClientId || null;
   if (cfg.beatportToken && cfg.beatportTokenExpiresAt > Date.now() + 30_000) {
     _token = cfg.beatportToken;
     _tokenExpiresAt = cfg.beatportTokenExpiresAt;
-    _clientId = cfg.beatportClientId || null;
     console.log('[enricher] Loaded stored Beatport token');
+  } else if (_refreshToken) {
+    console.log('[enricher] Stored token expired — will refresh on first enrichment');
   }
 }
 
@@ -181,17 +205,23 @@ export async function enrichTrack(
   }
 
   try {
+    const t0 = Date.now();
     const track = await searchTrack(token, artist, title, cfg.enrichment.timeoutMs);
+    const searchMs = Date.now() - t0;
     if (!track) {
+      console.log(`[enricher] Search miss: ${artist} - ${title} (${searchMs}ms)`);
       _failedThisSession.add(key);
       db.updateEnrichment(artist, title, { enrichment_status: 'failed' });
       return;
     }
+    console.log(`[enricher] Search hit: ${searchMs}ms`);
 
     // Get label from release detail if not in search result
     let label = track.label;
     if (!label && track.releaseId) {
+      const t1 = Date.now();
       label = await fetchReleaseLabel(token, track.releaseId, cfg.enrichment.timeoutMs) || undefined;
+      console.log(`[enricher] Label fetch: ${Date.now() - t1}ms`);
     }
 
     const releaseDate = track.publishDate || undefined;   // full "YYYY-MM-DD"
@@ -203,7 +233,9 @@ export async function enrichTrack(
     // Download album art to local cache
     let artFilename: string | undefined;
     if (artUrl && artCache) {
+      const t2 = Date.now();
       artFilename = await artCache.downloadArt(artist, title, artUrl) || undefined;
+      console.log(`[enricher] Art download: ${Date.now() - t2}ms`);
     }
 
     db.updateEnrichment(artist, title, {
@@ -222,7 +254,7 @@ export async function enrichTrack(
     const updated = db.getTrack(artist, title);
     if (updated) onDone?.(rowToResult(updated));
 
-    console.log(`[enricher] Enriched: ${artist} - ${title} → ${label || '?'} (${year || '?'})`);
+    console.log(`[enricher] Enriched: ${artist} - ${title} → ${label || '?'} (${year || '?'}) [total ${Date.now() - t0}ms]`);
   } catch (err) {
     console.warn(`[enricher] Failed for "${artist} - ${title}":`, err);
     _failedThisSession.add(key);
