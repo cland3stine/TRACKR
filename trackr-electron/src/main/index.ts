@@ -455,7 +455,7 @@ function createWindow(): void {
   }
 
   mainWindow = new BrowserWindow({
-    ...winOpts, minWidth: 1200, minHeight: 900,
+    width: 1200, height: 900, resizable: false,
     title: 'TRACKR',
     icon: nativeImage.createFromPath(iconPath),
     backgroundColor: '#0a0a0a',

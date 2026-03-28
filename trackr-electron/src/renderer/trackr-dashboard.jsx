@@ -1020,7 +1020,7 @@ export default function TRACKR() {
     <div
       style={{
         width: "100%",
-        minHeight: "100vh",
+        height: "100vh",
         background: C.bgDeep,
         color: C.textPrimary,
         display: "flex",
@@ -1406,209 +1406,220 @@ export default function TRACKR() {
             flexShrink: 0,
             display: "flex",
             flexDirection: "column",
-            gap: 10,
-            padding: 10,
+            padding: "0 10px 10px",
             overflowY: "auto",
-            borderRight: "1px solid rgba(255,255,255,0.04)",
-            background: "rgba(10,10,14,0.6)",
-            backdropFilter: "blur(16px)",
-            WebkitBackdropFilter: "blur(16px)",
-            boxShadow: "2px 0 12px rgba(0,0,0,0.25)",
+            borderRight: `1px solid ${C.borderRack}`,
           }}
         >
-          {/* ── Combined Status + Controls ── */}
-          <RackPanel label="CONTROLS" style={{ flex: 0 }}>
-            {/* Status row */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-              <Led color={isRunning ? C.green : appState === "error" ? C.red : C.textMuted} size={7} pulse={isRunning} />
-              <span style={{ ...font(11, 600), color: isRunning ? C.green : appState === "error" ? C.red : C.textDim, letterSpacing: 1 }}>
-                {appState.toUpperCase()}
-              </span>
-              <span style={{ ...font(9, 400), color: C.textMuted, marginLeft: "auto" }}>
-                {deviceLabel}
-              </span>
-            </div>
+          {/* ── Sidebar Controls ── */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, padding: "8px 10px 10px" }}>
+            <button
+              onClick={handleStartStop}
+              disabled={isTransitioning}
+              style={{
+                ...font(9, 700),
+                letterSpacing: 1.5,
+                textTransform: "uppercase",
+                color: isTransitioning ? C.textMuted : "#fff",
+                background: isTransitioning
+                  ? "rgba(10,10,16,0.5)"
+                  : isRunning
+                    ? `linear-gradient(180deg, ${C.red}40, ${C.red}2e)`
+                    : `linear-gradient(180deg, ${C.green}40, ${C.green}2e)`,
+                border: `1px solid ${isTransitioning ? C.glassBorder : isRunning ? `${C.red}4c` : `${C.green}4c`}`,
+                borderRadius: C.radiusXs,
+                padding: "7px 0",
+                cursor: isTransitioning ? "not-allowed" : "pointer",
+                transition: "all 0.2s ease",
+                opacity: isTransitioning ? 0.4 : 1,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 5,
+              }}
+            >
+              {appState === "starting" ? "STARTING..." : appState === "stopping" ? "STOPPING..." : isRunning ? "■ STOP" : "▶ START"}
+            </button>
+            <button
+              onClick={handleRefresh}
+              disabled={!isRunning || isTransitioning}
+              style={{
+                ...font(9, 700),
+                letterSpacing: 1.5,
+                textTransform: "uppercase",
+                color: (!isRunning || isTransitioning) ? C.textMuted : C.textPrimary,
+                background: "rgba(10,10,16,0.5)",
+                border: `1px solid ${C.glassBorder}`,
+                borderRadius: C.radiusXs,
+                padding: "7px 0",
+                cursor: (!isRunning || isTransitioning) ? "not-allowed" : "pointer",
+                transition: "all 0.2s ease",
+                opacity: (!isRunning || isTransitioning) ? 0.4 : 1,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 5,
+              }}
+              onMouseEnter={(e) => { if (isRunning && !isTransitioning) { e.target.style.borderColor = "rgba(255,255,255,0.12)"; e.target.style.background = "rgba(255,255,255,0.04)"; } }}
+              onMouseLeave={(e) => { e.target.style.borderColor = C.glassBorder; e.target.style.background = "rgba(10,10,16,0.5)"; }}
+            >
+              ↻ REFRESH
+            </button>
+          </div>
 
-            {/* Buttons side by side — equal width */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 10 }}>
-              <Btn
-                fullWidth
-                color={isRunning ? C.red : C.green}
-                onClick={handleStartStop}
-                disabled={isTransitioning}
-                style={{ padding: "9px 0" }}
-              >
-                {appState === "starting" ? "STARTING..." : appState === "stopping" ? "STOPPING..." : isRunning ? "■ STOP" : "▶ START"}
-              </Btn>
-              <button
-                onClick={handleRefresh}
-                disabled={!isRunning || isTransitioning}
-                style={{
-                  ...font(10, 700),
-                  letterSpacing: 2,
-                  textTransform: "uppercase",
-                  color: (!isRunning || isTransitioning) ? C.textMuted : C.textPrimary,
-                  background: "rgba(10,10,16,0.5)",
-                  border: `1px solid ${C.glassBorder}`,
-                  borderRadius: C.radiusSm,
-                  padding: "9px 0",
-                  cursor: (!isRunning || isTransitioning) ? "not-allowed" : "pointer",
-                  width: "100%",
-                  transition: "all 0.2s ease",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 8,
-                  opacity: (!isRunning || isTransitioning) ? 0.4 : 1,
-                  backdropFilter: "blur(8px)",
-                  WebkitBackdropFilter: "blur(8px)",
-                  boxShadow: "0 2px 6px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.04)",
-                }}
-                onMouseEnter={(e) => { if (isRunning && !isTransitioning) { e.target.style.borderColor = "rgba(255,255,255,0.12)"; e.target.style.background = "rgba(255,255,255,0.04)"; } }}
-                onMouseLeave={(e) => { e.target.style.borderColor = C.glassBorder; e.target.style.background = "rgba(10,10,16,0.5)"; }}
-              >
-                ↻ REFRESH
-              </button>
-            </div>
+          {/* ── Now Playing Card ── */}
+          {(() => {
+            const cardTrack = (activeTab === "history" && historySubTab === "tracks" && selectedTrack)
+              ? selectedTrack
+              : (activeTab === "history" && historySubTab === "sessions" && selectedSessionTrack)
+              ? selectedSessionTrack
+              : currentTrack
+                ? {
+                    artist: currentTrack.artist,
+                    title: currentTrack.title,
+                    label: liveEnrichment?.label,
+                    release_date: liveEnrichment?.release_date,
+                    year: liveEnrichment?.year,
+                    genre: liveEnrichment?.genre,
+                    bpm: liveEnrichment?.bpm,
+                    key_name: liveEnrichment?.key_name || liveEnrichment?.key,
+                    play_count: liveEnrichment?.play_count ?? currentTrack.plays,
+                    first_played: liveEnrichment?.first_played,
+                    last_played: liveEnrichment?.last_played,
+                    art_filename: liveEnrichment?.art_filename || liveEnrichment?.artFilename,
+                    enrichment_status: liveEnrichment?.enrichment_status || (enrichmentEnabled ? "pending" : null),
+                  }
+                : null;
+            const isLive = !selectedTrack && !selectedSessionTrack || activeTab !== "history";
+            const showShimmer = isLive && currentTrack && !liveEnrichment && enrichmentEnabled;
+            return (
+            <RackPanel style={{ flex: 1, display: "flex", flexDirection: "column", animation: "fadeIn 0.4s ease", padding: 12 }}>
+              {cardTrack ? (
+                <>
+                  {/* Album art — bleeds edge-to-edge */}
+                  {cardTrack.art_filename && (
+                    <div className="art-inset" style={{ position: "relative", margin: `-12px -12px 10px` }}>
+                      <img
+                        src={`http://127.0.0.1:${apiPort}/art/cache/${cardTrack.art_filename}`}
+                        alt=""
+                        style={{
+                          width: "100%", aspectRatio: "1/1", objectFit: "cover",
+                          borderRadius: `${C.radius}px ${C.radius}px 0 0`, background: C.bgInset, display: "block",
+                          boxShadow: `0 4px 20px rgba(0,0,0,0.5)`,
+                        }}
+                        onError={(e) => { e.target.style.display = "none"; }}
+                      />
+                    </div>
+                  )}
 
-            {/* Parameters — compact */}
-            <div style={{ borderTop: "none", backgroundImage: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 20%, rgba(255,255,255,0.06) 80%, transparent 100%)", backgroundSize: "100% 1px", backgroundPosition: "top", backgroundRepeat: "no-repeat", paddingTop: 10, marginTop: 2 }}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "4px 0",
-                  opacity: isRunning ? 0.35 : 1,
-                }}
-              >
-                <span style={{ ...font(11, 500), color: C.textDim }}>Delay</span>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <button
-                    onClick={() => !isRunning && setDelay(Math.max(1, delay - 1))}
-                    disabled={isRunning}
-                    style={{ ...font(10, 700), width: 22, height: 22, border: `1px solid ${C.borderRack}`, borderRadius: C.radiusXs, background: C.bgInset, color: C.textDim, cursor: isRunning ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "border-color 0.2s ease" }}
-                  >−</button>
-                  <span style={{ ...font(11, 600), color: C.textPrimary, minWidth: 28, textAlign: "center", background: C.bgDeep, border: `1px solid ${C.borderRack}`, borderRadius: C.radiusXs, padding: "2px 6px" }}>
-                    {delay}
+                  {/* Artist / Title */}
+                  <div style={{ ...font(12, 600), color: C.textPrimary, marginBottom: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cardTrack.artist}</div>
+                  <div style={{ ...font(11, 300), color: C.textDim, marginBottom: 8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cardTrack.title || EM_DASH}</div>
+
+                  {/* Metadata grid */}
+                  {showShimmer ? (
+                    <div style={{ display: "grid", gridTemplateColumns: "50px 1fr", gap: "3px 8px", animation: "fadeIn 0.3s ease" }}>
+                      <span style={{ ...font(7, 700), color: C.textMuted, letterSpacing: 2, textTransform: "uppercase" }}>Label</span>
+                      <div className="shimmer-bar" style={{ width: 120 }} />
+                      <span style={{ ...font(7, 700), color: C.textMuted, letterSpacing: 2, textTransform: "uppercase" }}>Released</span>
+                      <div className="shimmer-bar" style={{ width: 80 }} />
+                      <span style={{ ...font(7, 700), color: C.textMuted, letterSpacing: 2, textTransform: "uppercase" }}>Genre</span>
+                      <div className="shimmer-bar" style={{ width: 100 }} />
+                      <span style={{ ...font(7, 700), color: C.textMuted, letterSpacing: 2, textTransform: "uppercase" }}>BPM</span>
+                      <div className="shimmer-bar" style={{ width: 40 }} />
+                      <span style={{ ...font(7, 700), color: C.textMuted, letterSpacing: 2, textTransform: "uppercase" }}>Key</span>
+                      <div className="shimmer-bar" style={{ width: 60 }} />
+                    </div>
+                  ) : (
+                    <div style={{ display: "grid", gridTemplateColumns: "50px 1fr", gap: "2px 8px", animation: "fadeIn 0.3s ease" }}>
+                      {cardTrack.label && (
+                        <>
+                          <span style={{ ...font(7, 700), color: C.textMuted, letterSpacing: 2, textTransform: "uppercase" }}>Label</span>
+                          <span style={{ ...font(10, 400), color: C.textPrimary }}>{cardTrack.label}</span>
+                        </>
+                      )}
+                      {(cardTrack.release_date || cardTrack.year) && (
+                        <>
+                          <span style={{ ...font(7, 700), color: C.textMuted, letterSpacing: 2, textTransform: "uppercase" }}>Released</span>
+                          <span style={{ ...font(10, 400), color: C.textPrimary }}>{fmtDate(cardTrack.release_date || cardTrack.year)}</span>
+                        </>
+                      )}
+                      {cardTrack.genre && (
+                        <>
+                          <span style={{ ...font(7, 700), color: C.textMuted, letterSpacing: 2, textTransform: "uppercase" }}>Genre</span>
+                          <span style={{ ...font(10, 400), color: C.textPrimary }}>{cardTrack.genre}</span>
+                        </>
+                      )}
+                      {cardTrack.bpm && (
+                        <>
+                          <span style={{ ...font(7, 700), color: C.textMuted, letterSpacing: 2, textTransform: "uppercase" }}>BPM</span>
+                          <span style={{ ...font(10, 400), color: C.textPrimary }}>{cardTrack.bpm}</span>
+                        </>
+                      )}
+                      {cardTrack.key_name && (
+                        <>
+                          <span
+                            style={{ ...font(7, 700), color: C.textMuted, letterSpacing: 2, textTransform: "uppercase", cursor: "pointer", transition: "color 0.15s" }}
+                            onClick={() => { const next = !keyCamelot; setKeyCamelot(next); localStorage.setItem("trackr-key-camelot", next ? "1" : "0"); }}
+                            onMouseEnter={(e) => { e.target.style.color = C.cyan; }}
+                            onMouseLeave={(e) => { e.target.style.color = C.textMuted; }}
+                            title="Click to toggle Classic / Camelot"
+                          >{keyCamelot ? "Camelot" : "Key"}</span>
+                          <span style={{ ...font(10, 400), color: C.textPrimary }}>{keyCamelot ? toCamelot(cardTrack.key_name) : cardTrack.key_name}</span>
+                        </>
+                      )}
+                      {cardTrack.play_count != null && (
+                        <>
+                          <span style={{ ...font(7, 700), color: C.textMuted, letterSpacing: 2, textTransform: "uppercase" }}>Plays</span>
+                          <span style={{ ...font(10, 600), color: C.cyan }}>{cardTrack.play_count}</span>
+                        </>
+                      )}
+                      {cardTrack.first_played && (
+                        <>
+                          <span style={{ ...font(7, 700), color: C.textMuted, letterSpacing: 2, textTransform: "uppercase" }}>First</span>
+                          <span style={{ ...font(10, 400), color: C.textPrimary }}>{formatDate(cardTrack.first_played)}</span>
+                        </>
+                      )}
+                      {cardTrack.last_played && (
+                        <>
+                          <span style={{ ...font(7, 700), color: C.textMuted, letterSpacing: 2, textTransform: "uppercase" }}>Last</span>
+                          <span style={{ ...font(10, 400), color: C.textPrimary }}>{formatDate(cardTrack.last_played)}</span>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Enrichment status */}
+                  {cardTrack.enrichment_status && (
+                    <div style={{ marginTop: 8, paddingTop: 6, borderTop: `1px solid ${C.borderRack}` }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <Led color={cardTrack.enrichment_status === "complete" ? C.green : cardTrack.enrichment_status === "failed" ? C.red : C.amber} size={5} />
+                        <span style={{ ...font(8, 400), color: C.textMuted }}>
+                          {cardTrack.enrichment_status === "complete" ? "Enriched via Beatport" : cardTrack.enrichment_status === "failed" ? "Enrichment failed" : "Pending enrichment"}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                /* Idle state — nothing playing, nothing selected */
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, gap: 14, padding: "30px 0" }}>
+                  <div style={{
+                    width: "100%", aspectRatio: "1/1", maxWidth: 180,
+                    background: C.bgInset, borderRadius: 8,
+                    border: `1px solid ${C.borderRack}`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    <span style={{ ...font(28, 300), color: C.textGhost }}>♪</span>
+                  </div>
+                  <span style={{ ...font(10, 300), color: C.textMuted, letterSpacing: 1 }}>
+                    {isRunning ? "Waiting for track..." : "No track selected"}
                   </span>
-                  <button
-                    onClick={() => !isRunning && setDelay(Math.min(30, delay + 1))}
-                    disabled={isRunning}
-                    style={{ ...font(10, 700), width: 22, height: 22, border: `1px solid ${C.borderRack}`, borderRadius: C.radiusXs, background: C.bgInset, color: C.textDim, cursor: isRunning ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "border-color 0.2s ease" }}
-                  >+</button>
-                  <span style={{ ...font(9, 400), color: C.textMuted }}>sec</span>
-                </div>
-              </div>
-              <Toggle label="Timestamps" on={timestamps} onChange={setTimestamps} disabled={isRunning} />
-              <Toggle label="Strip Original/Extended" on={stripMixLabels} onChange={setStripMixLabels} disabled={isRunning} />
-            </div>
-          </RackPanel>
-
-          {/* ── Now Playing Enrichment ── */}
-          {currentTrack && (
-            <RackPanel label="NOW PLAYING" style={{ flex: 0, animation: "fadeIn 0.4s ease" }}>
-              {liveEnrichment?.art_filename ? (
-                <div className="art-inset" style={{ position: "relative", marginBottom: 10 }}>
-                  <img
-                    src={`http://127.0.0.1:${apiPort}/art/cache/${liveEnrichment.art_filename}`}
-                    alt=""
-                    style={{
-                      width: "100%", aspectRatio: "1/1", objectFit: "cover",
-                      borderRadius: 8, background: C.bgInset, display: "block",
-                      boxShadow: `0 4px 20px rgba(0,0,0,0.5), 0 0 30px rgba(110, 231, 192, 0.06)`,
-                    }}
-                    onError={(e) => { e.target.style.display = "none"; }}
-                  />
-                  {/* Reflection */}
-                  <div style={{
-                    position: "absolute", bottom: -4, left: "10%", right: "10%",
-                    height: 16, borderRadius: "50%",
-                    background: `radial-gradient(ellipse, rgba(110,231,192,0.08), transparent 70%)`,
-                    filter: "blur(8px)", pointerEvents: "none", zIndex: 1,
-                  }} />
-                </div>
-              ) : liveEnrichment?.artFilename ? (
-                <div className="art-inset" style={{ position: "relative", marginBottom: 10 }}>
-                  <img
-                    src={`http://127.0.0.1:${apiPort}/art/cache/${liveEnrichment.artFilename}`}
-                    alt=""
-                    style={{
-                      width: "100%", aspectRatio: "1/1", objectFit: "cover",
-                      borderRadius: 8, background: C.bgInset, display: "block",
-                      boxShadow: `0 4px 20px rgba(0,0,0,0.5), 0 0 30px rgba(110, 231, 192, 0.06)`,
-                    }}
-                    onError={(e) => { e.target.style.display = "none"; }}
-                  />
-                  <div style={{
-                    position: "absolute", bottom: -4, left: "10%", right: "10%",
-                    height: 16, borderRadius: "50%",
-                    background: `radial-gradient(ellipse, rgba(110,231,192,0.08), transparent 70%)`,
-                    filter: "blur(8px)", pointerEvents: "none", zIndex: 1,
-                  }} />
-                </div>
-              ) : null}
-
-              <div style={{ display: "grid", gridTemplateColumns: "58px 1fr", gap: "4px 10px", animation: "fadeIn 0.3s ease" }}>
-                {(liveEnrichment?.label) && (
-                  <>
-                    <span style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Label</span>
-                    <span style={{ ...font(10, 400), color: C.textPrimary }}>{liveEnrichment.label}</span>
-                  </>
-                )}
-                {(liveEnrichment?.release_date || liveEnrichment?.year) && (
-                  <>
-                    <span style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Released</span>
-                    <span style={{ ...font(10, 400), color: C.textPrimary }}>{fmtDate(liveEnrichment.release_date || liveEnrichment.year)}</span>
-                  </>
-                )}
-                {(liveEnrichment?.genre) && (
-                  <>
-                    <span style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Genre</span>
-                    <span style={{ ...font(10, 400), color: C.textPrimary }}>{liveEnrichment.genre}</span>
-                  </>
-                )}
-                {(liveEnrichment?.bpm) && (
-                  <>
-                    <span style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>BPM</span>
-                    <span style={{ ...font(10, 400), color: C.textPrimary }}>{liveEnrichment.bpm}</span>
-                  </>
-                )}
-                {(liveEnrichment?.key_name || liveEnrichment?.key) && (
-                  <>
-                    <span
-                      style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer", transition: "color 0.15s" }}
-                      onClick={() => { const next = !keyCamelot; setKeyCamelot(next); localStorage.setItem("trackr-key-camelot", next ? "1" : "0"); }}
-                      onMouseEnter={(e) => { e.target.style.color = C.cyan; }}
-                      onMouseLeave={(e) => { e.target.style.color = C.textMuted; }}
-                      title="Click to toggle Classic / Camelot"
-                    >{keyCamelot ? "Camelot" : "Key"}</span>
-                    <span style={{ ...font(10, 400), color: C.textPrimary }}>{keyCamelot ? toCamelot(liveEnrichment.key_name || liveEnrichment.key) : (liveEnrichment.key_name || liveEnrichment.key)}</span>
-                  </>
-                )}
-              </div>
-
-              {!liveEnrichment && enrichmentEnabled && (
-                <div style={{ display: "grid", gridTemplateColumns: "58px 1fr", gap: "6px 10px", animation: "fadeIn 0.3s ease" }}>
-                  <span style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Label</span>
-                  <div className="shimmer-bar" style={{ width: 120 }} />
-                  <span style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Released</span>
-                  <div className="shimmer-bar" style={{ width: 80 }} />
-                  <span style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Genre</span>
-                  <div className="shimmer-bar" style={{ width: 100 }} />
-                  <span style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>BPM</span>
-                  <div className="shimmer-bar" style={{ width: 40 }} />
-                  <span style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Key</span>
-                  <div className="shimmer-bar" style={{ width: 60 }} />
-                </div>
-              )}
-              {!liveEnrichment && !enrichmentEnabled && (
-                <div style={{ ...font(9, 300), color: C.textGhost, textAlign: "center", padding: "4px 0", letterSpacing: 1 }}>
-                  Enrichment disabled
                 </div>
               )}
             </RackPanel>
-          )}
+            );
+          })()}
 
         </div>
 
@@ -1633,7 +1644,7 @@ export default function TRACKR() {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => { setActiveTab(tab.id); if (tab.id !== "history") { setSelectedTrack(null); setSelectedSessionTrack(null); } }}
                   style={{
                     ...font(11, active ? 600 : 500),
                     letterSpacing: 1.5,
@@ -1666,7 +1677,7 @@ export default function TRACKR() {
           </div>
 
           {/* Tab content */}
-          <div style={{ flex: 1, overflow: "hidden", padding: 10, animation: "fadeIn 0.3s ease" }}>
+          <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: 10, animation: "fadeIn 0.3s ease" }}>
             {/* ─── LIVE TAB ─── */}
             {activeTab === "live" && (
               <RackPanel
@@ -1787,7 +1798,7 @@ export default function TRACKR() {
                     return (
                       <button
                         key={st.id}
-                        onClick={() => { setHistorySubTab(st.id); setSelectedTrack(null); setSelectedSession(null); }}
+                        onClick={() => { setHistorySubTab(st.id); setSelectedTrack(null); setSelectedSession(null); setSelectedSessionTrack(null); }}
                         style={{
                           ...font(10, active ? 600 : 500),
                           letterSpacing: 1.5,
@@ -1809,7 +1820,7 @@ export default function TRACKR() {
 
                 {/* ─── TRACKS SUB-TAB ─── */}
                 {historySubTab === "tracks" && (
-                  <div style={{ display: "flex", gap: 16, flex: 1, minHeight: 0 }}>
+                  <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
                     <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
                       <RackPanel
                         label="TRACK HISTORY"
@@ -1837,13 +1848,13 @@ export default function TRACKR() {
                         <div
                           style={{
                             display: "grid",
-                            gridTemplateColumns: "2fr 2fr 1.5fr 90px 42px 68px",
+                            gridTemplateColumns: "2fr 2fr 1.2fr 80px 1fr 50px 50px 38px 68px",
                             gap: 8,
                             padding: "0 4px 8px",
                             borderBottom: `1px solid ${C.borderRack}`,
                           }}
                         >
-                          {["ARTIST", "TITLE", "LABEL", "RELEASED", "PLAYS", "LAST"].map((h) => (
+                          {["ARTIST", "TITLE", "LABEL", "RELEASED", "GENRE", "BPM", "KEY", "PLAYS", "LAST"].map((h) => (
                             <span key={h} style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2, textTransform: "uppercase" }}>
                               {h}
                             </span>
@@ -1863,7 +1874,7 @@ export default function TRACKR() {
                                 onClick={() => setSelectedTrack(isSelected ? null : row)}
                                 style={{
                                   display: "grid",
-                                  gridTemplateColumns: "2fr 2fr 1.5fr 90px 42px 68px",
+                                  gridTemplateColumns: "2fr 2fr 1.2fr 80px 1fr 50px 50px 38px 68px",
                                   gap: 8,
                                   padding: "6px 4px",
                                   cursor: "pointer",
@@ -1879,6 +1890,9 @@ export default function TRACKR() {
                                 <span style={{ ...font(10, 400), color: C.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.title}</span>
                                 <span style={{ ...font(10, 400), color: C.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.label || "\u2014"}</span>
                                 <span style={{ ...font(10, 400), color: C.textDim }}>{fmtDate(row.release_date || row.year)}</span>
+                                <span style={{ ...font(10, 400), color: C.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.genre || "\u2014"}</span>
+                                <span style={{ ...font(10, 400), color: C.textDim }}>{row.bpm || "\u2014"}</span>
+                                <span style={{ ...font(10, 400), color: C.textDim }}>{row.key_name ? (keyCamelot ? toCamelot(row.key_name) : row.key_name) : "\u2014"}</span>
                                 <span style={{ ...font(10, 600), color: row.play_count > 1 ? C.cyan : C.textDim }}>{row.play_count}</span>
                                 <span style={{ ...font(9, 400), color: C.textMuted }}>{formatDate(row.last_played)}</span>
                               </div>
@@ -1894,77 +1908,14 @@ export default function TRACKR() {
                         )}
                       </RackPanel>
                     </div>
-                    {selectedTrack && (
-                      <div style={{ display: "flex", flexShrink: 0, transition: "width 0.25s ease", width: detailCollapsed ? 20 : 300, overflow: "hidden" }}>
-                        {/* Fold toggle tab */}
-                        <div
-                          onClick={() => setDetailCollapsed(c => !c)}
-                          style={{
-                            width: 20, flexShrink: 0, cursor: "pointer",
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                            color: C.textMuted, transition: "color 0.15s",
-                            borderRight: detailCollapsed ? "none" : `1px solid ${C.borderRack}30`,
-                          }}
-                          onMouseEnter={(e) => { e.currentTarget.style.color = C.cyan; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.color = C.textMuted; }}
-                          title={detailCollapsed ? "Show track detail" : "Hide track detail"}
-                        >
-                          <span style={{ ...font(11, 400), userSelect: "none" }}>{detailCollapsed ? "\u25C0" : "\u25B6"}</span>
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0, opacity: detailCollapsed ? 0 : 1, transition: "opacity 0.2s ease", pointerEvents: detailCollapsed ? "none" : "auto" }}>
-                        <RackPanel label="TRACK DETAIL" style={{ position: "sticky", top: 0 }}>
-                          {selectedTrack.art_filename && (
-                            <div className="art-inset" style={{ position: "relative", marginBottom: 14 }}>
-                              <img
-                                src={`http://127.0.0.1:${apiPort}/art/cache/${selectedTrack.art_filename}`}
-                                alt="Album art"
-                                style={{
-                                  width: "100%", aspectRatio: "1/1", objectFit: "cover",
-                                  borderRadius: 8, background: C.bgInset, display: "block",
-                                  boxShadow: `0 4px 20px rgba(0,0,0,0.5)`,
-                                }}
-                                onError={(e) => { e.target.style.display = "none"; }}
-                              />
-                              <div style={{
-                                position: "absolute", bottom: -4, left: "10%", right: "10%",
-                                height: 12, borderRadius: "50%",
-                                background: `radial-gradient(ellipse, rgba(0,0,0,0.3), transparent 70%)`,
-                                filter: "blur(6px)", pointerEvents: "none",
-                              }} />
-                            </div>
-                          )}
-                          <div style={{ ...font(13, 600), color: C.textPrimary, marginBottom: 2 }}>{selectedTrack.artist}</div>
-                          <div style={{ ...font(12, 300), color: C.textDim, marginBottom: 14 }}>{selectedTrack.title}</div>
-                          <div style={{ display: "grid", gridTemplateColumns: "58px 1fr", gap: "6px 12px" }}>
-                            {selectedTrack.label && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Label</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedTrack.label}</span></>)}
-                            {(selectedTrack.release_date || selectedTrack.year) && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Released</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{fmtDate(selectedTrack.release_date || selectedTrack.year)}</span></>)}
-                            {selectedTrack.genre && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Genre</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedTrack.genre}</span></>)}
-                            {selectedTrack.bpm && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>BPM</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedTrack.bpm}</span></>)}
-                            {selectedTrack.key_name && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer", transition: "color 0.15s" }} onClick={() => { const next = !keyCamelot; setKeyCamelot(next); localStorage.setItem("trackr-key-camelot", next ? "1" : "0"); }} onMouseEnter={(e) => { e.target.style.color = C.cyan; }} onMouseLeave={(e) => { e.target.style.color = C.textMuted; }} title="Click to toggle Classic / Camelot">{keyCamelot ? "Camelot" : "Key"}</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{keyCamelot ? toCamelot(selectedTrack.key_name) : selectedTrack.key_name}</span></>)}
-                            <span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Plays</span><span style={{ ...font(10, 600), color: C.cyan }}>{selectedTrack.play_count}</span>
-                            <span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>First</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{formatDate(selectedTrack.first_played)}</span>
-                            <span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Last</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{formatDate(selectedTrack.last_played)}</span>
-                          </div>
-                          <div style={{ marginTop: 14, paddingTop: 10, borderTop: `1px solid ${C.borderRack}` }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                              <Led color={selectedTrack.enrichment_status === "complete" ? C.green : selectedTrack.enrichment_status === "failed" ? C.red : C.amber} size={6} />
-                              <span style={{ ...font(9, 400), color: C.textMuted }}>
-                                {selectedTrack.enrichment_status === "complete" ? "Enriched via Beatport" : selectedTrack.enrichment_status === "failed" ? "Enrichment failed" : "Pending enrichment"}
-                              </span>
-                            </div>
-                          </div>
-                        </RackPanel>
-                      </div>
-                      </div>
-                    )}
                   </div>
                 )}
 
                 {/* ─── SESSIONS SUB-TAB ─── */}
                 {historySubTab === "sessions" && (
                   <div style={{ display: "flex", gap: 16, flex: 1, minHeight: 0 }}>
-                    {/* ── Left: Session List ── */}
-                    <div style={{ width: 220, flexShrink: 0, display: "flex", flexDirection: "column", minHeight: 0 }}>
+                    {/* ── Left: Session List (~35%) ── */}
+                    <div style={{ flex: "0 0 35%", display: "flex", flexDirection: "column", minHeight: 0 }}>
                       <RackPanel
                         label="SESSIONS"
                         labelRight={`${sessionTotal}`}
@@ -2156,70 +2107,6 @@ export default function TRACKR() {
                       </div>
                     )}
 
-                    {/* ── Right: Track Detail (appears on track click) ── */}
-                    {selectedSessionTrack && (
-                      <div style={{ display: "flex", flexShrink: 0, transition: "width 0.25s ease", width: detailCollapsed ? 20 : 300, overflow: "hidden" }}>
-                        {/* Fold toggle tab */}
-                        <div
-                          onClick={() => setDetailCollapsed(c => !c)}
-                          style={{
-                            width: 20, flexShrink: 0, cursor: "pointer",
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                            color: C.textMuted, transition: "color 0.15s",
-                            borderRight: detailCollapsed ? "none" : `1px solid ${C.borderRack}30`,
-                          }}
-                          onMouseEnter={(e) => { e.currentTarget.style.color = C.cyan; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.color = C.textMuted; }}
-                          title={detailCollapsed ? "Show track detail" : "Hide track detail"}
-                        >
-                          <span style={{ ...font(11, 400), userSelect: "none" }}>{detailCollapsed ? "\u25C0" : "\u25B6"}</span>
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0, opacity: detailCollapsed ? 0 : 1, transition: "opacity 0.2s ease", pointerEvents: detailCollapsed ? "none" : "auto" }}>
-                        <RackPanel label="TRACK DETAIL" style={{ position: "sticky", top: 0 }}>
-                          {selectedSessionTrack.art_filename && (
-                            <div className="art-inset" style={{ position: "relative", marginBottom: 14 }}>
-                              <img
-                                src={`http://127.0.0.1:${apiPort}/art/cache/${selectedSessionTrack.art_filename}`}
-                                alt="Album art"
-                                style={{
-                                  width: "100%", aspectRatio: "1/1", objectFit: "cover",
-                                  borderRadius: 8, background: C.bgInset, display: "block",
-                                  boxShadow: `0 4px 20px rgba(0,0,0,0.5)`,
-                                }}
-                                onError={(e) => { e.target.style.display = "none"; }}
-                              />
-                              <div style={{
-                                position: "absolute", bottom: -4, left: "10%", right: "10%",
-                                height: 12, borderRadius: "50%",
-                                background: `radial-gradient(ellipse, rgba(0,0,0,0.3), transparent 70%)`,
-                                filter: "blur(6px)", pointerEvents: "none",
-                              }} />
-                            </div>
-                          )}
-                          <div style={{ ...font(13, 600), color: C.textPrimary, marginBottom: 2 }}>{selectedSessionTrack.artist}</div>
-                          <div style={{ ...font(12, 300), color: C.textDim, marginBottom: 14 }}>{selectedSessionTrack.title}</div>
-                          <div style={{ display: "grid", gridTemplateColumns: "58px 1fr", gap: "6px 12px" }}>
-                            {selectedSessionTrack.label && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Label</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedSessionTrack.label}</span></>)}
-                            {(selectedSessionTrack.release_date || selectedSessionTrack.year) && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Released</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{fmtDate(selectedSessionTrack.release_date || selectedSessionTrack.year)}</span></>)}
-                            {selectedSessionTrack.genre && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Genre</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedSessionTrack.genre}</span></>)}
-                            {selectedSessionTrack.bpm && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>BPM</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{selectedSessionTrack.bpm}</span></>)}
-                            {selectedSessionTrack.key_name && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer", transition: "color 0.15s" }} onClick={() => { const next = !keyCamelot; setKeyCamelot(next); localStorage.setItem("trackr-key-camelot", next ? "1" : "0"); }} onMouseEnter={(e) => { e.target.style.color = C.cyan; }} onMouseLeave={(e) => { e.target.style.color = C.textMuted; }} title="Click to toggle Classic / Camelot">{keyCamelot ? "Camelot" : "Key"}</span><span style={{ ...font(10, 400), color: C.textPrimary }}>{keyCamelot ? toCamelot(selectedSessionTrack.key_name) : selectedSessionTrack.key_name}</span></>)}
-                            {selectedSessionTrack.play_count != null && (<><span style={{ ...font(9, 700), color: C.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>Plays</span><span style={{ ...font(10, 600), color: C.cyan }}>{selectedSessionTrack.play_count}</span></>)}
-                          </div>
-                          {selectedSessionTrack.enrichment_status && (
-                            <div style={{ marginTop: 14, paddingTop: 10, borderTop: `1px solid ${C.borderRack}` }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                <Led color={selectedSessionTrack.enrichment_status === "complete" ? C.green : selectedSessionTrack.enrichment_status === "failed" ? C.red : C.amber} size={6} />
-                                <span style={{ ...font(9, 400), color: C.textMuted }}>
-                                  {selectedSessionTrack.enrichment_status === "complete" ? "Enriched via Beatport" : selectedSessionTrack.enrichment_status === "failed" ? "Enrichment failed" : "Pending enrichment"}
-                                </span>
-                              </div>
-                            </div>
-                          )}
-                        </RackPanel>
-                      </div>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
@@ -3054,6 +2941,56 @@ export default function TRACKR() {
                   <div style={{ marginTop: 8 }}>
                     <Toggle label="Start in system tray" on={startInTray} onChange={handleStartInTrayChange} />
                     <Toggle label="Start with Windows" on={startWithWindows} onChange={handleStartWithWindowsChange} />
+                  </div>
+                </div>
+
+                {/* Publishing */}
+                <div
+                  style={{ borderTop: "none", backgroundImage: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 20%, rgba(255,255,255,0.06) 80%, transparent 100%)", backgroundSize: "100% 1px", backgroundPosition: "top", backgroundRepeat: "no-repeat", paddingTop: 16, marginBottom: 20 }}
+                >
+                  <span
+                    style={{
+                      ...font(8, 700),
+                      color: C.textMuted,
+                      letterSpacing: 2.5,
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    PUBLISHING
+                  </span>
+                  <div style={{ marginTop: 8 }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        padding: "4px 0",
+                        opacity: isRunning ? 0.35 : 1,
+                      }}
+                    >
+                      <span style={{ ...font(11, 500), color: C.textDim }}>Delay</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <button
+                          onClick={() => !isRunning && setDelay(Math.max(1, delay - 1))}
+                          disabled={isRunning}
+                          style={{ ...font(10, 700), width: 22, height: 22, border: `1px solid ${C.borderRack}`, borderRadius: C.radiusXs, background: C.bgInset, color: C.textDim, cursor: isRunning ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "border-color 0.2s ease" }}
+                        >−</button>
+                        <span style={{ ...font(11, 600), color: C.textPrimary, minWidth: 28, textAlign: "center", background: C.bgDeep, border: `1px solid ${C.borderRack}`, borderRadius: C.radiusXs, padding: "2px 6px" }}>
+                          {delay}
+                        </span>
+                        <button
+                          onClick={() => !isRunning && setDelay(Math.min(30, delay + 1))}
+                          disabled={isRunning}
+                          style={{ ...font(10, 700), width: 22, height: 22, border: `1px solid ${C.borderRack}`, borderRadius: C.radiusXs, background: C.bgInset, color: C.textDim, cursor: isRunning ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "border-color 0.2s ease" }}
+                        >+</button>
+                        <span style={{ ...font(9, 400), color: C.textMuted }}>sec</span>
+                      </div>
+                    </div>
+                    <Toggle label="Timestamps" on={timestamps} onChange={setTimestamps} disabled={isRunning} />
+                    <Toggle label="Strip Original/Extended" on={stripMixLabels} onChange={setStripMixLabels} disabled={isRunning} />
+                    <div style={{ ...font(9, 400), color: C.textMuted, marginTop: 6 }}>
+                      These settings apply on next start or refresh.
+                    </div>
                   </div>
                 </div>
 
