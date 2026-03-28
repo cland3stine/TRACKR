@@ -259,3 +259,38 @@ export function buildSharedJS(opts: SharedOptions): string {
     }
   `;
 }
+
+/* ── Position-aware 3D mirroring ── */
+
+/** Position side derived from position setting string. */
+export type PositionSide = 'left' | 'right' | 'center';
+
+/** Determine position side from position setting. */
+export function getPositionSide(position: string): PositionSide {
+  if (position.includes('right')) return 'right';
+  if (position.includes('center')) return 'center';
+  return 'left';
+}
+
+/**
+ * Compute mirrored 3D transform and perspective for a given position.
+ * Right-side: negates Y and Z rotation so card faces viewer from right.
+ * Center: zeroes Y and Z, adds 1deg extra X tilt for depth.
+ */
+export function computeMirror(position: string, baseY: number, baseX: number, baseZ: number) {
+  const side = getPositionSide(position);
+  const ry = side === 'center' ? 0 : side === 'right' ? -baseY : baseY;
+  const rx = side === 'center' ? baseX - 1 : baseX;
+  const rz = side === 'center' ? 0 : side === 'right' ? -baseZ : baseZ;
+  return {
+    side,
+    transform: `rotateY(${ry}deg) rotateX(${rx}deg) rotateZ(${rz}deg)`,
+    perspectiveOrigin: side === 'center' ? '50% 75%' : side === 'right' ? '75% 75%' : '25% 75%',
+  };
+}
+
+/** Build mirrored box-shadow with directional X offsets based on position side. */
+export function buildMirroredShadow(side: PositionSide): string {
+  const s = side === 'center' ? 0 : side === 'right' ? 1 : -1;
+  return `${s*2}px 4px 8px rgba(0,0,0,0.5), ${s*8}px 16px 40px rgba(0,0,0,0.5), ${s*16}px 40px 100px rgba(0,0,0,0.4), ${s*32}px 80px 200px rgba(0,0,0,0.3), inset 0 2px 0 rgba(255,255,255,0.06), inset 0 -2px 0 rgba(0,0,0,0.3)`;
+}

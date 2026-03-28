@@ -2196,8 +2196,8 @@ export default function TRACKR() {
 
               const PreviewIframe = ({ canvas, config }) => (
                 <iframe
-                  key={`${config.theme}-${config.transition}-${config.showLabel}-${config.showYear}-${config.showArt}`}
-                  src={`http://localhost:${port}/overlay/${canvas}?preview=true`}
+                  key={`${config.theme}-${config.transition}-${config.position}-${config.showLabel}-${config.showYear}-${config.showArt}`}
+                  src={`http://localhost:${port}/overlay/${canvas}?preview=true&position=${config.position}`}
                   style={{ width: "100%", height: "100%", border: "none", borderRadius: 4 }}
                   title={`${canvas} preview`}
                 />

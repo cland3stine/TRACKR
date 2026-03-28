@@ -7,9 +7,9 @@
 
 import { OverlayTheme, ThemeRenderOptions } from '../types';
 import { buildTransitionCSS } from './transitions';
-import { buildSharedJS } from './shared';
+import { buildSharedJS, computeMirror, buildMirroredShadow } from './shared';
 
-const RESTING_TRANSFORM = 'rotateY(12deg) rotateX(-2deg) rotateZ(-1deg)';
+const BASE_Y = 12, BASE_X = -2, BASE_Z = -1;
 const ALL_TRANSITIONS = ['slide', 'digital', 'materialize', 'scale-pop', 'blur', 'edge-wipe'];
 
 export const tiktokCard: OverlayTheme = {
@@ -21,7 +21,10 @@ export const tiktokCard: OverlayTheme = {
   defaultTransition: 'scale-pop',
 
   render(opts: ThemeRenderOptions): string {
-    const transitionCSS = buildTransitionCSS(RESTING_TRANSFORM, ALL_TRANSITIONS);
+    const { side, transform: REST, perspectiveOrigin } = computeMirror(opts.position, BASE_Y, BASE_X, BASE_Z);
+    const shadow = buildMirroredShadow(side);
+    const borderAngle = side === 'center' ? '180deg' : side === 'right' ? '195deg' : '165deg';
+    const transitionCSS = buildTransitionCSS(REST, ALL_TRANSITIONS, side);
     const sharedJS = buildSharedJS({
       apiBaseUrl: opts.apiBaseUrl,
       displayDuration: opts.displayDuration,
@@ -60,12 +63,13 @@ export const tiktokCard: OverlayTheme = {
       top: 50%; left: 50%;
       transform: translate(-50%, -50%);
       perspective: 1400px;
+      perspective-origin: ${perspectiveOrigin};
     }
 
     .track-card {
       position: relative;
       width: 400px;
-      transform: ${RESTING_TRANSFORM};
+      transform: ${REST};
       transform-style: preserve-3d;
       opacity: 0;
       pointer-events: none;
@@ -75,13 +79,13 @@ export const tiktokCard: OverlayTheme = {
 
     .track-card.visible {
       opacity: 1;
-      transform: ${RESTING_TRANSFORM};
+      transform: ${REST};
       animation: idleFloat 4s ease-in-out infinite;
     }
 
     @keyframes idleFloat {
-      0%, 100% { transform: ${RESTING_TRANSFORM} translateY(0px); }
-      50%      { transform: ${RESTING_TRANSFORM} translateY(-10px); }
+      0%, 100% { transform: ${REST} translateY(0px); }
+      50%      { transform: ${REST} translateY(-10px); }
     }
 
     .card-inner {
@@ -92,13 +96,7 @@ export const tiktokCard: OverlayTheme = {
       -webkit-backdrop-filter: blur(20px) saturate(1.3);
       border: 2px solid rgba(255, 255, 255, 0.1);
       overflow: hidden;
-      box-shadow:
-        0 4px 8px rgba(0, 0, 0, 0.5),
-        0 16px 40px rgba(0, 0, 0, 0.5),
-        0 40px 100px rgba(0, 0, 0, 0.4),
-        0 80px 200px rgba(0, 0, 0, 0.3),
-        inset 0 2px 0 rgba(255, 255, 255, 0.06),
-        inset 0 -2px 0 rgba(0, 0, 0, 0.3);
+      box-shadow: ${shadow};
     }
 
     .card-inner::after {
@@ -107,7 +105,7 @@ export const tiktokCard: OverlayTheme = {
       inset: 0;
       border-radius: 24px;
       border: 2px solid transparent;
-      background: linear-gradient(160deg, rgba(255,255,255,0.1), rgba(255,255,255,0.02) 40%, rgba(0,212,255,0.05)) border-box;
+      background: linear-gradient(${borderAngle}, rgba(255,255,255,0.1), rgba(255,255,255,0.02) 40%, rgba(0,212,255,0.05)) border-box;
       -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
       -webkit-mask-composite: xor;
       mask-composite: exclude;

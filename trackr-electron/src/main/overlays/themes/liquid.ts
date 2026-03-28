@@ -7,9 +7,9 @@
 
 import { OverlayTheme, ThemeRenderOptions } from '../types';
 import { buildTransitionCSS } from './transitions';
-import { buildSharedJS } from './shared';
+import { buildSharedJS, computeMirror, buildMirroredShadow } from './shared';
 
-const RESTING_TRANSFORM = 'rotateY(18deg) rotateX(-3deg) rotateZ(-1deg)';
+const BASE_Y = 18, BASE_X = -3, BASE_Z = -1;
 const ALL_TRANSITIONS = ['slide', 'digital', 'materialize', 'scale-pop', 'blur', 'edge-wipe'];
 
 export const liquid: OverlayTheme = {
@@ -21,7 +21,9 @@ export const liquid: OverlayTheme = {
   defaultTransition: 'slide',
 
   render(opts: ThemeRenderOptions): string {
-    const transitionCSS = buildTransitionCSS(RESTING_TRANSFORM, ALL_TRANSITIONS);
+    const { side, transform: REST, perspectiveOrigin } = computeMirror(opts.position, BASE_Y, BASE_X, BASE_Z);
+    const shadow = buildMirroredShadow(side);
+    const transitionCSS = buildTransitionCSS(REST, ALL_TRANSITIONS, side);
     const sharedJS = buildSharedJS({
       apiBaseUrl: opts.apiBaseUrl,
       displayDuration: opts.displayDuration,
@@ -59,12 +61,13 @@ export const liquid: OverlayTheme = {
       top: 50%; left: 50%;
       transform: translate(-50%, -50%);
       perspective: 1800px;
+      perspective-origin: ${perspectiveOrigin};
     }
 
     .track-card {
       position: relative;
       width: 520px;
-      transform: ${RESTING_TRANSFORM};
+      transform: ${REST};
       transform-style: preserve-3d;
       opacity: 0;
       pointer-events: none;
@@ -72,12 +75,12 @@ export const liquid: OverlayTheme = {
     .track-card.hidden { opacity: 0; }
     .track-card.visible {
       opacity: 1;
-      transform: ${RESTING_TRANSFORM};
+      transform: ${REST};
       animation: idleFloat 4s ease-in-out infinite;
     }
     @keyframes idleFloat {
-      0%, 100% { transform: ${RESTING_TRANSFORM} translateY(0px); }
-      50%      { transform: ${RESTING_TRANSFORM} translateY(-10px); }
+      0%, 100% { transform: ${REST} translateY(0px); }
+      50%      { transform: ${REST} translateY(-10px); }
     }
 
     /* ── Glass Panel ── */
@@ -89,13 +92,7 @@ export const liquid: OverlayTheme = {
       -webkit-backdrop-filter: blur(24px) saturate(1.4);
       border: 1px solid rgba(255,255,255,0.06);
       overflow: hidden;
-      box-shadow:
-        0 4px 8px rgba(0,0,0,0.5),
-        0 16px 40px rgba(0,0,0,0.5),
-        0 40px 100px rgba(0,0,0,0.4),
-        0 80px 200px rgba(0,0,0,0.3),
-        inset 0 2px 0 rgba(255,255,255,0.06),
-        inset 0 -2px 0 rgba(0,0,0,0.3);
+      box-shadow: ${shadow};
     }
 
     /* ── Album Art (no bottom vignette) ── */

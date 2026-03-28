@@ -8,9 +8,9 @@
 
 import { OverlayTheme, ThemeRenderOptions } from '../types';
 import { buildTransitionCSS } from './transitions';
-import { buildSharedJS } from './shared';
+import { buildSharedJS, computeMirror, buildMirroredShadow } from './shared';
 
-const RESTING_TRANSFORM = 'rotateY(18deg) rotateX(-3deg) rotateZ(-1deg)';
+const BASE_Y = 18, BASE_X = -3, BASE_Z = -1;
 const ALL_TRANSITIONS = ['slide', 'digital', 'materialize', 'scale-pop', 'blur', 'edge-wipe'];
 
 export const glassCard: OverlayTheme = {
@@ -22,7 +22,12 @@ export const glassCard: OverlayTheme = {
   defaultTransition: 'slide',
 
   render(opts: ThemeRenderOptions): string {
-    const transitionCSS = buildTransitionCSS(RESTING_TRANSFORM, ALL_TRANSITIONS);
+    const { side, transform: REST, perspectiveOrigin } = computeMirror(opts.position, BASE_Y, BASE_X, BASE_Z);
+    const shadow = buildMirroredShadow(side);
+    const specularAngle = side === 'center' ? '90deg' : side === 'right' ? '65deg' : '115deg';
+    const specularDrift = side === 'center' ? 'translate(0, 3%)' : side === 'right' ? 'translate(-5%, 3%)' : 'translate(5%, 3%)';
+    const borderAngle = side === 'center' ? '180deg' : side === 'right' ? '195deg' : '165deg';
+    const transitionCSS = buildTransitionCSS(REST, ALL_TRANSITIONS, side);
     const sharedJS = buildSharedJS({
       apiBaseUrl: opts.apiBaseUrl,
       displayDuration: opts.displayDuration,
@@ -61,12 +66,13 @@ export const glassCard: OverlayTheme = {
       top: 50%; left: 50%;
       transform: translate(-50%, -50%);
       perspective: 1800px;
+      perspective-origin: ${perspectiveOrigin};
     }
 
     .track-card {
       position: relative;
       width: 580px;
-      transform: ${RESTING_TRANSFORM};
+      transform: ${REST};
       transform-style: preserve-3d;
       opacity: 0;
       pointer-events: none;
@@ -78,13 +84,13 @@ export const glassCard: OverlayTheme = {
 
     .track-card.visible {
       opacity: 1;
-      transform: ${RESTING_TRANSFORM};
+      transform: ${REST};
       animation: idleFloat 4s ease-in-out infinite;
     }
 
     @keyframes idleFloat {
-      0%, 100% { transform: ${RESTING_TRANSFORM} translateY(0px); }
-      50%      { transform: ${RESTING_TRANSFORM} translateY(-10px); }
+      0%, 100% { transform: ${REST} translateY(0px); }
+      50%      { transform: ${REST} translateY(-10px); }
     }
 
     /* ── Glass Panel ── */
@@ -96,13 +102,7 @@ export const glassCard: OverlayTheme = {
       -webkit-backdrop-filter: blur(24px) saturate(1.4);
       border: 2px solid rgba(255, 255, 255, 0.08);
       overflow: hidden;
-      box-shadow:
-        0 4px 8px rgba(0, 0, 0, 0.5),
-        0 16px 40px rgba(0, 0, 0, 0.5),
-        0 40px 100px rgba(0, 0, 0, 0.4),
-        0 80px 200px rgba(0, 0, 0, 0.3),
-        inset 0 2px 0 rgba(255, 255, 255, 0.06),
-        inset 0 -2px 0 rgba(0, 0, 0, 0.3);
+      box-shadow: ${shadow};
     }
 
     /* Specular highlight */
@@ -112,7 +112,7 @@ export const glassCard: OverlayTheme = {
       top: -50%; left: -50%;
       width: 200%; height: 200%;
       background: linear-gradient(
-        135deg,
+        ${specularAngle},
         rgba(255,255,255,0.06) 0%,
         transparent 40%,
         transparent 60%,
@@ -125,7 +125,7 @@ export const glassCard: OverlayTheme = {
 
     @keyframes specularShift {
       0%   { transform: translate(0, 0); }
-      100% { transform: translate(5%, 3%); }
+      100% { transform: ${specularDrift}; }
     }
 
     /* Glass border gradient */
@@ -136,7 +136,7 @@ export const glassCard: OverlayTheme = {
       border-radius: 32px;
       border: 2px solid transparent;
       background: linear-gradient(
-        160deg,
+        ${borderAngle},
         rgba(255,255,255,0.12),
         rgba(255,255,255,0.02) 40%,
         rgba(0,212,255,0.06)

@@ -27,11 +27,23 @@ export const TRANSITION_META: Record<string, TransitionMeta> = {
  * Generate transition CSS for a given resting transform.
  * @param rest - CSS transform string for the card's resting state (e.g., "rotateY(18deg)")
  * @param transitions - which transition IDs to include
+ * @param side - position side for directional mirroring ('left' | 'right' | 'center')
  */
-export function buildTransitionCSS(rest: string, transitions: string[]): string {
+export function buildTransitionCSS(rest: string, transitions: string[], side: 'left' | 'right' | 'center' = 'left'): string {
   const parts: string[] = [];
 
   if (transitions.includes('slide')) {
+    let enterFrom: string, exitTo: string;
+    if (side === 'center') {
+      enterFrom = `${rest} translateY(100px) scale(0.88)`;
+      exitTo = `${rest} translateY(100px) scale(0.92)`;
+    } else if (side === 'right') {
+      enterFrom = `${rest} translateX(200px) scale(0.88) rotateY(-28deg)`;
+      exitTo = `${rest} translateX(-160px) scale(0.92)`;
+    } else {
+      enterFrom = `${rest} translateX(-200px) scale(0.88) rotateY(28deg)`;
+      exitTo = `${rest} translateX(160px) scale(0.92)`;
+    }
     parts.push(`
       /* ── Clean Slide ── */
       .slide-in {
@@ -41,17 +53,64 @@ export function buildTransitionCSS(rest: string, transitions: string[]): string 
         animation: slideOut 500ms cubic-bezier(0.55, 0, 1, 0.45) forwards;
       }
       @keyframes slideIn {
-        0%   { transform: ${rest} translateX(-200px) scale(0.88) rotateY(28deg); opacity: 0; filter: drop-shadow(0 0 0 transparent); }
+        0%   { transform: ${enterFrom}; opacity: 0; filter: drop-shadow(0 0 0 transparent); }
         100% { transform: ${rest} translateX(0) scale(1); opacity: 1; }
       }
       @keyframes slideOut {
         0%   { transform: ${rest} translateX(0) scale(1); opacity: 1; }
-        100% { transform: ${rest} translateX(160px) scale(0.92); opacity: 0; }
+        100% { transform: ${exitTo}; opacity: 0; }
       }
     `);
   }
 
   if (transitions.includes('digital')) {
+    let inKF: string, outKF: string;
+    if (side === 'center') {
+      inKF = `
+      @keyframes digitalIn {
+        0%    { transform: ${rest} translateY(10px); opacity: 0; }
+        10%   { transform: ${rest} translateY(8px); opacity: 0.85; }
+        20%   { transform: ${rest} translateY(6px);  opacity: 0.15; }
+        35%   { transform: ${rest} translateY(4px);  opacity: 0.9; }
+        50%   { transform: ${rest} translateY(2px);  opacity: 0.3; }
+        70%   { transform: ${rest} translateY(1px);  opacity: 0.85; }
+        85%   { transform: ${rest} translateY(0);     opacity: 0.88; }
+        100%  { transform: ${rest} translateY(0);     opacity: 1; }
+      }`;
+      outKF = `
+      @keyframes digitalOut {
+        0%    { transform: ${rest} translateY(0);    opacity: 1; }
+        15%   { transform: ${rest} translateY(-2px);  opacity: 0.85; }
+        30%   { transform: ${rest} translateY(-4px);  opacity: 0.15; }
+        50%   { transform: ${rest} translateY(-6px);  opacity: 0.9; }
+        70%   { transform: ${rest} translateY(-8px); opacity: 0.3; }
+        85%   { transform: ${rest} translateY(-9px); opacity: 0.1; }
+        100%  { transform: ${rest} translateY(-10px); opacity: 0; }
+      }`;
+    } else {
+      const d = side === 'right' ? 1 : -1;
+      inKF = `
+      @keyframes digitalIn {
+        0%    { transform: ${rest} translateX(${d*30}px); opacity: 0; }
+        10%   { transform: ${rest} translateX(${d*24}px); opacity: 0.85; }
+        20%   { transform: ${rest} translateX(${d*18}px);  opacity: 0.15; }
+        35%   { transform: ${rest} translateX(${d*12}px);  opacity: 0.9; }
+        50%   { transform: ${rest} translateX(${d*6}px);  opacity: 0.3; }
+        70%   { transform: ${rest} translateX(${d*2}px);  opacity: 0.85; }
+        85%   { transform: ${rest} translateX(0);     opacity: 0.88; }
+        100%  { transform: ${rest} translateX(0);     opacity: 1; }
+      }`;
+      outKF = `
+      @keyframes digitalOut {
+        0%    { transform: ${rest} translateX(0);    opacity: 1; }
+        15%   { transform: ${rest} translateX(${-d*6}px);  opacity: 0.85; }
+        30%   { transform: ${rest} translateX(${-d*12}px);  opacity: 0.15; }
+        50%   { transform: ${rest} translateX(${-d*18}px);  opacity: 0.9; }
+        70%   { transform: ${rest} translateX(${-d*24}px); opacity: 0.3; }
+        85%   { transform: ${rest} translateX(${-d*28}px); opacity: 0.1; }
+        100%  { transform: ${rest} translateX(${-d*30}px); opacity: 0; }
+      }`;
+    }
     parts.push(`
       /* ── Digital Flicker ── */
       .digital-in {
@@ -60,25 +119,8 @@ export function buildTransitionCSS(rest: string, transitions: string[]): string 
       .digital-out {
         animation: digitalOut 350ms steps(1) forwards;
       }
-      @keyframes digitalIn {
-        0%    { transform: ${rest} translateX(-30px); opacity: 0; }
-        10%   { transform: ${rest} translateX(-24px); opacity: 0.85; }
-        20%   { transform: ${rest} translateX(-18px);  opacity: 0.15; }
-        35%   { transform: ${rest} translateX(-12px);  opacity: 0.9; }
-        50%   { transform: ${rest} translateX(-6px);  opacity: 0.3; }
-        70%   { transform: ${rest} translateX(-2px);  opacity: 0.85; }
-        85%   { transform: ${rest} translateX(0);     opacity: 0.88; }
-        100%  { transform: ${rest} translateX(0);     opacity: 1; }
-      }
-      @keyframes digitalOut {
-        0%    { transform: ${rest} translateX(0);    opacity: 1; }
-        15%   { transform: ${rest} translateX(6px);  opacity: 0.85; }
-        30%   { transform: ${rest} translateX(12px);  opacity: 0.15; }
-        50%   { transform: ${rest} translateX(18px);  opacity: 0.9; }
-        70%   { transform: ${rest} translateX(24px); opacity: 0.3; }
-        85%   { transform: ${rest} translateX(28px); opacity: 0.1; }
-        100%  { transform: ${rest} translateX(30px); opacity: 0; }
-      }
+      ${inKF}
+      ${outKF}
       .digital-in::after, .digital-out::after {
         content: '';
         position: absolute;
@@ -192,23 +234,57 @@ export function buildTransitionCSS(rest: string, transitions: string[]): string 
   }
 
   if (transitions.includes('edge-wipe')) {
-    parts.push(`
-      /* ── Edge Wipe ── */
-      .edge-wipe-in {
-        animation: edgeWipeIn 700ms ease-out forwards;
-        clip-path: inset(0 100% 0 0);
-      }
-      .edge-wipe-out {
-        animation: edgeWipeOut 600ms ease-in forwards;
-      }
+    let initialClip: string, wipeInKF: string, wipeOutKF: string;
+    let scanCSS: string, scanInKF: string, scanOutKF: string;
+
+    if (side === 'center') {
+      initialClip = 'inset(100% 0 0 0)';
+      wipeInKF = `
       @keyframes edgeWipeIn {
-        0%   { clip-path: inset(0 100% 0 0); }
-        100% { clip-path: inset(0 0% 0 0); }
-      }
+        0%   { clip-path: inset(100% 0 0 0); }
+        100% { clip-path: inset(0 0 0 0); }
+      }`;
+      wipeOutKF = `
       @keyframes edgeWipeOut {
-        0%   { clip-path: inset(0 0 0 0%); }
-        100% { clip-path: inset(0 0 0 100%); }
-      }
+        0%   { clip-path: inset(0 0 0 0); }
+        100% { clip-path: inset(0 0 100% 0); }
+      }`;
+      scanCSS = `
+      .edge-wipe-in::before, .edge-wipe-out::before {
+        content: '';
+        position: absolute;
+        left: 0; right: 0;
+        height: 4px;
+        background: #00d4ff;
+        box-shadow: 0 0 16px #00d4ff, 0 0 40px rgba(0,212,255,0.4);
+        pointer-events: none;
+        z-index: 10;
+      }`;
+      scanInKF = `
+      @keyframes scanLineIn {
+        0%   { top: 0; opacity: 1; }
+        90%  { top: 98%; opacity: 0.8; }
+        100% { top: 100%; opacity: 0; }
+      }`;
+      scanOutKF = `
+      @keyframes scanLineOut {
+        0%   { top: 0; opacity: 1; }
+        90%  { top: 98%; opacity: 0.8; }
+        100% { top: 100%; opacity: 0; }
+      }`;
+    } else if (side === 'right') {
+      initialClip = 'inset(0 0 0 100%)';
+      wipeInKF = `
+      @keyframes edgeWipeIn {
+        0%   { clip-path: inset(0 0 0 100%); }
+        100% { clip-path: inset(0 0 0 0); }
+      }`;
+      wipeOutKF = `
+      @keyframes edgeWipeOut {
+        0%   { clip-path: inset(0 0% 0 0); }
+        100% { clip-path: inset(0 100% 0 0); }
+      }`;
+      scanCSS = `
       .edge-wipe-in::before, .edge-wipe-out::before {
         content: '';
         position: absolute;
@@ -218,23 +294,76 @@ export function buildTransitionCSS(rest: string, transitions: string[]): string 
         box-shadow: 0 0 16px #00d4ff, 0 0 40px rgba(0,212,255,0.4);
         pointer-events: none;
         z-index: 10;
+      }`;
+      scanInKF = `
+      @keyframes scanLineIn {
+        0%   { left: 100%; opacity: 1; }
+        90%  { left: 2%; opacity: 0.8; }
+        100% { left: 0%; opacity: 0; }
+      }`;
+      scanOutKF = `
+      @keyframes scanLineOut {
+        0%   { left: 100%; opacity: 1; }
+        90%  { left: 2%; opacity: 0.8; }
+        100% { left: 0%; opacity: 0; }
+      }`;
+    } else {
+      initialClip = 'inset(0 100% 0 0)';
+      wipeInKF = `
+      @keyframes edgeWipeIn {
+        0%   { clip-path: inset(0 100% 0 0); }
+        100% { clip-path: inset(0 0% 0 0); }
+      }`;
+      wipeOutKF = `
+      @keyframes edgeWipeOut {
+        0%   { clip-path: inset(0 0 0 0%); }
+        100% { clip-path: inset(0 0 0 100%); }
+      }`;
+      scanCSS = `
+      .edge-wipe-in::before, .edge-wipe-out::before {
+        content: '';
+        position: absolute;
+        top: 0; bottom: 0;
+        width: 4px;
+        background: #00d4ff;
+        box-shadow: 0 0 16px #00d4ff, 0 0 40px rgba(0,212,255,0.4);
+        pointer-events: none;
+        z-index: 10;
+      }`;
+      scanInKF = `
+      @keyframes scanLineIn {
+        0%   { left: 0; opacity: 1; }
+        90%  { left: 98%; opacity: 0.8; }
+        100% { left: 100%; opacity: 0; }
+      }`;
+      scanOutKF = `
+      @keyframes scanLineOut {
+        0%   { left: 0; opacity: 1; }
+        90%  { left: 98%; opacity: 0.8; }
+        100% { left: 100%; opacity: 0; }
+      }`;
+    }
+
+    parts.push(`
+      /* ── Edge Wipe ── */
+      .edge-wipe-in {
+        animation: edgeWipeIn 700ms ease-out forwards;
+        clip-path: ${initialClip};
       }
+      .edge-wipe-out {
+        animation: edgeWipeOut 600ms ease-in forwards;
+      }
+      ${wipeInKF}
+      ${wipeOutKF}
+      ${scanCSS}
       .edge-wipe-in::before {
         animation: scanLineIn 700ms ease-out forwards;
       }
       .edge-wipe-out::before {
         animation: scanLineOut 600ms ease-in forwards;
       }
-      @keyframes scanLineIn {
-        0%   { left: 0; opacity: 1; }
-        90%  { left: 98%; opacity: 0.8; }
-        100% { left: 100%; opacity: 0; }
-      }
-      @keyframes scanLineOut {
-        0%   { left: 0; opacity: 1; }
-        90%  { left: 98%; opacity: 0.8; }
-        100% { left: 100%; opacity: 0; }
-      }
+      ${scanInKF}
+      ${scanOutKF}
     `);
   }
 
