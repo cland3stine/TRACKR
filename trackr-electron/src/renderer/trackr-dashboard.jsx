@@ -2,14 +2,13 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { checkForUpdate } from "./updater";
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
-/** Format "2025-03-15" → "Mar 15 '25". Falls back to raw string (e.g. just "2025"). */
-const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+/** Format "2025-03-15" → "03-15-2025". Falls back to raw string (e.g. just "2025"). */
 function fmtDate(d) {
   if (!d) return '\u2014';
   const s = String(d);
   const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (!m) return s;
-  return MONTHS[parseInt(m[2],10)-1] + ' ' + parseInt(m[3],10) + " \u2019" + m[1].slice(2);
+  return `${m[2]}-${m[3]}-${m[1]}`;
 }
 
 // ─── DESIGN TOKENS ───────────────────────────────────────────────────────────
@@ -403,6 +402,7 @@ export default function TRACKR() {
   const [devices, setDevices] = useState([]);
   const [updateStatus, setUpdateStatus] = useState({ state: "idle" });
   const [enrichmentEnabled, setEnrichmentEnabled] = useState(false);
+  const [contextMenu, setContextMenu] = useState(null); // { x, y, track }
   const [beatportUsername, setBeatportUsername] = useState("");
   const [beatportPassword, setBeatportPassword] = useState("");
   const [beatportConnStatus, setBeatportConnStatus] = useState(null); // null | "testing" | {ok, message}
@@ -440,6 +440,13 @@ export default function TRACKR() {
   const [selectedSessionTracks, setSelectedSessionTracks] = useState([]);
   const [selectedSessionTrack, setSelectedSessionTrack] = useState(null);
   const tracklistRef = useRef(null);
+
+  // Auto-scroll tracklist to bottom when new tracks arrive
+  useEffect(() => {
+    if (activeTab === "live" && tracklistRef.current) {
+      tracklistRef.current.scrollTop = tracklistRef.current.scrollHeight;
+    }
+  }, [tracks, activeTab]);
   const timerRef = useRef(null);
   const coreRef = useRef(null);
   const unsubscribeRef = useRef(null);
@@ -476,6 +483,15 @@ export default function TRACKR() {
     if (timerRef.current) clearInterval(timerRef.current);
     return undefined;
   }, [isRunning, playbackActive]);
+
+  const handleReEnrich = useCallback(async (track) => {
+    if (!track?.artist || !track?.title) return;
+    try {
+      await window.electronAPI.invoke("enrichment:re-enrich", { artist: track.artist, title: track.title });
+      addToast(`Re-enriching: ${track.artist} - ${track.title}`);
+    } catch (_) {}
+    setContextMenu(null);
+  }, []);
 
   const addToast = useCallback((msg, severity = "info") => {
     const id = Date.now();
@@ -987,13 +1003,13 @@ export default function TRACKR() {
   const formatDate = (iso) => {
     if (!iso) return "\u2014";
     const d = new Date(iso);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    return `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}-${d.getFullYear()}`;
   };
 
   const formatDateTime = (iso) => {
     if (!iso) return "\u2014";
     const d = new Date(iso);
-    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const date = `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}-${d.getFullYear()}`;
     const time = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
     return `${date} ${time}`;
   };
@@ -1412,12 +1428,12 @@ export default function TRACKR() {
           }}
         >
           {/* ── Sidebar Controls ── */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, padding: "8px 10px 10px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, padding: "0 10px", margin: "0 -10px", height: 36, alignContent: "center", borderBottom: `1px solid ${C.borderRack}` }}>
             <button
               onClick={handleStartStop}
               disabled={isTransitioning}
               style={{
-                ...font(9, 700),
+                ...font(8, 700),
                 letterSpacing: 1.5,
                 textTransform: "uppercase",
                 color: isTransitioning ? C.textMuted : "#fff",
@@ -1428,7 +1444,7 @@ export default function TRACKR() {
                     : `linear-gradient(180deg, ${C.green}40, ${C.green}2e)`,
                 border: `1px solid ${isTransitioning ? C.glassBorder : isRunning ? `${C.red}4c` : `${C.green}4c`}`,
                 borderRadius: C.radiusXs,
-                padding: "7px 0",
+                padding: "5px 0",
                 cursor: isTransitioning ? "not-allowed" : "pointer",
                 transition: "all 0.2s ease",
                 opacity: isTransitioning ? 0.4 : 1,
@@ -1444,14 +1460,14 @@ export default function TRACKR() {
               onClick={handleRefresh}
               disabled={!isRunning || isTransitioning}
               style={{
-                ...font(9, 700),
+                ...font(8, 700),
                 letterSpacing: 1.5,
                 textTransform: "uppercase",
                 color: (!isRunning || isTransitioning) ? C.textMuted : C.textPrimary,
                 background: "rgba(10,10,16,0.5)",
                 border: `1px solid ${C.glassBorder}`,
                 borderRadius: C.radiusXs,
-                padding: "7px 0",
+                padding: "5px 0",
                 cursor: (!isRunning || isTransitioning) ? "not-allowed" : "pointer",
                 transition: "all 0.2s ease",
                 opacity: (!isRunning || isTransitioning) ? 0.4 : 1,
@@ -1493,19 +1509,25 @@ export default function TRACKR() {
             const isLive = !selectedTrack && !selectedSessionTrack || activeTab !== "history";
             const showShimmer = isLive && currentTrack && !liveEnrichment && enrichmentEnabled;
             return (
-            <RackPanel style={{ flex: 1, display: "flex", flexDirection: "column", animation: "fadeIn 0.4s ease", padding: 12 }}>
+            <RackPanel style={{ flex: 1, display: "flex", flexDirection: "column", animation: "fadeIn 0.4s ease", padding: 12, marginTop: 10 }}>
               {cardTrack ? (
                 <>
-                  {/* Album art — bleeds edge-to-edge */}
+                  {/* Album art — floating with glow shadow */}
                   {cardTrack.art_filename && (
-                    <div className="art-inset" style={{ position: "relative", margin: `-12px -12px 10px` }}>
+                    <div className="art-inset" style={{
+                      position: "relative", marginBottom: 10,
+                      padding: 8, borderRadius: 10,
+                      background: "rgba(255,255,255,0.015)",
+                      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04), inset 0 -1px 0 rgba(0,0,0,0.3)",
+                    }}>
                       <img
                         src={`http://127.0.0.1:${apiPort}/art/cache/${cardTrack.art_filename}`}
                         alt=""
                         style={{
                           width: "100%", aspectRatio: "1/1", objectFit: "cover",
-                          borderRadius: `${C.radius}px ${C.radius}px 0 0`, background: C.bgInset, display: "block",
-                          boxShadow: `0 4px 20px rgba(0,0,0,0.5)`,
+                          borderRadius: 6, background: C.bgInset, display: "block",
+                          boxShadow: "0 4px 16px rgba(0,0,0,0.9), 0 1px 0 rgba(255,255,255,0.06)",
+                          border: "1px solid rgba(255,255,255,0.08)",
                         }}
                         onError={(e) => { e.target.style.display = "none"; }}
                       />
@@ -1631,10 +1653,11 @@ export default function TRACKR() {
               display: "flex",
               gap: 0,
               padding: "0 10px",
+              height: 36,
               background: "rgba(14,14,20,0.5)",
               backdropFilter: "blur(12px)",
               WebkitBackdropFilter: "blur(12px)",
-              borderBottom: "1px solid rgba(255,255,255,0.04)",
+              borderBottom: `1px solid ${C.borderRack}`,
               flexShrink: 0,
               position: "relative",
             }}
@@ -1848,17 +1871,21 @@ export default function TRACKR() {
                         <div
                           style={{
                             display: "grid",
-                            gridTemplateColumns: "2fr 2fr 1.2fr 80px 1fr 50px 50px 38px 68px",
+                            gridTemplateColumns: "2fr 2fr 1.5fr 80px 1.2fr 42px 40px 34px 68px",
                             gap: 8,
-                            padding: "0 4px 8px",
+                            padding: "8px 4px",
                             borderBottom: `1px solid ${C.borderRack}`,
+                            alignItems: "center",
                           }}
                         >
-                          {["ARTIST", "TITLE", "LABEL", "RELEASED", "GENRE", "BPM", "KEY", "PLAYS", "LAST"].map((h) => (
-                            <span key={h} style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2, textTransform: "uppercase" }}>
-                              {h}
-                            </span>
-                          ))}
+                          {["ARTIST", "TITLE", "LABEL", "RELEASED", "GENRE", "BPM", "KEY", "PLAYS", "LAST"].map((h) => {
+                            const center = ["RELEASED", "BPM", "KEY", "PLAYS", "LAST"].includes(h);
+                            return (
+                              <span key={h} style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2, textTransform: "uppercase", textAlign: center ? "center" : "left" }}>
+                                {h}
+                              </span>
+                            );
+                          })}
                         </div>
                         <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
                           {historyRows.length === 0 && (
@@ -1874,7 +1901,7 @@ export default function TRACKR() {
                                 onClick={() => setSelectedTrack(isSelected ? null : row)}
                                 style={{
                                   display: "grid",
-                                  gridTemplateColumns: "2fr 2fr 1.2fr 80px 1fr 50px 50px 38px 68px",
+                                  gridTemplateColumns: "2fr 2fr 1.5fr 80px 1.2fr 42px 40px 34px 68px",
                                   gap: 8,
                                   padding: "6px 4px",
                                   cursor: "pointer",
@@ -1885,16 +1912,17 @@ export default function TRACKR() {
                                 }}
                                 onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = C.bgInsetHover; }}
                                 onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = "transparent"; }}
+                                onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, track: row }); }}
                               >
-                                <span style={{ ...font(10, 500), color: C.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.artist}</span>
-                                <span style={{ ...font(10, 400), color: C.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.title}</span>
-                                <span style={{ ...font(10, 400), color: C.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.label || "\u2014"}</span>
-                                <span style={{ ...font(10, 400), color: C.textDim }}>{fmtDate(row.release_date || row.year)}</span>
-                                <span style={{ ...font(10, 400), color: C.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.genre || "\u2014"}</span>
-                                <span style={{ ...font(10, 400), color: C.textDim }}>{row.bpm || "\u2014"}</span>
-                                <span style={{ ...font(10, 400), color: C.textDim }}>{row.key_name ? (keyCamelot ? toCamelot(row.key_name) : row.key_name) : "\u2014"}</span>
-                                <span style={{ ...font(10, 600), color: row.play_count > 1 ? C.cyan : C.textDim }}>{row.play_count}</span>
-                                <span style={{ ...font(9, 400), color: C.textMuted }}>{formatDate(row.last_played)}</span>
+                                <span title={row.artist} style={{ ...font(10, 500), color: C.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.artist}</span>
+                                <span title={row.title} style={{ ...font(10, 400), color: C.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.title}</span>
+                                <span title={row.label || ""} style={{ ...font(10, 400), color: C.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.label || "\u2014"}</span>
+                                <span style={{ ...font(10, 400), color: C.textDim, textAlign: "center" }}>{fmtDate(row.release_date || row.year)}</span>
+                                <span title={row.genre || ""} style={{ ...font(10, 400), color: C.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.genre || "\u2014"}</span>
+                                <span style={{ ...font(10, 400), color: C.textDim, textAlign: "center" }}>{row.bpm || "\u2014"}</span>
+                                <span style={{ ...font(10, 400), color: C.textDim, textAlign: "center" }}>{row.key_name ? (keyCamelot ? toCamelot(row.key_name) : row.key_name) : "\u2014"}</span>
+                                <span style={{ ...font(10, 600), color: row.play_count > 1 ? C.cyan : C.textDim, textAlign: "center" }}>{row.play_count}</span>
+                                <span style={{ ...font(9, 400), color: C.textMuted, textAlign: "center" }}>{formatDate(row.last_played)}</span>
                               </div>
                             );
                           })}
@@ -3415,6 +3443,31 @@ export default function TRACKR() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Right-click context menu ── */}
+      {contextMenu && (
+        <>
+          <div style={{ position: "fixed", inset: 0, zIndex: 200 }} onClick={() => setContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }} />
+          <div style={{
+            position: "fixed", left: contextMenu.x, top: contextMenu.y, zIndex: 201,
+            background: C.bgCard, border: `1px solid ${C.glassBorder}`, borderRadius: 6,
+            boxShadow: "0 4px 20px rgba(0,0,0,0.6)", padding: "4px 0", minWidth: 160,
+          }}>
+            <button
+              onClick={() => handleReEnrich(contextMenu.track)}
+              style={{
+                ...font(10, 500), color: C.textPrimary, background: "transparent", border: "none",
+                padding: "8px 16px", width: "100%", textAlign: "left", cursor: "pointer",
+                transition: "background 0.15s",
+              }}
+              onMouseEnter={(e) => { e.target.style.background = "rgba(255,255,255,0.06)"; }}
+              onMouseLeave={(e) => { e.target.style.background = "transparent"; }}
+            >
+              Re-Enrich Track
+            </button>
+          </div>
+        </>
       )}
 
       <div

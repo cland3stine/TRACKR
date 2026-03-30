@@ -112,6 +112,11 @@ export function resetEnrichmentSession(): void {
   _failedThisSession.clear();
 }
 
+/** Remove a single track from the per-session failure set so it can be re-enriched. */
+export function clearFailedTrack(artist: string, title: string): void {
+  _failedThisSession.delete(trackKey(artist, title));
+}
+
 /**
  * Initialize token from stored config on startup.
  * Non-blocking — if token is expired it will re-auth on first enrichment call.

@@ -41,7 +41,7 @@ import { createTray, refreshTray, destroyTray, TrayCallbacks } from './tray';
 import { autoUpdater } from 'electron-updater';
 import {
   splitTrackLine, enrichTrack, initEnrichment, resetEnrichmentSession,
-  testConnection, rowToResult,
+  clearFailedTrack, testConnection, rowToResult,
 } from './enrichment/enricher';
 import { ArtCache } from './enrichment/art-cache';
 import { EnrichmentResult } from './enrichment/types';
@@ -761,6 +761,21 @@ function registerIpc(): void {
 
   // ── Enrichment ─────────────────────────────────────────────────────────────
   ipcMain.handle('enrichment:test-connection', () => testConnection());
+
+  ipcMain.handle('enrichment:re-enrich', async (_event, params: { artist: string; title: string }) => {
+    if (!db) return { ok: false };
+    const { artist, title } = params;
+    // Reset enrichment status to pending
+    db.updateEnrichment(artist, title, { enrichment_status: 'pending' });
+    // Clear from session failure set
+    clearFailedTrack(artist, title);
+    // Re-run enrichment
+    const line = `${artist} - ${title}`;
+    enrichTrack(db, line, artCache, (result) => {
+      emit('trackr:enrichment-update', { line, ...result });
+    }).catch(err => console.warn('[main] re-enrich error:', err));
+    return { ok: true };
+  });
 
   // ── Updater ────────────────────────────────────────────────────────────────
   autoUpdater.autoDownload = true;
