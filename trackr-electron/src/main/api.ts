@@ -33,6 +33,7 @@ export interface ApiDeps {
   deviceSummaries:   () => Array<{ name: string; count: number }>;
   playCount:         () => number;
   sharePlayCount:    () => boolean;
+  getCurrentBPM:     () => number | null;
   sessionFileName:   () => string | null;
   sessionVersion:    () => number;
   overlayTxtPath:    () => string | null;
@@ -232,6 +233,10 @@ function buildApp(deps: ApiDeps): Express {
     };
     payload.play_count = deps.playCount();
 
+    // Live BPM from the CDJ tempo slider (actual playing tempo, not metadata)
+    const liveBpm = deps.getCurrentBPM();
+    if (liveBpm !== null) payload.current_bpm = liveBpm;
+
     // Enrichment data — always include status so consumers can re-poll on 'pending'
     const enrichment = deps.getEnrichment();
     if (enrichment) {
@@ -243,7 +248,6 @@ function buildApp(deps: ApiDeps): Express {
         if (cfg.apiEnrichment.sendLabel && enrichment.label)  e.label = enrichment.label;
         if (cfg.apiEnrichment.sendArt   && enrichment.artFilename) e.art_url = '/art/current';
         if (enrichment.genre) e.genre = enrichment.genre;
-        if (enrichment.bpm)   e.bpm   = enrichment.bpm;
         if (enrichment.key)   e.key   = enrichment.key;
       }
       payload.enrichment = e;

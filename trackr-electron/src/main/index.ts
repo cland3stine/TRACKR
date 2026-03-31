@@ -26,7 +26,7 @@ process.on('unhandledRejection', (reason) => {
 import {
   startProlink, stopProlink, getDeviceCount, getDeviceSummaries,
   setPublishCallback, setPublishDelay, isPlaybackActive, setOnSetEnded,
-  resetLastPublished, enableFastFirstTrack, cancelPending,
+  resetLastPublished, enableFastFirstTrack, cancelPending, getCurrentBPM,
 } from './prolink';
 import { OutputWriter }      from './output';
 import { TrackrDatabase }    from './database';
@@ -188,6 +188,7 @@ function buildApiDeps(): ApiDeps {
     deviceSummaries:   () => getDeviceSummaries(),
     playCount:         () => _lastTrackPlayCount,
     sharePlayCount:    () => getConfig().sharePlayCountViaApi,
+    getCurrentBPM,
     sessionFileName:   () => outputWriter?.sessionFile ?? null,
     sessionVersion:    () => _sessionVersion,
     overlayTxtPath:    () => outputWriter?.overlayTxtPath ?? null,

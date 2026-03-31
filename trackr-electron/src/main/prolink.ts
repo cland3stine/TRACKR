@@ -64,6 +64,7 @@ let _lastPublished: string | null = null;
 
 const _dbWarmedDevices = new Set<string>();  // "deviceId|trackId" keys already warming
 const _devicePlayStates = new Map<number, CDJStatus.PlayState>();  // latest play state per CDJ
+const _deviceTempo = new Map<number, { trackBPM: number; sliderPitch: number }>();  // live tempo per CDJ
 let _nowPlayingDeviceId: number | null = null;  // device confirmed as "main" by MixstatusProcessor
 let _fastFirstTrack = true;   // after session reset, first track publishes fast (16 beats vs 128)
 
@@ -100,6 +101,14 @@ export function getDeviceCount(): number {
 /** True when MixstatusProcessor has a confirmed "now playing" track. */
 export function isPlaybackActive(): boolean {
   return _nowPlayingDeviceId !== null;
+}
+
+/** Effective BPM of the now-playing deck (trackBPM adjusted by tempo slider). */
+export function getCurrentBPM(): number | null {
+  if (_nowPlayingDeviceId === null) return null;
+  const t = _deviceTempo.get(_nowPlayingDeviceId);
+  if (!t) return null;
+  return Math.round(t.trackBPM * (1 + t.sliderPitch / 100) * 10) / 10;
 }
 
 // ─── publish pipeline ────────────────────────────────────────────────────────
@@ -177,6 +186,9 @@ async function resolveMetadata(status: CDJStatus.State): Promise<string | null> 
  */
 function handleStatus(status: CDJStatus.State): void {
   _devicePlayStates.set(status.deviceId, status.playState);
+  if (status.trackBPM !== null) {
+    _deviceTempo.set(status.deviceId, { trackBPM: status.trackBPM, sliderPitch: status.sliderPitch });
+  }
   const trackId = status.trackId;
 
   // Pre-warm localdb: fire a background db.getMetadata() to trigger the NFS
@@ -348,6 +360,7 @@ export async function stopProlink(): Promise<void> {
   cancelPending();
   _dbWarmedDevices.clear();
   _devicePlayStates.clear();
+  _deviceTempo.clear();
   _lastPublished = null;
   _nowPlayingDeviceId = null;
   _emit?.('trackr:disconnected', {});
