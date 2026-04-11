@@ -1498,7 +1498,7 @@ export default function TRACKR() {
                     year: liveEnrichment?.year,
                     genre: liveEnrichment?.genre,
                     bpm: liveEnrichment?.bpm,
-                    key_name: liveEnrichment?.key_name || liveEnrichment?.key,
+                    key_name: liveEnrichment?.cdj_key || liveEnrichment?.key || liveEnrichment?.key_name,
                     play_count: liveEnrichment?.play_count ?? currentTrack.plays,
                     first_played: liveEnrichment?.first_played,
                     last_played: liveEnrichment?.last_played,
@@ -1578,7 +1578,7 @@ export default function TRACKR() {
                           <span style={{ ...font(10, 400), color: C.textPrimary }}>{cardTrack.bpm}</span>
                         </>
                       )}
-                      {cardTrack.key_name && (
+                      {(cardTrack.cdj_key || cardTrack.key_name) && (
                         <>
                           <span
                             style={{ ...font(7, 700), color: C.textMuted, letterSpacing: 2, textTransform: "uppercase", cursor: "pointer", transition: "color 0.15s" }}
@@ -1587,7 +1587,7 @@ export default function TRACKR() {
                             onMouseLeave={(e) => { e.target.style.color = C.textMuted; }}
                             title="Click to toggle Classic / Camelot"
                           >{keyCamelot ? "Camelot" : "Key"}</span>
-                          <span style={{ ...font(10, 400), color: C.textPrimary }}>{keyCamelot ? toCamelot(cardTrack.key_name) : cardTrack.key_name}</span>
+                          <span style={{ ...font(10, 400), color: C.textPrimary }}>{keyCamelot ? toCamelot(cardTrack.cdj_key || cardTrack.key_name) : (cardTrack.cdj_key || cardTrack.key_name)}</span>
                         </>
                       )}
                       {cardTrack.play_count != null && (
@@ -1920,7 +1920,7 @@ export default function TRACKR() {
                                 <span style={{ ...font(10, 400), color: C.textDim, textAlign: "center" }}>{fmtDate(row.release_date || row.year)}</span>
                                 <span title={row.genre || ""} style={{ ...font(10, 400), color: C.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.genre || "\u2014"}</span>
                                 <span style={{ ...font(10, 400), color: C.textDim, textAlign: "center" }}>{row.bpm || "\u2014"}</span>
-                                <span style={{ ...font(10, 400), color: C.textDim, textAlign: "center" }}>{row.key_name ? (keyCamelot ? toCamelot(row.key_name) : row.key_name) : "\u2014"}</span>
+                                <span style={{ ...font(10, 400), color: C.textDim, textAlign: "center" }}>{(row.cdj_key || row.key_name) ? (keyCamelot ? toCamelot(row.cdj_key || row.key_name) : (row.cdj_key || row.key_name)) : "\u2014"}</span>
                                 <span style={{ ...font(10, 600), color: row.play_count > 1 ? C.cyan : C.textDim, textAlign: "center" }}>{row.play_count}</span>
                                 <span style={{ ...font(9, 400), color: C.textMuted, textAlign: "center" }}>{formatDate(row.last_played)}</span>
                               </div>
@@ -2108,7 +2108,7 @@ export default function TRACKR() {
                                       const meta = [];
                                       if (ef.label !== false && t.label) meta.push(t.label);
                                       if (ef.year !== false && (t.release_date || t.year)) meta.push(t.release_date || String(t.year));
-                                      if (ef.key_name !== false && t.key_name) meta.push(keyCamelot ? toCamelot(t.key_name) : t.key_name);
+                                      if (ef.key_name !== false && (t.cdj_key || t.key_name)) meta.push(keyCamelot ? toCamelot(t.cdj_key || t.key_name) : (t.cdj_key || t.key_name));
                                       let line = `${i + 1}. ${parts.join(" - ")}`;
                                       if (meta.length) line += ` [${meta.join(", ")}]`;
                                       return line;

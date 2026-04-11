@@ -33,7 +33,7 @@ export interface DeviceSummary {
 export type EmitFn = (channel: string, ...args: unknown[]) => void;
 
 /** Called in the main process when a track is confirmed for publish. */
-export type PublishCallback = (line: string, deviceId: number, publishedAt: number) => void;
+export type PublishCallback = (line: string, deviceId: number, publishedAt: number, cdjKey: string | null) => void;
 
 /** Called when MixstatusProcessor detects a set ended (30s silence gap). */
 export type SetEndedCallback = () => void;
@@ -119,7 +119,7 @@ export function cancelPending(): void {
   _pendingKey   = null;
 }
 
-function schedulePending(key: string, line: string, deviceId: number): void {
+function schedulePending(key: string, line: string, deviceId: number, cdjKey: string | null): void {
   cancelPending();
   _pendingKey   = key;
   _pendingTimer = setTimeout(() => {
@@ -135,8 +135,8 @@ function schedulePending(key: string, line: string, deviceId: number): void {
 
     _lastPublished = line;
     const publishedAt = Date.now() / 1000;
-    console.log(`${ts()} [prolink] PUBLISH device=#${deviceId}: "${line}"`);
-    _onPublish?.(line, deviceId, publishedAt);
+    console.log(`${ts()} [prolink] PUBLISH device=#${deviceId}: "${line}" cdjKey=${cdjKey ?? 'none'}`);
+    _onPublish?.(line, deviceId, publishedAt, cdjKey);
     _emit?.('trackr:publish', { line, deviceId, publishedAt });
 
     // After first track in a session, restore normal SmartTiming threshold
@@ -148,6 +148,11 @@ function schedulePending(key: string, line: string, deviceId: number): void {
   }, _publishDelayMs);
 }
 
+interface ResolvedTrack {
+  line: string;
+  cdjKey: string | null;
+}
+
 /**
  * Resolve track metadata with retries.
  *
@@ -155,11 +160,14 @@ function schedulePending(key: string, line: string, deviceId: number): void {
  * "Key - Artist - Title (Mix)" string is in track.title.
  * cleanTrackLine() strips the Camelot key and normalizes the result.
  *
+ * Also captures track.key from the rekordbox database — this is the CDJ's
+ * own key analysis, which is far more accurate than Beatport's key detection.
+ *
  * Note: db.getMetadata() routes CDJ+RB tracks through localdb which
  * downloads the rekordbox DB from USB via NFS (~54s cold start, once).
  * Pre-warming in handleStatus() starts this download ASAP.
  */
-async function resolveMetadata(status: CDJStatus.State): Promise<string | null> {
+async function resolveMetadata(status: CDJStatus.State): Promise<ResolvedTrack | null> {
   const net = _network;
   if (!net || !net.isConnected()) return null;
 
@@ -171,7 +179,11 @@ async function resolveMetadata(status: CDJStatus.State): Promise<string | null> 
         trackType: status.trackType,
         trackId:   status.trackId,
       });
-      if (track?.title) return cleanTrackLine(track.title) || null;
+      if (track?.title) {
+        const line = cleanTrackLine(track.title);
+        if (!line) return null;
+        return { line, cdjKey: track.key?.name ?? null };
+      }
     } catch (err) {
       console.error(`${ts()} [prolink] getMetadata attempt ${attempt}/${METADATA_RETRIES}:`, err);
     }
@@ -229,14 +241,14 @@ function handleNowPlaying(status: CDJStatus.State): void {
   _nowPlayingDeviceId = deviceId;
   console.log(`${ts()} [prolink] NOW PLAYING #${deviceId} trackId=${trackId} — resolving metadata...`);
 
-  resolveMetadata(status).then(line => {
-    if (!line) {
+  resolveMetadata(status).then(resolved => {
+    if (!resolved) {
       console.log(`${ts()} [prolink] no metadata for device #${deviceId} trackId=${trackId}`);
       return;
     }
 
-    console.log(`${ts()} [prolink] metadata resolved #${deviceId} — scheduling publish: "${line}"`);
-    schedulePending(`${deviceId}|${line}`, line, deviceId);
+    console.log(`${ts()} [prolink] metadata resolved #${deviceId} — scheduling publish: "${resolved.line}" key=${resolved.cdjKey ?? 'none'}`);
+    schedulePending(`${deviceId}|${resolved.line}`, resolved.line, deviceId, resolved.cdjKey);
   }).catch(err => console.error('[prolink] resolveMetadata error:', err));
 }
 

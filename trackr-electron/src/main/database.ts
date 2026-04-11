@@ -21,6 +21,7 @@ export interface TrackRow {
   genre: string | null;
   bpm: number | null;
   key_name: string | null;
+  cdj_key: string | null;
   art_filename: string | null;
   art_url: string | null;
   source: string | null;
@@ -60,6 +61,7 @@ export class TrackrDatabase {
     this._initSchema();
     this._migrateReleaseDate();
     this._migrateSessionTracking();
+    this._migrateCdjKey();
   }
 
   close(): void {
@@ -87,18 +89,21 @@ export class TrackrDatabase {
   /**
    * Increment and return the per-track play count.
    * Inserts a new row if the track doesn't exist yet (with pending enrichment).
+   * If cdjKey is provided, stores it (CDJ's key analysis from rekordbox DB).
+   * On conflict, only overwrites cdj_key if a new non-null value is provided.
    * Returns the updated play count.
    */
-  incrementTrackPlayCount(artist: string, title: string): number {
+  incrementTrackPlayCount(artist: string, title: string, cdjKey?: string | null): number {
     const now = new Date().toISOString();
     this._db.prepare(`
-      INSERT INTO tracks (artist, title, first_played, last_played, play_count)
-      VALUES (?, ?, ?, ?, 1)
+      INSERT INTO tracks (artist, title, first_played, last_played, play_count, cdj_key)
+      VALUES (?, ?, ?, ?, 1, ?)
       ON CONFLICT(artist, title) DO UPDATE SET
         play_count = play_count + 1,
         last_played = ?,
+        cdj_key = COALESCE(?, cdj_key),
         updated_at = ?
-    `).run(artist, title, now, now, now, now);
+    `).run(artist, title, now, now, cdjKey ?? null, now, cdjKey ?? null, now);
 
     const row = this._db
       .prepare('SELECT play_count FROM tracks WHERE artist = ? AND title = ?')
@@ -261,13 +266,14 @@ export class TrackrDatabase {
     genre?: string | null;
     bpm?: number | null;
     key_name?: string | null;
+    cdj_key?: string | null;
     art_filename?: string | null;
     enrichment_status?: string;
     play_count?: number;
   })[] {
     return this._db.prepare(`
-      SELECT st.*, t.label, t.year, t.release_date, t.genre, t.bpm, t.key_name, t.art_filename,
-             t.enrichment_status, t.play_count
+      SELECT st.*, t.label, t.year, t.release_date, t.genre, t.bpm, t.key_name, t.cdj_key,
+             t.art_filename, t.enrichment_status, t.play_count
       FROM session_tracks st
       LEFT JOIN tracks t ON st.artist = t.artist AND st.title = t.title
       WHERE st.session_id = ?
@@ -335,6 +341,15 @@ export class TrackrDatabase {
       ).run();
       if (reset.changes > 0) console.log(`[db] Migration: reset ${reset.changes} track(s) for release_date re-enrichment`);
       this.setPref('release_date_migrated', '1');
+    }
+  }
+
+  /** Add cdj_key column for storing the CDJ's own key analysis (more accurate than Beatport). */
+  private _migrateCdjKey(): void {
+    const cols = this._db.pragma('table_info(tracks)') as Array<{ name: string }>;
+    if (!cols.some(c => c.name === 'cdj_key')) {
+      this._db.exec('ALTER TABLE tracks ADD COLUMN cdj_key TEXT');
+      console.log('[db] Migration: added cdj_key column');
     }
   }
 

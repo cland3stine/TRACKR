@@ -332,7 +332,7 @@ function initModules(outputRoot: string): void {
 const ENRICHMENT_WAIT_MS = 5000;
 
 /** Called by prolink.ts when a track passes all gates and the timer fires. */
-function handlePublish(line: string, deviceId: number, publishedAt: number): void {
+function handlePublish(line: string, deviceId: number, publishedAt: number, cdjKey: string | null): void {
   if (!_isRunning || !outputWriter || !db) {
     console.warn('[main] handlePublish: stopped or not initialized, skipping');
     return;
@@ -347,7 +347,7 @@ function handlePublish(line: string, deviceId: number, publishedAt: number): voi
   let playCount = 0;
   if (parts) {
     const [artist, title] = parts;
-    playCount = db.incrementTrackPlayCount(artist, title);     // per-track lifetime count (badge)
+    playCount = db.incrementTrackPlayCount(artist, title, cdjKey);  // per-track lifetime count (badge) + CDJ key
 
     // Record in session history
     if (_currentSessionId !== null) {

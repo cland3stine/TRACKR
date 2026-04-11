@@ -267,7 +267,8 @@ export async function enrichTrack(
   }
 }
 
-/** Convert a TrackRow to an EnrichmentResult for API/IPC consumption. */
+/** Convert a TrackRow to an EnrichmentResult for API/IPC consumption.
+ *  CDJ key (from rekordbox analysis) is preferred over Beatport key. */
 export function rowToResult(row: TrackRow): EnrichmentResult {
   return {
     year: row.year ?? undefined,
@@ -275,7 +276,7 @@ export function rowToResult(row: TrackRow): EnrichmentResult {
     label: row.label ?? undefined,
     genre: row.genre ?? undefined,
     bpm: row.bpm ?? undefined,
-    key: row.key_name ?? undefined,
+    key: row.cdj_key ?? row.key_name ?? undefined,
     artUrl: row.art_url ?? undefined,
     artFilename: row.art_filename ?? undefined,
     source: row.source ?? 'beatport',
