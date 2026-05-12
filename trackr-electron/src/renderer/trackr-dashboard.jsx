@@ -2070,6 +2070,8 @@ export default function TRACKR() {
                           {exportOpen && <div style={{ position: "fixed", inset: 0, zIndex: 9 }} onClick={() => setExportOpen(false)} />}
                           {exportOpen && (() => {
                             const fields = [
+                              { key: "track_number", label: "Track #", default: true },
+                              { key: "timestamp", label: "Timestamp", default: false },
                               { key: "artist", label: "Artist", default: true },
                               { key: "title", label: "Title", default: true },
                               { key: "label", label: "Label", default: true },
@@ -2077,7 +2079,7 @@ export default function TRACKR() {
                               { key: "key_name", label: "Key", default: false },
                             ];
                             const stored = JSON.parse(localStorage.getItem("trackr-export-fields") || "null");
-                            const initial = stored || Object.fromEntries(fields.map(f => [f.key, f.default]));
+                            const initial = { ...Object.fromEntries(fields.map(f => [f.key, f.default])), ...(stored || {}) };
                             return (
                               <div style={{
                                 position: "absolute", bottom: "100%", left: 0, marginBottom: 4, zIndex: 10,
@@ -2109,7 +2111,9 @@ export default function TRACKR() {
                                       if (ef.label !== false && t.label) meta.push(t.label);
                                       if (ef.year !== false && (t.release_date || t.year)) meta.push(t.release_date || String(t.year));
                                       if (ef.key_name !== false && (t.cdj_key || t.key_name)) meta.push(keyCamelot ? toCamelot(t.cdj_key || t.key_name) : (t.cdj_key || t.key_name));
-                                      let line = `${i + 1}. ${parts.join(" - ")}`;
+                                      const ts = ef.timestamp && t.played_at ? ` ${new Date(t.played_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}` : "";
+                                      const num = ef.track_number !== false ? `${i + 1}. ` : "";
+                                      let line = `${num}${ts ? ts.trim() + " " : ""}${parts.join(" - ")}`;
                                       if (meta.length) line += ` [${meta.join(", ")}]`;
                                       return line;
                                     });
