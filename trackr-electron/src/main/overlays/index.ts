@@ -4,8 +4,9 @@
  * GET /overlay/main    → landscape overlay HTML
  * GET /overlay/tiktok  → portrait overlay HTML
  * GET /overlay/events  → SSE stream
- * POST /overlay/test   → emit test track_change event
- * POST /overlay/hide   → emit hide_card event
+ * POST /overlay/test    → emit test track_change event
+ * GET|POST /overlay/trigger → trigger overlay for current track (Stream Deck / HTTP)
+ * POST /overlay/hide    → emit hide_card event
  */
 
 import { Express, Request, Response } from 'express';
@@ -97,6 +98,18 @@ export function registerOverlayRoutes(app: Express, deps: OverlayRouteDeps): voi
     emitTrackChange(trackData);
     res.json({ ok: true });
   });
+
+  // ── GET|POST /overlay/trigger — trigger overlay for current track (Stream Deck / HTTP) ──
+  const handleTrigger = (_req: Request, res: Response) => {
+    const lastTrack = deps.getLastTrack();
+    if (!lastTrack) { res.json({ ok: false, reason: 'no_track_playing' }); return; }
+    const trackData = { ...lastTrack };
+    if (trackData.artUrl) trackData.artUrl += '?t=' + Date.now();
+    emitTrackChange(trackData);
+    res.json({ ok: true });
+  };
+  app.get('/overlay/trigger', handleTrigger);
+  app.post('/overlay/trigger', handleTrigger);
 
   // ── POST /overlay/hide — hide overlay on all connected clients ──
   app.post('/overlay/hide', (_req: Request, res: Response) => {
