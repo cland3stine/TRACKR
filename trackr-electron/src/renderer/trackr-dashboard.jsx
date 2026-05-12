@@ -2861,7 +2861,52 @@ export default function TRACKR() {
                                   </div>
                                 </div>
                                 <div style={{ ...font(8, 400), color: C.textMuted, marginTop: 6 }}>
-                                  Triggers overlay via keyboard or Stream Deck (works when TRACKR is in background)
+                                  Triggers overlay via direct keyboard shortcut
+                                </div>
+                              </div>
+
+                              {/* Stream Deck / HTTP Trigger */}
+                              <div style={{ marginTop: 14, paddingTop: 12, borderTop: "none", backgroundImage: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 20%, rgba(255,255,255,0.06) 80%, transparent 100%)", backgroundSize: "100% 1px", backgroundPosition: "top", backgroundRepeat: "no-repeat" }}>
+                                <div style={{ ...font(8, 700), color: C.textMuted, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 10 }}>
+                                  STREAM DECK / HTTP
+                                </div>
+                                <div style={{
+                                  display: "flex", alignItems: "center", gap: 8,
+                                  padding: "6px 10px", background: "rgba(6,6,10,0.6)",
+                                  border: "1px solid rgba(255,255,255,0.05)", borderRadius: C.radiusSm,
+                                  boxShadow: "inset 0 1px 4px rgba(0,0,0,0.4)",
+                                }}>
+                                  <span style={{
+                                    ...font(7, 600), letterSpacing: 1,
+                                    color: `${C.cyan}aa`, background: "rgba(0,212,255,0.15)",
+                                    border: "1px solid rgba(0,212,255,0.3)", borderRadius: 4,
+                                    padding: "1px 6px",
+                                  }}>URL</span>
+                                  <span style={{ ...font(10, 400), color: C.textDim, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                    127.0.0.1:{port}/overlay/trigger
+                                  </span>
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(`http://127.0.0.1:${port}/overlay/trigger`);
+                                      setOverlayCopied("trigger");
+                                      setTimeout(() => setOverlayCopied(null), 2000);
+                                      addToast("Stream Deck trigger URL copied to clipboard", "success");
+                                    }}
+                                    style={{
+                                      ...font(8, 600), letterSpacing: 1.5, textTransform: "uppercase",
+                                      color: `${C.cyan}b0`, background: "rgba(255,255,255,0.03)",
+                                      border: `1px solid rgba(0,212,255,0.15)`, borderRadius: C.radiusSm,
+                                      padding: "3px 10px", cursor: "pointer",
+                                      transition: "all 0.2s ease",
+                                    }}
+                                    onMouseEnter={(e) => { e.target.style.background = "rgba(0,212,255,0.06)"; e.target.style.borderColor = "rgba(0,212,255,0.25)"; e.target.style.color = "rgba(0,212,255,0.9)"; }}
+                                    onMouseLeave={(e) => { e.target.style.background = "rgba(255,255,255,0.03)"; e.target.style.borderColor = "rgba(0,212,255,0.15)"; e.target.style.color = "rgba(0,212,255,0.7)"; }}
+                                  >
+                                    {overlayCopied === "trigger" ? "COPIED!" : "COPY"}
+                                  </button>
+                                </div>
+                                <div style={{ ...font(8, 400), color: C.textMuted, marginTop: 4, paddingLeft: 2 }}>
+                                  Recommended for Stream Deck — paste into a Website action. Works regardless of window focus.
                                 </div>
                               </div>
                             </div>
