@@ -15,6 +15,7 @@ export interface TrayCallbacks {
   isRunning:       () => boolean;
   isWindowVisible: () => boolean;
   onShowHide:      () => void;
+  onCenterWindow:  () => void;
   onNewSession:    () => void;
   onStartStop:     () => void;
   onQuit:          () => void;
@@ -37,6 +38,7 @@ function buildMenu(callbacks: TrayCallbacks): Menu {
   const visible  = callbacks.isWindowVisible();
   return Menu.buildFromTemplate([
     { label: visible ? 'Hide Window' : 'Show Window', click: callbacks.onShowHide },
+    { label: 'Center Window', click: callbacks.onCenterWindow },
     { type: 'separator' },
     { label: 'New Session', enabled: running, click: callbacks.onNewSession },
     { label: running ? 'Stop' : 'Start',              click: callbacks.onStartStop },

@@ -142,6 +142,18 @@ function buildTrayCallbacks(): TrayCallbacks {
       }
       refreshTray(buildTrayCallbacks());
     },
+    onCenterWindow: () => {
+      if (!mainWindow) return;
+      const { width, height } = mainWindow.getBounds();
+      const { bounds } = screen.getPrimaryDisplay();
+      mainWindow.setBounds({
+        x: Math.round(bounds.x + (bounds.width - width) / 2),
+        y: Math.round(bounds.y + (bounds.height - height) / 2),
+        width, height,
+      });
+      if (!mainWindow.isVisible()) { mainWindow.show(); }
+      mainWindow.focus();
+    },
     onNewSession: () => {
       if (!outputWriter) return;
       maybePurgeShortSession();
@@ -431,12 +443,13 @@ const _winStore = new Store<{ windowState?: { x: number; y: number; width: numbe
 
 function _isVisibleOnAnyDisplay(bounds: { x: number; y: number; width: number; height: number }): boolean {
   const displays = screen.getAllDisplays();
-  // Check if at least 100px of the window overlaps any display
+  // Title bar must be at least half-visible on some display so the user can grab it
+  const titleBar = { x: bounds.x, y: bounds.y, w: bounds.width, h: 40 };
   return displays.some(d => {
     const db = d.bounds;
-    const overlapX = Math.max(0, Math.min(bounds.x + bounds.width, db.x + db.width) - Math.max(bounds.x, db.x));
-    const overlapY = Math.max(0, Math.min(bounds.y + bounds.height, db.y + db.height) - Math.max(bounds.y, db.y));
-    return overlapX > 100 && overlapY > 50;
+    const overlapX = Math.max(0, Math.min(titleBar.x + titleBar.w, db.x + db.width) - Math.max(titleBar.x, db.x));
+    const overlapY = Math.max(0, Math.min(titleBar.y + titleBar.h, db.y + db.height) - Math.max(titleBar.y, db.y));
+    return overlapX > titleBar.w * 0.5 && overlapY > 20;
   });
 }
 

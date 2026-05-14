@@ -2909,8 +2909,15 @@ export default function TRACKR() {
                                     {overlayCopied === "trigger" ? "COPIED!" : "COPY"}
                                   </button>
                                 </div>
-                                <div style={{ ...font(8, 400), color: C.textMuted, marginTop: 4, paddingLeft: 2 }}>
-                                  Recommended for Stream Deck — paste into a Website action. Works regardless of window focus.
+                                <div style={{
+                                  marginTop: 8, padding: "8px 10px",
+                                  background: "rgba(0,212,255,0.04)",
+                                  border: `1px solid rgba(0,212,255,0.12)`,
+                                  borderRadius: C.radiusXs,
+                                }}>
+                                  <div style={{ ...font(8, 500), color: C.textDim, lineHeight: 1.5 }}>
+                                    Stream Deck: add a <span style={{ color: C.textPrimary }}>Website</span> action, paste this URL, and select <span style={{ color: C.textPrimary }}>Get Request in background</span>. Works regardless of window focus.
+                                  </div>
                                 </div>
                               </div>
                             </div>
